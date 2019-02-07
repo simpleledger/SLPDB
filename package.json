@@ -1,0 +1,49 @@
+{
+  "name": "slpdb",
+  "version": "0.0.1",
+  "description": "Data and caching layer for Simple Ledger Protocol transactions",
+  "main": "index.js",
+  "scripts": {
+    "test": "tsc && test",
+    "start": "tsc && node index",
+    "lint": "./node_modules/.bin/eslint ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/simpleledger/slpdb.git"
+  },
+  "keywords": [
+    "SLP"
+  ],
+  "author": "SLP Developers",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/simpleledger/slpdb/issues"
+  },
+  "homepage": "https://github.com/simpleledger/slpdb#readme",
+  "dependencies": {
+    "@types/dotenv": "^6.1.0",
+    "@types/ip": "^1.1.0",
+    "@types/mongodb": "^3.1.19",
+    "@types/node": "^10.12.21",
+    "@types/p-limit": "^2.0.0",
+    "@types/p-queue": "^3.0.0",
+    "@types/zeromq": "^4.6.1",
+    "bitcoin-rpc-promise": "^2.1.6",
+    "bitcore-lib-cash": "^0.19.0",
+    "dotenv": "^6.0.0",
+    "iconv-lite": "^0.4.24",
+    "ip": "^1.1.5",
+    "level": "^4.0.0",
+    "leveldown": "^4.0.1",
+    "mingo": "^2.2.4",
+    "mongodb": "^3.1.4",
+    "p-limit": "^2.0.0",
+    "p-queue": "^3.0.0",
+    "traverse": "^0.6.6",
+    "zeromq": "^4.6.0"
+  },
+  "devDependencies": {
+    "eslint": "^5.6.1"
+  }
+}
