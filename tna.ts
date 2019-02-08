@@ -9,15 +9,9 @@ export class TNA {
         this.rpc = rpcClient;
     }
 
-    async fromHash(hash: string) {
-        let txnhex = await this.rpc.getRawTransaction(hash);
-        let txn = await this.fromTx(txnhex);
-        return txn;
-    }
     
-    async fromTx(rawTxnHex: string, options?: any): Promise<TNATxn> {
-        return await (async function(rawTxnHex, options) {
-            let gene: Bitcore.Transaction  = new bitcore.Transaction(rawTxnHex);
+    async fromTx(gene: Bitcore.Transaction, options?: any): Promise<TNATxn|null> {
+        return await (async function(gene, options) {
             let t = gene.toObject()
             let inputs: Xput[] = [];
             let outputs: Xput[] = [];
@@ -97,7 +91,7 @@ export class TNA {
                 })
             }
             return { tx: { h: t.hash }, in: inputs, out: outputs }   
-        })(rawTxnHex, options);
+        })(gene, options);
     }
 }
 

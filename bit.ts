@@ -1,4 +1,4 @@
-import { BitcoinRpcClient } from './global'
+import { BitcoinRpcClient, Bitcore } from './global'
 const RpcClient = require('bitcoin-rpc-promise')
 import zmq from 'zeromq';
 import pLimit from 'p-limit';
@@ -7,7 +7,10 @@ import { Config } from './config';
 import { Info } from './info';
 import { Db, MempoolItem, BlockItem } from './db';
 import { TNA, TNATxn } from './tna';
+const BufferReader = require('bufio/lib/reader');
+const Block = require('bcash/lib/primitives/block');
 
+const bitcore = require('bitcore-lib-cash');
 const queue = new pQueue({ concurrency: Config.rpc.limit })
 
 export class Bit {
@@ -86,11 +89,16 @@ export class Bit {
             let tasks: Promise<any>[] = []
             const limit = pLimit(Config.rpc.limit)
             const self = this;
+
+            let blockHex: string = await this.rpc.getBlock(block_content.hash, false)
+            let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
+
             for(let i=0; i<txs.length; i++) {
+                let txnhex = block.txs[i].toRaw().toString('hex');
                 tasks.push(limit(async function() {
                     try {
-                        let t: TNATxn = await self.requesttx(txs[i])
-                        
+                            let gene: Bitcore.Transaction = new bitcore.Transaction(txnhex);
+                            let t: TNATxn = await self.tna.fromTx(gene);
                         t.blk = {
                             i: block_index,
                             h: block_hash,
