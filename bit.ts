@@ -12,6 +12,28 @@ const Block = require('bcash/lib/primitives/block');
 
 const bitcore = require('bitcore-lib-cash');
 
+import BITBOXSDK from 'bitbox-sdk/lib/bitbox-sdk';
+const BITBOX = new BITBOXSDK();
+import { Slp, BitboxNetwork } from 'slpjs';
+const slp = new Slp(BITBOX);
+
+const slp_txn_filter = function(txn: Bitcore.Transaction): boolean {
+    try {
+        slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer)
+        return true
+    } catch(_){
+        return false
+    }
+}
+
+const slp_txn_filter2 = function(txnhex: string): boolean {
+    if(txnhex.includes('534c5000')) {
+        return true
+    }
+    return false
+}
+
+
 export class Bit {
     db!: Db;
     rpc!: BitcoinRpcClient;
@@ -97,20 +119,22 @@ export class Bit {
 
             for(let i=0; i<txs.length; i++) {
                 let txnhex = block.txs[i].toRaw().toString('hex');
-                tasks.push(limit(async function() {
-                    try {
+                if(slp_txn_filter2(txnhex)) {
+                    tasks.push(limit(async function() {
+                        try {
                             let gene: Bitcore.Transaction = new bitcore.Transaction(txnhex);
                             let t: TNATxn = await self.tna.fromTx(gene);
-                        t.blk = {
-                            i: block_index,
-                            h: block_hash,
-                            t: block_time
+                            t.blk = {
+                                i: block_index,
+                                h: block_hash,
+                                t: block_time
+                            }
+                            return t;
+                        } catch(err) {
+                            console.log('crawl Error =', err)
                         }
-                        return t;
-                    } catch(err) {
-                        console.log('crawl Error =', err)
-                    }
-                }))
+                    }))
+                }
             }
             let btxs = await Promise.all(tasks)
             console.log('Block', block_index, ':', txs.length, 'txs |', btxs.length, 'processed txs')
@@ -217,7 +241,7 @@ export class Bit {
                         console.log('Duplicate mempool item: ', content)
                     } else {
                         console.log('mempool sync ERR ', e, content)
-                    process.exit()
+                        process.exit()
                     }
                 }
             })
