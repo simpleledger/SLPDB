@@ -8,32 +8,45 @@ import { Config } from './config';
 */
 
 export module Info {
-	export const checkpoint = async function(): Promise<number> {
+	export const checkpoint = async function(): Promise<{ height: number, hash: string }> {
 		try {
 			let value = await kv.get('tip');
 			let cp = parseInt(value)
+			let hash = await kv.get(value + '-hash');
 			if (cp) {
-				//console.log('Checkpoint found,', cp)
-				return cp
+				console.log('Checkpoint found,', cp)
+				return { height: cp, hash: hash }
 			}
-			//console.log('Checkpoint not found, starting from GENESIS')
-		} catch(err) {
-			// console.log('checkpoint err', err);
-		} 
-		return Config.core.from;
+		} catch(_) { } 
+		console.log('Checkpoint not found, starting from', Config.core.from)
+		return { height: Config.core.from, hash: null }
 	}
-	export const updateTip = async function(index: any): Promise<void> {
+	export const updateTip = async function(index: number, hash: string): Promise<void> {
 		try {
-			let a = await kv.put('tip', index);
-			//console.log('Tip updated to', index);
+			await kv.put('tip', index);
+			await kv.put(index + '-hash', hash);
 		} catch (err) {
 			console.log('updateTip err:', err)
 		}
 	}
+	export const getCheckpointHash = async function(index: number) {
+		try {
+			return await kv.get(index + '-hash');
+		} catch(_) {}
+		return null
+	}
+
 	export const deleteTip = async function() {
 		try { 
-			await kv.del('tip')
-			//console.log('Tip deleted')
+			await kv.del('tip');
+		} catch(err) {
+			console.log('deleteTip err', err)
+		}
+	}
+
+	export const deleteOldTipHash = async function (index: number){
+		try { 
+			await kv.del(index + '-hash');
 		} catch(err) {
 			console.log('deleteTip err', err)
 		}

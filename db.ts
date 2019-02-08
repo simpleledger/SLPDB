@@ -1,26 +1,10 @@
 import { MongoClient, Db as MongoDb } from 'mongodb';
 import { Config, DbConfig } from './config';
+import { TNATxn } from './tna';
+import { RpcBlockInfo } from './global';
 
 export interface MempoolItem {
 
-}
-
-export interface BlockItem {
-    hash: string;
-    confirmations: number;
-    size: number;
-    height: number;
-    version: number;
-    versionHex: string;
-    merkleroot: string;
-    tx: string[];
-    time: string;
-    mediantime: number;
-    nonce: number;
-    bits: string;
-    difficulty: number;
-    chainwork: string;
-    nextblockhash: string;
 }
 
 export class Db {
@@ -94,7 +78,7 @@ export class Db {
         })
     }
 
-    async blockreplace(items: BlockItem[], block_index: number) {
+    async blockreplace(items: TNATxn[], block_index: number) {
         console.log('Deleting all blocks greater than or equal to', block_index)
         await this.db.collection('confirmed').deleteMany({
             'blk.i': {
@@ -124,25 +108,25 @@ export class Db {
         }
     }
 
-    async blockinsert(items: BlockItem[], block_index: number) {
+    async blockinsert(items: TNATxn[], block_index: number) {
         let index = 0
         while (true) {
-        let chunk = items.slice(index, index+1000)
-        if (chunk.length > 0) {
-            try {
-                await this.db.collection('confirmed').insertMany(chunk, { ordered: false })
-                //console.log('..chunk ' + index + ' processed ...')
-            } catch (e) {
-            // duplicates are ok because they will be ignored
-                if (e.code !== 11000) {
-                    console.log('blockinsert ERR ', e, items, block_index)
-                    process.exit()
+            let chunk = items.slice(index, index + 1000)
+            if (chunk.length > 0) {
+                try {
+                    await this.db.collection('confirmed').insertMany(chunk, { ordered: false })
+                    //console.log('..chunk ' + index + ' processed ...')
+                } catch (e) {
+                // duplicates are ok because they will be ignored
+                    if (e.code !== 11000) {
+                        console.log('blockinsert ERR ', e, items, block_index)
+                        process.exit()
+                    }
                 }
+                index+=1000
+            } else {
+                break
             }
-            index+=1000
-        } else {
-            break
-        }
         }
         //console.log('Block ' + block_index + ' inserted ')
     }
@@ -210,6 +194,3 @@ export class Db {
         }
     }
 }
-// module.exports = {
-//   init: init, exit: exit, block: block, mempool: mempool
-// }

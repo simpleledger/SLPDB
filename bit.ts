@@ -1,11 +1,11 @@
-import { BitcoinRpcClient, Bitcore } from './global'
+import { BitcoinRpcClient, Bitcore, RpcBlockInfo } from './global'
 const RpcClient = require('bitcoin-rpc-promise')
 import zmq from 'zeromq';
 import pLimit from 'p-limit';
 import pQueue from 'p-queue';
 import { Config } from './config';
 import { Info } from './info';
-import { Db, MempoolItem, BlockItem } from './db';
+import { Db, MempoolItem } from './db';
 import { TNA, TNATxn } from './tna';
 const BufferReader = require('bufio/lib/reader');
 const Block = require('bcash/lib/primitives/block');
@@ -14,7 +14,7 @@ const bitcore = require('bitcore-lib-cash');
 
 import BITBOXSDK from 'bitbox-sdk/lib/bitbox-sdk';
 const BITBOX = new BITBOXSDK();
-import { Slp, BitboxNetwork } from 'slpjs';
+import { Slp } from 'slpjs';
 const slp = new Slp(BITBOX);
 
 const slp_txn_filter = function(txn: Bitcore.Transaction): boolean {
@@ -27,7 +27,7 @@ const slp_txn_filter = function(txn: Bitcore.Transaction): boolean {
 }
 
 const slp_txn_filter2 = function(txnhex: string): boolean {
-    if(txnhex.includes('534c5000')) {
+    if(txnhex.includes('6a04534c5000')) {
         return true
     }
     return false
@@ -59,11 +59,11 @@ export class Bit {
         this.tna = new TNA(this.rpc);
     }
 
-    async requestblock(block_index: number) {
+    async requestblock(block_index: number): Promise<RpcBlockInfo> {
         try {
             let hash = await this.rpc.getBlockHash(block_index);
             return await this.rpc.getBlock(hash);
-        } catch(err){
+        } catch(err) {
             console.log('requestblock Err = ', err)
         }
     }
@@ -102,7 +102,7 @@ export class Bit {
         }
     }
 
-    async crawl(block_index: number) {
+    async crawl(block_index: number): Promise<TNATxn[]> {
         let block_content = await this.requestblock(block_index)
         let block_hash = block_content.hash
         let block_time = block_content.time
@@ -178,23 +178,35 @@ export class Bit {
     static async sync(self: Bit, type: string, hash?: string) {
         if (type === 'block') {
             try {
-                const lastSynchronized = await Info.checkpoint()
-                const currentHeight = await self.requestheight()
-                //console.log('Last Synchronized = ', lastSynchronized)
-                //console.log('Current Height = ', currentHeight)
+                let lastCheckpoint: { height: number, hash: string } = await Info.checkpoint();
+                
+                // Handle block reorg
+                let actualHash = await self.rpc.getBlockHash(lastCheckpoint.height);
+                if(lastCheckpoint.hash) {
+                    let lastCheckedHash = lastCheckpoint.hash;
+                    let lastCheckedHeight = lastCheckpoint.height;
+                    while(lastCheckedHash !== actualHash && lastCheckedHeight > Config.core.from) {
+                        lastCheckedHash = await Info.getCheckpointHash(--lastCheckedHeight)
+                        await Info.updateTip(lastCheckedHeight, null)
+                        actualHash = (await self.rpc.getBlock(actualHash)).previousblockhash
+                    }
+                    lastCheckpoint = await Info.checkpoint();
+                }
+
+                let currentHeight: number = await self.requestheight()
             
-                for(let index: number=lastSynchronized+1; index<=currentHeight; index++) {
+                for(let index: number = lastCheckpoint.height; index <= currentHeight; index++) {
                     //console.log('RPC BEGIN ' + index, new Date().toString())
                     console.time('RPC END ' + index)
-                    let content = await self.crawl(index)
+                    let content: TNATxn[] = await self.crawl(index)
                     console.timeEnd('RPC END ' + index)
                     //console.log(new Date().toString())
                     //console.log('DB BEGIN ' + index, new Date().toString())
                     console.time('DB Insert ' + index)
             
                     await self.db.blockinsert(content, index)
-            
-                    await Info.updateTip(index)
+                    await Info.deleteOldTipHash(index - 1);
+                    await Info.updateTip(index, await self.rpc.getBlockHash(index))
                     console.timeEnd('DB Insert ' + index)
                     //console.log('------------------------------------------')
                     //console.log('\n')
@@ -206,13 +218,13 @@ export class Bit {
                 }
         
                 // clear mempool and synchronize
-                if (lastSynchronized < currentHeight) {
+                if (lastCheckpoint.height < currentHeight) {
                     //console.log('Clear mempool and repopulate')
                     let items: MempoolItem[] = <MempoolItem[]>(await self.requestmempool())
                     await self.db.mempoolsync(items)
                 }
             
-                if (lastSynchronized === currentHeight) {
+                if (lastCheckpoint.height === currentHeight) {
                     //console.log('no update')
                     return null
                 } else {

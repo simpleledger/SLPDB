@@ -19,21 +19,21 @@ const daemon = {
 		const lastSynchronized = await Info.checkpoint()
 
 		console.time('Indexing Keys')
-		if (lastSynchronized === Config.core.from) {
+		if (lastSynchronized.height === Config.core.from) {
 			// First time. Try indexing
 			console.log('Indexing...', new Date())
 			await db.blockindex()
 		}
 		console.timeEnd('Indexing Keys')
 
-		if (lastSynchronized !== Config.core.from) {
-		// Resume
-		// Rewind one step and start
-		// so that it can recover even in cases
-		// where the last run crashed during index
-		// and the block was not indexed completely.
-		//console.log('Resuming...')
-		await util.fix(lastSynchronized-1)
+		if (lastSynchronized.height!== Config.core.from) {
+			// Resume
+			// Rewind one step and start
+			// so that it can recover even in cases
+			// where the last run crashed during index
+			// and the block was not indexed completely.
+			//console.log('Resuming...')
+			await util.fix(lastSynchronized.height-1)
 		}
 
 		// 3. Start synchronizing
@@ -52,13 +52,13 @@ const util = {
 		await db.init()
 		let cmd = process.argv[2]
 		if (cmd === 'fix') {
-			let from
+			let fromHeight
 			if (process.argv.length > 3) {
-				from = parseInt(process.argv[3])
+				fromHeight = parseInt(process.argv[3])
 			} else {
-				from = await Info.checkpoint()
+				fromHeight = await Info.checkpoint()
 			}
-			await util.fix(from)
+			await util.fix(fromHeight)
 			process.exit()
 		} else if (cmd === 'reset') {
 			await db.blockreset()
@@ -70,14 +70,14 @@ const util = {
 			process.exit()
 		}
 	},
-	fix: async function(from: any) {
-		console.log('Restarting from index ', from)
+	fix: async function(height: number) {
+		console.log('Restarting from index ', height)
 		console.time('replace')
 		await bit.init(db)
-		let content = await bit.crawl(from)
-		await db.blockreplace(content, from)
-		console.log('Block', from, 'fixed.')
-		await Info.updateTip(from)
+		let content = await bit.crawl(height)
+		await db.blockreplace(content, height)
+		console.log('Block', height, 'fixed.')
+		await Info.updateTip(height, null)
 		console.log('[finished]')
 		console.timeEnd('replace')
 	}

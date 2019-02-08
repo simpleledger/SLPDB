@@ -1,14 +1,32 @@
-import { BlockItem } from "./db";
 import { runInThisContext } from "vm";
 
 export interface BitcoinRpcClient {
     getBlockHash(block_index: number): string;
-    getBlock(hash: string): BlockItem;
+    getBlock(hash: string): RpcBlockInfo;
     getBlock(hash: string, verbose: boolean): string;
     getBlockCount(): number;
     getRawTransaction(hash: string): string;
     getRawMemPool(): any;
     getrawmempool(): any;
+}
+
+export interface RpcBlockInfo {
+    hash: string;
+    confirmations: number;
+    size: number;
+    height: number;
+    version: number;
+    versionHex: string;
+    merkleroot: string;
+    tx: string[];
+    time: string;
+    mediantime: number;
+    nonce: number;
+    bits: string;
+    difficulty: number;
+    chainwork: string;
+    nextblockhash: string;
+    previousblockhash: string;
 }
 
 export declare module Bitcore {
@@ -58,4 +76,8 @@ export declare module Bitcore {
     export interface Address {
         toString(format: string): string;
     }
+}
+
+export interface SlpTransaction {
+
 }
