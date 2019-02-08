@@ -11,14 +11,18 @@ const BufferReader = require('bufio/lib/reader');
 const Block = require('bcash/lib/primitives/block');
 
 const bitcore = require('bitcore-lib-cash');
-const queue = new pQueue({ concurrency: Config.rpc.limit })
 
 export class Bit {
     db!: Db;
     rpc!: BitcoinRpcClient;
     tna!: TNA;
+    outsock: zmq.Socket;
+    queue: pQueue<pQueue.DefaultAddOptions>;
 
-    constructor(){ }
+    constructor(){ 
+        this.outsock = zmq.socket('pub')
+        this.queue = new pQueue({ concurrency: Config.rpc.limit })
+    }
 
     async init(db: Db) {
         //console.log("Initializing RPC connection with bitcoind...");
@@ -39,7 +43,6 @@ export class Bit {
             return await this.rpc.getBlock(hash);
         } catch(err){
             console.log('requestblock Err = ', err)
-            throw new Error(err)
         }
     }
       /**
@@ -50,26 +53,25 @@ export class Bit {
             return await this.rpc.getBlockCount();
         } catch(err){
             console.log('requestheight Err = ', err)
-            throw new Error(err)
         }
     }
 
     async requesttx(hash: string): Promise<any> {
-        let content: any = await this.tna.fromHash(hash)
-        return content
+        let txnhex = await this.rpc.getRawTransaction(hash);
+        return new bitcore.Transaction(txnhex);
     }
 
     async requestmempool() {
         try {
-            let res = await this.rpc.getRawMemPool();
+            let txs = await this.rpc.getrawmempool();
             let tasks = []
             const limit = pLimit(Config.rpc.limit)
-            let txs = res.result
-            //console.log('txs = ', txs.length)
+            console.log('txs = ', txs.length)
+            let self = this;
             for(let i=0; i<txs.length; i++) {
                 tasks.push(limit(async function() {
-                    let content = await res.tx(txs[i])
-                    return content
+                    let content = await self.requesttx(txs[i])
+                    return self.tna.fromTx(content);
                 }))
             }
             return await Promise.all(tasks)
@@ -117,9 +119,6 @@ export class Bit {
             return []
         }
     }
-
-    outsock = zmq.socket('pub')
-
     listen() {
         let sock = zmq.socket('sub')
         sock.connect('tcp://' + Config.zmq.incoming.host + ':' + Config.zmq.incoming.port)
@@ -131,44 +130,45 @@ export class Bit {
         //console.log('Started publishing to ' + Config.zmq.outgoing.host + ':' + Config.zmq.outgoing.port)
         
         // Listen to ZMQ
-        let sync = this.sync;
+        let sync = Bit.sync;
+        let self = this;
         sock.on('message', async function(topic, message) {
             if (topic.toString() === 'hashtx') {
             let hash = message.toString('hex')
-            //console.log('New mempool hash from ZMQ = ', hash)
-            await sync('mempool', hash)
+            console.log('New mempool hash from ZMQ = ', hash)
+            await sync(self, 'mempool', hash)
             } else if (topic.toString() === 'hashblock') {
             let hash = message.toString('hex')
-            //console.log('New block hash from ZMQ = ', hash)
-            await sync('block')
+            console.log('New block hash from ZMQ = ', hash)
+            await sync(self, 'block')
             }
         })
         
         // Don't trust ZMQ. Try synchronizing every 1 minute in case ZMQ didn't fire
         setInterval(async function() {
-            await sync('block')
+            await Bit.sync(self, 'block')
         }, 60000)
         
     }
         
-    async sync(type: string, hash?: string) {
+    static async sync(self: Bit, type: string, hash?: string) {
         if (type === 'block') {
             try {
                 const lastSynchronized = await Info.checkpoint()
-                const currentHeight = await this.requestheight()
+                const currentHeight = await self.requestheight()
                 //console.log('Last Synchronized = ', lastSynchronized)
                 //console.log('Current Height = ', currentHeight)
             
                 for(let index: number=lastSynchronized+1; index<=currentHeight; index++) {
                     //console.log('RPC BEGIN ' + index, new Date().toString())
                     console.time('RPC END ' + index)
-                    let content = await this.crawl(index)
+                    let content = await self.crawl(index)
                     console.timeEnd('RPC END ' + index)
                     //console.log(new Date().toString())
                     //console.log('DB BEGIN ' + index, new Date().toString())
                     console.time('DB Insert ' + index)
             
-                    await this.db.blockinsert(content, index)
+                    await self.db.blockinsert(content, index)
             
                     await Info.updateTip(index)
                     console.timeEnd('DB Insert ' + index)
@@ -178,14 +178,14 @@ export class Bit {
                     // zmq broadcast
                     let b = { i: index, txs: content }
                     //console.log('Zmq block = ', JSON.stringify(b, null, 2))
-                    this.outsock.send(['block', JSON.stringify(b)])
+                    self.outsock.send(['block', JSON.stringify(b)])
                 }
         
                 // clear mempool and synchronize
                 if (lastSynchronized < currentHeight) {
                     //console.log('Clear mempool and repopulate')
-                    let items: MempoolItem[] = <MempoolItem[]>(await this.requestmempool())
-                    await this.db.mempoolsync(items)
+                    let items: MempoolItem[] = <MempoolItem[]>(await self.requestmempool())
+                    await self.db.mempoolsync(items)
                 }
             
                 if (lastSynchronized === currentHeight) {
@@ -198,19 +198,19 @@ export class Bit {
             } catch (e) {
                 console.log('block sync Error', e)
                 console.log('Shutting down Bitdb...', new Date().toString())
-                await this.db.exit()
+                await self.db.exit()
                 process.exit()
             }
         } else if (type === 'mempool') {
-            let outsock = this.outsock;
-            const self = this;
-            queue.add(async function() {
-                let content = await self.requesttx(<string>hash)
+            //let outsock = self.outsock;
+            self.queue.add(async function() {
+                let txn = await self.requesttx(<string>hash)
+                let content: TNATxn = await self.tna.fromTx(txn);
                 try {
                     await self.db.mempoolinsert(content)
                     //console.log('# Q inserted [size: ' + queue.size + ']',  hash)
                     //console.log(content)
-                    outsock.send(['mempool', JSON.stringify(content)])
+                    self.outsock.send(['mempool', JSON.stringify(content)])
                 } catch (e) {
                     // duplicates are ok because they will be ignored
                     if (e.code == 11000) {
@@ -227,7 +227,7 @@ export class Bit {
 
     async run() {
         // initial block sync
-        await this.sync('block')
+        await Bit.sync(this, 'block')
         
         // initial mempool sync
         //console.log('Clear mempool and repopulate')

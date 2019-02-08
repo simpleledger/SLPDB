@@ -4,9 +4,11 @@ import { runInThisContext } from "vm";
 export interface BitcoinRpcClient {
     getBlockHash(block_index: number): string;
     getBlock(hash: string): BlockItem;
+    getBlock(hash: string, verbose: boolean): string;
     getBlockCount(): number;
     getRawTransaction(hash: string): string;
     getRawMemPool(): any;
+    getrawmempool(): any;
 }
 
 export declare module Bitcore {

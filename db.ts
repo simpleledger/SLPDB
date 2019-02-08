@@ -50,9 +50,7 @@ export class Db {
     }
 
     mempoolinsert(item: MempoolItem) {
-        if(this.db) {
-            return this.db.collection('unconfirmed').insertMany([item])
-        }
+        return this.db.collection('unconfirmed').insertMany([item])
     }
 
     async mempoolreset() {

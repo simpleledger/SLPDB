@@ -19,7 +19,6 @@ export module Info {
 			//console.log('Checkpoint not found, starting from GENESIS')
 		} catch(err) {
 			// console.log('checkpoint err', err);
-			// throw err;
 		} 
 		return Config.core.from;
 	}
@@ -28,7 +27,7 @@ export module Info {
 			let a = await kv.put('tip', index);
 			//console.log('Tip updated to', index);
 		} catch (err) {
-			console.log('updateTip err:',err)
+			console.log('updateTip err:', err)
 		}
 	}
 	export const deleteTip = async function() {
