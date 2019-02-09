@@ -34,7 +34,6 @@ const daemon = {
 		console.log('[INFO] SLPDB Synchronization with BCH blockchain complete.', new Date())
 
 		// 4. Start listening
-		console.log('[INFO] Listening via ZeroMQ...');
 		bit.listen();
 	}
 }

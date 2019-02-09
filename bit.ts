@@ -1,4 +1,4 @@
-import { BitcoinRpcClient, Bitcore, RpcBlockInfo } from './global'
+import { Bitcore, BitcoinRpc } from './vendor'
 const RpcClient = require('bitcoin-rpc-promise')
 import zmq from 'zeromq';
 import pLimit from 'p-limit';
@@ -22,7 +22,7 @@ const slp_txn_filter = function(txnhex: string): boolean {
 
 export class Bit {
     db!: Db;
-    rpc!: BitcoinRpcClient;
+    rpc!: BitcoinRpc.RpcClient;
     tna!: TNA;
     outsock: zmq.Socket;
     queue: pQueue<pQueue.DefaultAddOptions>;
@@ -40,14 +40,14 @@ export class Bit {
         console.log("[INFO] Initializing RPC connection with bitcoind...");
         this.db = db;
         let connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port
-        this.rpc = <BitcoinRpcClient>(new RpcClient(connectionString));
+        this.rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
         console.log("[INFO] Testing RPC connection...");
         let block = await this.requestblock(0);
         console.log("[INFO] JSON-RPC is initialized.");
         this.tna = new TNA(this.rpc);
     }
 
-    async requestblock(block_index: number): Promise<RpcBlockInfo> {
+    async requestblock(block_index: number): Promise<BitcoinRpc.RpcBlockInfo> {
         try {
             let hash = await this.rpc.getBlockHash(block_index);
             return await this.rpc.getBlock(hash);
@@ -148,8 +148,8 @@ export class Bit {
                 if(slp_txn_filter(txnhex)) {
                     tasks.push(limit(async function() {
                         try {
-                            let gene: Bitcore.Transaction = new bitcore.Transaction(txnhex);
-                            let t: TNATxn = await self.tna.fromTx(gene);
+                            //let gene: Bitcore.Transaction = new bitcore.Transaction(txnhex);
+                            let t: TNATxn = await self.tna.fromTx(block.txs[i]);
                             t.blk = {
                                 i: block_index,
                                 h: block_hash,
@@ -163,7 +163,7 @@ export class Bit {
                 }
             }
             let btxs = await Promise.all(tasks)
-            console.log('[INFO] Block', block_index, ':', txs.length, 'txs |', btxs.length, 'processed SLP txs')
+            console.log('[INFO] Block', block_index, 'processed :', txs.length, 'BCH txs |', btxs.length, 'SLP txs')
             return btxs
         } else {
             return []
@@ -186,19 +186,22 @@ export class Bit {
         sock.on('message', async function(topic, message) {
             if (topic.toString() === 'hashtx') {
                 let hash = message.toString('hex')
-                console.log('[ZMQ] Txn hash :', hash)
+                console.log('[ZMQ] Txn hash:', hash)
                 await sync(self, 'mempool', hash)
             } else if (topic.toString() === 'hashblock') {
                 let hash = message.toString('hex')
-                console.log('[ZMQ] Block hash :', hash)
+                console.log('[ZMQ] Block hash:', hash)
                 await sync(self, 'block')
             }
         })
+        console.log('[INFO] Listening for blockchain events...');
         
         // Don't trust ZMQ. Try synchronizing every 1 minute in case ZMQ didn't fire
         setInterval(async function() {
+            console.log('[INFO] ##### Re-checking last block #####')
             await Bit.sync(self, 'block')
             await Bit.sync(self, 'mempool')
+            console.log('[INFO] ##### Re-checking complete #####')
         }, 60000)
     }
         

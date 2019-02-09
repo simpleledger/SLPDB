@@ -1,16 +1,19 @@
 import { runInThisContext } from "vm";
+import { VerboseRawTransaction } from 'bitbox-sdk/lib/RawTransactions'
 
-export interface BitcoinRpcClient {
-    getBlockHash(block_index: number): string;
-    getBlock(hash: string): RpcBlockInfo;
-    getBlock(hash: string, verbose: boolean): string;
-    getBlockCount(): number;
-    getRawTransaction(hash: string): string;
-    getRawMempool(): string[];
-    getTxOut(hash: string, vout: number, includemempoop: boolean): RpcTxOutInfo|null;
-}
-
-export interface RpcTxOutInfo {
+export module BitcoinRpc {
+    export interface RpcClient {
+        getBlockHash(block_index: number): string;
+        getBlock(hash: string): RpcBlockInfo;
+        getBlock(hash: string, verbose: boolean): string;
+        getBlockCount(): number;
+        getRawTransaction(hash: string): string;
+        getRawTransaction(hash: string, verbose: boolean): VerboseRawTransaction;
+        getRawMempool(): string[];
+        getTxOut(hash: string, vout: number, includemempool: boolean): VerboseTxOut|null;
+    }
+    
+    export interface VerboseTxOut {
         bestblock: string,      //  (string) the block hash
         confirmations: number,  //  (numeric) The number of confirmations
         value: number,          //  (numeric) The transaction value in BCH
@@ -23,26 +26,29 @@ export interface RpcTxOutInfo {
         },
         version: number,        //  (numeric) The version
         coinbase: boolean       //  (boolean) Coinbase or not
+    }
+
+    export interface RpcBlockInfo {
+        hash: string;
+        confirmations: number;
+        size: number;
+        height: number;
+        version: number;
+        versionHex: string;
+        merkleroot: string;
+        tx: string[];
+        time: string;
+        mediantime: number;
+        nonce: number;
+        bits: string;
+        difficulty: number;
+        chainwork: string;
+        nextblockhash: string;
+        previousblockhash: string;
+    }
 }
 
-export interface RpcBlockInfo {
-    hash: string;
-    confirmations: number;
-    size: number;
-    height: number;
-    version: number;
-    versionHex: string;
-    merkleroot: string;
-    tx: string[];
-    time: string;
-    mediantime: number;
-    nonce: number;
-    bits: string;
-    difficulty: number;
-    chainwork: string;
-    nextblockhash: string;
-    previousblockhash: string;
-}
+
 
 export declare module Bitcore {
     export interface TxnInput {
@@ -82,6 +88,9 @@ export declare module Bitcore {
         inputs: TxnInput[];
         outputs: TxnOutput[];
         toObject(): any;
+        serialize(unsafe?: boolean): string
+        hash: string;
+        id: string;
     }
 
     export interface Networks {

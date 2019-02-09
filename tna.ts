@@ -1,11 +1,11 @@
 require('dotenv').config()
-import { BitcoinRpcClient, Bitcore } from './global';
+import { BitcoinRpc, Bitcore } from './vendor';
 
 const bitcore = require('bitcore-lib-cash')
 
 export class TNA {
-    rpc: BitcoinRpcClient;
-    constructor(rpcClient: BitcoinRpcClient) {
+    rpc: BitcoinRpc.RpcClient;
+    constructor(rpcClient: BitcoinRpc.RpcClient) {
         this.rpc = rpcClient;
     }
 
