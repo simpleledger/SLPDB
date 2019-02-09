@@ -110,6 +110,12 @@ export class Bit {
         }
     }
 
+    async asyncForEach(array, callback) {
+        for (let index = 0; index < array.length; index++) {
+          await callback(array[index], index, array);
+        }
+    }
+
     async syncSlpMempool() {
         let currentMempoolList = await this.rpc.getRawMempool();
         console.log('[INFO] BCH mempool txs =', currentMempoolList.length);
@@ -118,7 +124,7 @@ export class Bit {
         cacheCopyForRemovals.forEach((txhex, txid) => { txid in currentMempoolList ? null : this.removeCachedTransaction(txid); });
         // Add SLP txs to the mempool not in the cache.
         let cachedMempoolTxs = this.slpMempool.keys();
-        await currentMempoolList.forEach(async (txid) => { txid in cachedMempoolTxs ? null : await this.addTransactionToSlpMempool(txid); });
+        await this.asyncForEach(currentMempoolList, async (txid) => { txid in cachedMempoolTxs ? null : await this.addTransactionToSlpMempool(txid); });
         console.log('[INFO] SLP mempool txs =', this.slpMempool.size);
     }
 
