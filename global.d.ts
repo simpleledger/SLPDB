@@ -6,8 +6,23 @@ export interface BitcoinRpcClient {
     getBlock(hash: string, verbose: boolean): string;
     getBlockCount(): number;
     getRawTransaction(hash: string): string;
-    getRawMemPool(): any;
-    getrawmempool(): any;
+    getRawMempool(): string[];
+    getTxOut(hash: string, vout: number, includemempoop: boolean): RpcTxOutInfo|null;
+}
+
+export interface RpcTxOutInfo {
+        bestblock: string,      //  (string) the block hash
+        confirmations: number,  //  (numeric) The number of confirmations
+        value: number,          //  (numeric) The transaction value in BCH
+        scriptPubKey: {         //  (json object)
+            asm: string,        //  (string) 
+            hex: string,        //  (string) 
+            reqSigs: number,    //  (numeric) Number of required signatures
+            type: string,       //  (string) The type, eg pubkeyhash
+            addresses: string[] //  (array of string) array of bitcoin addresses
+        },
+        version: number,        //  (numeric) The version
+        coinbase: boolean       //  (boolean) Coinbase or not
 }
 
 export interface RpcBlockInfo {

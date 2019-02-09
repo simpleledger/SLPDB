@@ -7,26 +7,31 @@ import { Config } from './config';
 * Return the last synchronized checkpoint
 */
 
+export interface ChainSyncCheckpoint {
+	height: number, 
+	hash: string|null 
+}
+
 export module Info {
-	export const checkpoint = async function(): Promise<{ height: number, hash: string }> {
+	export const checkpoint = async function(): Promise<ChainSyncCheckpoint> {
 		try {
 			let value = await kv.get('tip');
 			let cp = parseInt(value)
 			let hash = await kv.get(value + '-hash');
 			if (cp) {
-				console.log('Checkpoint found,', cp)
+				//console.log('Checkpoint found,', cp)
 				return { height: cp, hash: hash }
 			}
 		} catch(_) { } 
-		console.log('Checkpoint not found, starting from', Config.core.from)
+		console.log("[INFO] Checkpoint not found, starting sync at 'Config.core.from' block index", Config.core.from)
 		return { height: Config.core.from, hash: null }
 	}
-	export const updateTip = async function(index: number, hash: string): Promise<void> {
+	export const updateTip = async function(index: number, hash: string|null): Promise<void> {
 		try {
 			await kv.put('tip', index);
 			await kv.put(index + '-hash', hash);
 		} catch (err) {
-			console.log('updateTip err:', err)
+			console.log('[ERROR] updateTip error:', err)
 		}
 	}
 	export const getCheckpointHash = async function(index: number) {
@@ -40,7 +45,7 @@ export module Info {
 		try { 
 			await kv.del('tip');
 		} catch(err) {
-			console.log('deleteTip err', err)
+			console.log('[ERROR] deleteTip err', err)
 		}
 	}
 
@@ -48,13 +53,7 @@ export module Info {
 		try { 
 			await kv.del(index + '-hash');
 		} catch(err) {
-			console.log('deleteTip err', err)
+			console.log('[ERROR] deleteTip err', err)
 		}
 	}
 }
-
-// module.exports = {
-//   checkpoint: checkpoint,
-//   updateTip: updateTip,
-//   deleteTip: deleteTip
-// }

@@ -9,8 +9,7 @@ export class TNA {
         this.rpc = rpcClient;
     }
 
-    
-    async fromTx(gene: Bitcore.Transaction, options?: any): Promise<TNATxn|null> {
+    async fromTx(gene: Bitcore.Transaction, options?: any): Promise<TNATxn> {
         return await (async function(gene, options) {
             let t = gene.toObject()
             let inputs: Xput[] = [];

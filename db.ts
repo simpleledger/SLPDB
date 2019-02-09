@@ -1,11 +1,6 @@
 import { MongoClient, Db as MongoDb } from 'mongodb';
 import { Config, DbConfig } from './config';
 import { TNATxn } from './tna';
-import { RpcBlockInfo } from './global';
-
-export interface MempoolItem {
-
-}
 
 export class Db {
     config: DbConfig;
@@ -33,7 +28,7 @@ export class Db {
         await this.mongo.close()
     }
 
-    mempoolinsert(item: MempoolItem) {
+    mempoolinsert(item: TNATxn) {
         return this.db.collection('unconfirmed').insertMany([item])
     }
 
@@ -44,7 +39,7 @@ export class Db {
         })
     }
 
-    async mempoolsync(items: MempoolItem[]) {
+    async mempoolsync(items: TNATxn[]) {
 
         await this.db.collection('unconfirmed').deleteMany({})
         .catch(function(err) {

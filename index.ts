@@ -18,32 +18,24 @@ const daemon = {
 		// 2. Bootstrap actions depending on first time
 		const lastSynchronized = await Info.checkpoint()
 
-		console.time('Indexing Keys')
+		console.time('[PERF] Indexing Keys')
 		if (lastSynchronized.height === Config.core.from) {
 			// First time. Try indexing
-			console.log('Indexing...', new Date())
+			console.log('[INFO] Indexing MongoDB With Configured Keys...', new Date())
 			await db.blockindex()
 		}
-		console.timeEnd('Indexing Keys')
-
-		if (lastSynchronized.height!== Config.core.from) {
-			// Resume
-			// Rewind one step and start
-			// so that it can recover even in cases
-			// where the last run crashed during index
-			// and the block was not indexed completely.
-			//console.log('Resuming...')
-			await util.fix(lastSynchronized.height-1)
-		}
+		console.timeEnd('[PERF] Indexing Keys')
 
 		// 3. Start synchronizing
-		console.log('Synchronizing...', new Date())
-		console.time('Initial Sync')
+		console.log('[INFO] Synchronizing SLPDB with BCH blockchain...', new Date())
+		console.time('[PERF] Initial Sync')
 		await bit.run()
-		console.timeEnd('Initial Sync')
+		console.timeEnd('[PERF] Initial Sync')
+		console.log('[INFO] SLPDB Synchronization with BCH blockchain complete.', new Date())
 
 		// 4. Start listening
-		bit.listen()
+		console.log('[INFO] Listening via ZeroMQ...');
+		bit.listen();
 	}
 }
 
@@ -71,15 +63,14 @@ const util = {
 		}
 	},
 	fix: async function(height: number) {
-		console.log('Restarting from index ', height)
-		console.time('replace')
+		console.log('[INFO] Restarting sync from index ', height)
+		console.time('[PERF] replace')
 		await bit.init(db)
 		let content = await bit.crawl(height)
 		await db.blockreplace(content, height)
-		console.log('Block', height, 'fixed.')
+		console.log('[INFO] Block', height, 'fixed.')
 		await Info.updateTip(height, null)
-		console.log('[finished]')
-		console.timeEnd('replace')
+		console.timeEnd('[PERF] replace')
 	}
 }
 
