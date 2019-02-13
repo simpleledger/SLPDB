@@ -53,7 +53,7 @@ export class Bit {
             return await this.rpc.getBlock(hash);
         } catch(err) {
             //console.log('requestblock Err = ', err)
-            throw Error('Could not get block from full node rpc call.');
+            throw Error('Check your JSON-RPC connection. Could not get block from full node rpc call.');
         }
     }
     
@@ -62,7 +62,7 @@ export class Bit {
             return await this.rpc.getBlockCount();
         } catch(err){
             //console.log('requestheight Err = ', err)
-            throw Error('Could not get height from full node rpc call.')
+            throw Error('Check your JSON-RPC connection. Could not get height from full node rpc call.')
         }
     }
 
@@ -74,12 +74,10 @@ export class Bit {
     }
 
     async addTransactionToSlpMempool(txid: string) {
-        if(!this.slpMempool.has(txid) && !(txid in this.mempoolBlacklist)) {
+        if(!this.slpMempool.has(txid)) {
             let txhex = await this.rpc.getRawTransaction(txid);
             if(slp_txn_filter(txhex))
                 this.slpMempool.set(txid, txhex);
-            else    
-                this.mempoolBlacklist.push(txid);
         }
     }
 
@@ -92,20 +90,19 @@ export class Bit {
     async requestSlpMempool(): Promise<TNATxn[]> {
         try {
             await this.syncSlpMempool();
-
             let tasks = []
             const limit = pLimit(Config.rpc.limit)
             let self = this;
+            //console.log("This mempool:", this.slpMempool);
             this.slpMempool.forEach((txhex, txid) => {
                 tasks.push(limit(async function() {
-                    let content = await self.getSlpMempoolTransaction(self.slpMempool[txid])
+                    let content = await self.getSlpMempoolTransaction(txid)
                     return self.tna.fromTx(content);
                 }))
             })
             let res = await Promise.all(tasks)
             return res;
         } catch(err) {
-            //console.log('requestmempool Err', err)
             throw Error("Any unknown error has occurred when processing mempool transactions.");
         }
     }
@@ -148,8 +145,8 @@ export class Bit {
                 if(slp_txn_filter(txnhex)) {
                     tasks.push(limit(async function() {
                         try {
-                            //let gene: Bitcore.Transaction = new bitcore.Transaction(txnhex);
-                            let t: TNATxn = await self.tna.fromTx(block.txs[i]);
+                            let gene: Bitcore.Transaction = new bitcore.Transaction(txnhex);
+                            let t: TNATxn = await self.tna.fromTx(gene);
                             t.blk = {
                                 i: block_index,
                                 h: block_hash,
@@ -196,10 +193,10 @@ export class Bit {
         })
         console.log('[INFO] Listening for blockchain events...');
         
-        // Don't trust ZMQ. Try synchronizing every 1 minute in case ZMQ didn't fire
+        // Don't trust ZMQ. Try synchronizing every 10 minutes in case ZMQ didn't fire
         setInterval(async function() {
-            console.log('[INFO] ##### Re-checking last block #####')
-            await Bit.sync(self, 'block')
+            console.log('[INFO] ##### Re-checking mempool #####')
+            //await Bit.sync(self, 'block')
             await Bit.sync(self, 'mempool')
             console.log('[INFO] ##### Re-checking complete #####')
         }, 60000)
@@ -239,7 +236,7 @@ export class Bit {
         
                 // clear mempool and synchronize
                 if (lastCheckpoint.height < currentHeight) {
-                    //console.log('Clear mempool and repopulate')
+                    console.log('[INFO] Re-sync SLP mempool')
                     let items: TNATxn[] = await self.requestSlpMempool();
                     await self.db.mempoolsync(items)
                 }
@@ -260,7 +257,7 @@ export class Bit {
         } else if (type === 'mempool') {
             //let outsock = self.outsock;
             if (!hash) {
-                self.syncSlpMempool();
+                await self.syncSlpMempool();
             } else {
                 self.queue.add(async function() {
                     await self.addTransactionToSlpMempool(hash);
