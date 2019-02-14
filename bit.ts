@@ -90,13 +90,13 @@ export class Bit {
     async requestSlpMempool(): Promise<TNATxn[]> {
         try {
             await this.syncSlpMempool();
-            let tasks = []
+            let tasks: any[] = []
             const limit = pLimit(Config.rpc.limit)
             let self = this;
             //console.log("This mempool:", this.slpMempool);
             this.slpMempool.forEach((txhex, txid) => {
                 tasks.push(limit(async function() {
-                    let content = await self.getSlpMempoolTransaction(txid)
+                    let content = <Bitcore.Transaction>(await self.getSlpMempoolTransaction(txid))
                     return self.tna.fromTx(content);
                 }))
             })
@@ -107,7 +107,7 @@ export class Bit {
         }
     }
 
-    async asyncForEach(array, callback) {
+    async asyncForEach(array: any[], callback: Function) {
         for (let index = 0; index < array.length; index++) {
           await callback(array[index], index, array);
         }
@@ -121,7 +121,7 @@ export class Bit {
         cacheCopyForRemovals.forEach((txhex, txid) => { txid in currentMempoolList ? null : this.removeCachedTransaction(txid); });
         // Add SLP txs to the mempool not in the cache.
         let cachedMempoolTxs = this.slpMempool.keys();
-        await this.asyncForEach(currentMempoolList, async (txid) => { txid in cachedMempoolTxs ? null : await this.addTransactionToSlpMempool(txid); });
+        await this.asyncForEach(currentMempoolList, async (txid: string) => { txid in cachedMempoolTxs ? null : await this.addTransactionToSlpMempool(txid); });
         console.log('[INFO] SLP mempool txs =', this.slpMempool.size);
     }
 

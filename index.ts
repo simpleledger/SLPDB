@@ -5,6 +5,7 @@ import { Config } from './config';
 import { Info } from './info';
 import { Bit } from './bit';
 import { Db } from './db';
+import { SlpGraphManager } from './SlpGraphManager';
 
 const db = new Db();
 const bit = new Bit();
@@ -33,6 +34,10 @@ const daemon = {
 		console.timeEnd('[PERF] Initial Sync')
 		console.log('[INFO] SLPDB Synchronization with BCH blockchain complete.', new Date())
 
+		// 4. Start SLP Token Manager
+		let t = new SlpGraphManager();
+		t.init();
+
 		// 4. Start listening
 		bit.listen();
 	}
@@ -43,11 +48,11 @@ const util = {
 		await db.init()
 		let cmd = process.argv[2]
 		if (cmd === 'fix') {
-			let fromHeight
+			let fromHeight: number;
 			if (process.argv.length > 3) {
 				fromHeight = parseInt(process.argv[3])
 			} else {
-				fromHeight = await Info.checkpoint()
+				fromHeight = (await Info.checkpoint()).height;
 			}
 			await util.fix(fromHeight)
 			process.exit()
@@ -55,7 +60,7 @@ const util = {
 			await db.blockreset()
 			await db.mempoolreset()
 			await Info.deleteTip()
-		process.exit()
+			process.exit()
 		} else if (cmd === 'index') {
 			await db.blockindex()
 			process.exit()

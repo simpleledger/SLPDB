@@ -7,10 +7,10 @@ export module BitcoinRpc {
         getBlock(hash: string): RpcBlockInfo;
         getBlock(hash: string, verbose: boolean): string;
         getBlockCount(): number;
-        getRawTransaction(hash: string): string;
-        getRawTransaction(hash: string, verbose: boolean): VerboseRawTransaction;
+        getRawTransaction(hash: string): Promise<string>;
+        getRawTransaction(hash: string, verbose: number): Promise<VerboseRawTransaction>;
         getRawMempool(): string[];
-        getTxOut(hash: string, vout: number, includemempool: boolean): VerboseTxOut|null;
+        getTxOut(hash: string, vout: number, includemempool: boolean): Promise<VerboseTxOut|null>;
     }
     
     export interface VerboseTxOut {
@@ -47,8 +47,6 @@ export module BitcoinRpc {
         previousblockhash: string;
     }
 }
-
-
 
 export declare module Bitcore {
     export interface TxnInput {
