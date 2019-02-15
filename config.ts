@@ -17,7 +17,7 @@ export class Config {
     'pass': process.env.rpc_pass ? process.env.rpc_pass : 'password2020',
     'host': process.env.rpc_host ? process.env.host : '0.0.0.0',
     'port': process.env.rpc_port ? process.env.rpc_port : '8332',
-    'limit': Number.parseInt(process.env.rpc_limit ? process.env.rpc_limit : "15")
+    'limit': Number.parseInt(process.env.rpc_limit ? process.env.rpc_limit : "150")
   }
   static db: DbConfig = {
     name: process.env.db_name ? process.env.db_name : 'bitdb',
@@ -28,22 +28,22 @@ export class Config {
           'tx.h', 'blk.i', 'blk.t', 'blk.h',
           'in.e.a', 'in.e.h', 'in.e.i', 'in.i',
           'out.e.a', 'out.e.i', 'out.e.v', 'out.i',
-          'in.b0', 'in.b1', 'in.b2', 'in.b3', 'in.b4', 'in.b5', 'in.b6', 'in.b7', 'in.b8', 'in.b9', 'in.b10', 'in.b11', 'in.b12', 'in.b13', 'in.b14', 'in.b15',
-          'out.b0', 'out.b1', 'out.b2', 'out.b3', 'out.b4', 'out.b5', 'out.b6', 'out.b7', 'out.b8', 'out.b9', 'out.b10', 'out.b11', 'out.b12', 'out.b13', 'out.b14', 'out.b15', 'out.b16', 'out.b17', 'out.b18', 'out.b19',
-          'out.s0', 'out.s1', 'out.s2', 'out.s3', 'out.s4', 'out.s5'
+          'in.b0', 'in.b1', 'in.b2', 'in.b3', //'in.b4', 'in.b5', 'in.b6', 'in.b7', 'in.b8', 'in.b9', 'in.b10', 'in.b11', 'in.b12', 'in.b13', 'in.b14', 'in.b15',
+          'out.b0', 'out.b1', 'out.b2', 'out.b3', //'out.b4', 'out.b5', 'out.b6', 'out.b7', 'out.b8', 'out.b9', 'out.b10', 'out.b11', 'out.b12', 'out.b13', 'out.b14', 'out.b15', 'out.b16', 'out.b17', 'out.b18', 'out.b19',
+          'out.s0', 'out.s1', 'out.s2', 'out.s3', //'out.s4', 'out.s5'
         ],
-        fulltext: ['out.s0', 'out.s1', 'out.s2', 'out.s3', 'out.s4', 'out.s5']
+        fulltext: ['out.s0', 'out.s1', 'out.s2', 'out.s3']//, 'out.s4', 'out.s5']
       },
       unconfirmed: {
         keys: [
           'tx.h',
           'in.e.a', 'in.e.h', 'in.e.i', 'in.i',
           'out.e.a', 'out.e.i', 'out.e.v', 'out.i',
-          'in.b0', 'in.b1', 'in.b2', 'in.b3', 'in.b4', 'in.b5', 'in.b6', 'in.b7', 'in.b8', 'in.b9', 'in.b10', 'in.b11', 'in.b12', 'in.b13', 'in.b14', 'in.b15',
-          'out.b0', 'out.b1', 'out.b2', 'out.b3', 'out.b4', 'out.b5', 'out.b6', 'out.b7', 'out.b8', 'out.b9', 'out.b10', 'out.b11', 'out.b12', 'out.b13', 'out.b14', 'out.b15', 'out.b16', 'out.b17', 'out.b18', 'out.b19',
-          'out.s0', 'out.s1', 'out.s2', 'out.s3', 'out.s4', 'out.s5'
+          'in.b0', 'in.b1', 'in.b2', 'in.b3', //'in.b4', 'in.b5', 'in.b6', 'in.b7', 'in.b8', 'in.b9', 'in.b10', 'in.b11', 'in.b12', 'in.b13', 'in.b14', 'in.b15',
+          'out.b0', 'out.b1', 'out.b2', 'out.b3', //'out.b4', 'out.b5', 'out.b6', 'out.b7', 'out.b8', 'out.b9', 'out.b10', 'out.b11', 'out.b12', 'out.b13', 'out.b14', 'out.b15', 'out.b16', 'out.b17', 'out.b18', 'out.b19',
+          'out.s0', 'out.s1', 'out.s2', 'out.s3', //'out.s4', 'out.s5'
         ],
-        fulltext: ['out.s0', 'out.s1', 'out.s2', 'out.s3', 'out.s4', 'out.s5']
+        fulltext: ['out.s0', 'out.s1', 'out.s2', 'out.s3'] //, 'out.s4', 'out.s5']
       }
     }
   }
@@ -59,6 +59,6 @@ export class Config {
   }
   static core = {
     'version': '0.2.0',
-    'from': Number.parseInt(process.env.core_from ? process.env.core_from : "569000") //"543375")
+    'from': Number.parseInt(process.env.core_from ? process.env.core_from : "543375")
   }
 }

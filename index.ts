@@ -35,11 +35,12 @@ const daemon = {
 		console.log('[INFO] SLPDB Synchronization with BCH blockchain complete.', new Date())
 
 		// 4. Start SLP Token Manager
-		let t = new SlpGraphManager();
-		t.init();
-
-		// 4. Start listening
-		bit.listen();
+		let tokenManager = new SlpGraphManager();
+		// load graph state from db, or recreate from scratch
+		await tokenManager.initFromScratch();
+		bit._zmqSubscribers.push(tokenManager);
+		// 4. Start listening, pass in IZmqActionables
+		bit.listenToZmq();
 	}
 }
 
@@ -71,7 +72,10 @@ const util = {
 		console.time('[PERF] replace')
 		await bit.init(db)
 		let content = await bit.crawl(height)
-		await db.blockreplace(content, height)
+		if(content) {
+			let array = Array.from(content.values()).map(c => c.tnaTxn)
+			await db.blockreplace(array, height)
+		}
 		console.log('[INFO] Block', height, 'fixed.')
 		await Info.updateTip(height, null)
 		console.timeEnd('[PERF] replace')

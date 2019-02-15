@@ -3,42 +3,48 @@ import BigNumber from "bignumber.js";
 import { Bitcore, BitcoinRpc } from './vendor';
 import BITBOXSDK from 'bitbox-sdk/lib/bitbox-sdk';
 import { Config } from './config';
-
+import * as bitcore from 'bitcore-lib-cash';
 const RpcClient = require('bitcoin-rpc-promise')
 
-const bitcore = require('bitcore-lib-cash');
-var bitqueryd = require('fountainhead-bitqueryd')
+//const bitcore = require('bitcore-lib-cash');
+const bitqueryd = require('fountainhead-bitqueryd')
+const BITBOX = new BITBOXSDK();
+const slp  = new Slp(BITBOX);
+
 
 export interface TokenGraph {
     tokenDetails: SlpTransactionDetails;
     tokenStats: TokenStats;
     _txnGraph: Map<txid, GraphTxn>;
-    _addresses: Map<hash160, { token_balance_cramers: BigNumber, bch_balance_satoshis: BigNumber }>;
+    _addresses: Map<hash160, { token_balance: BigNumber, bch_balance_satoshis: BigNumber }>;
     updateTokenGraphFrom(txid: string): Promise<boolean>;
     computeStatistics(): Promise<boolean>;
 }
 
 export class SlpTokenGraph implements TokenGraph {
-    tokenDetails: SlpTransactionDetails;    
+    tokenDetails!: SlpTransactionDetails;
     tokenStats!: TokenStats;
-    tokenUtxos!: Set<string>;
+    _tokenUtxos!: Set<string>;
     _txnGraph!: Map<string, GraphTxn>;
-    _addresses!: Map<string, { token_balance_cramers: BigNumber; bch_balance_satoshis: BigNumber; }>;
+    _addresses!: Map<string, { token_balance: BigNumber; bch_balance_satoshis: BigNumber; }>;
     _slpValidator!: LocalValidator;
-    rpcClient: BitcoinRpc.RpcClient;
+    _rpcClient: BitcoinRpc.RpcClient;
+    _db!: any
 
-    constructor(tokenDetails: SlpTransactionDetails) {
-        if(tokenDetails.transactionType !== SlpTransactionType.GENESIS)
-            throw Error("Cannot create a new token graph without providing GENESIS token details")
-        this.tokenDetails = tokenDetails;
-        this.tokenUtxos = new Set<string>();
-        this._txnGraph = new Map<string, GraphTxn>();
-
+    constructor() {
         let connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port
-        this.rpcClient = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
+        this._rpcClient = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
+        this._slpValidator = new LocalValidator(BITBOX, async (txids) => [ await this._rpcClient.getRawTransaction(txids[0]) ])
+    }
 
-        const BITBOX = new BITBOXSDK();
-        this._slpValidator = new LocalValidator(BITBOX, async (txids) => [ await this.rpcClient.getRawTransaction(txids[0]) ])
+    async init(tokenId: string){
+        this._db = await bitqueryd.init();
+        let txn = new bitcore.Transaction(await this._rpcClient.getRawTransaction(tokenId))
+        let tokenDetails = slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
+        this.tokenDetails = tokenDetails;
+        this._tokenUtxos = new Set<string>();
+        this._txnGraph = new Map<string, GraphTxn>();
+        this.updateTokenGraphFrom(tokenId);
     }
 
     async asyncForEach(array: any[], callback: Function) {
@@ -53,10 +59,7 @@ export class SlpTokenGraph implements TokenGraph {
             "q": {
                 "find": { 
                     "in": {
-                        "$elemMatch": {
-                            "e.h": txid,
-                            "e.i": vout
-                        }
+                        "$elemMatch": { "e.h": txid, "e.i": vout }
                     }
                 }   
             },
@@ -64,8 +67,8 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
         //console.log(q)
-        let db = await bitqueryd.init();
-        let response: TxnQueryResponse = await db.read(q);
+
+        let response: TxnQueryResponse = await this._db.read(q);
         
         if(!response.errors) {
             let results: TxnQueryResult[] = ([].concat(<any>response.c).concat(<any>response.u));
@@ -99,18 +102,18 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async getSpendDetails(txid: string, vout: number): Promise<SpendDetails> {
-        let txOut = await this.rpcClient.getTxOut(txid, vout, false)
+        let txOut = await this._rpcClient.getTxOut(txid, vout, false)
         //console.log('TXOUT', txOut);
         if(txOut === null) {
             let spendTxnInfo = await this.queryForTxoInput(txid, vout);
             console.log("SPENDTXNINFO:", spendTxnInfo);
             if(typeof spendTxnInfo!.txid === 'string') {
-                this.tokenUtxos.delete(txid + ":" + vout)
+                this._tokenUtxos.delete(txid + ":" + vout)
                 return { txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo };
             }
         }
         console.log('TXID', txid);
-        this.tokenUtxos.add(txid + ":" + vout);
+        this._tokenUtxos.add(txid + ":" + vout);
         return { txid: null, queryResponse: null };
     }
 
@@ -119,30 +122,29 @@ export class SlpTokenGraph implements TokenGraph {
             this._txnGraph.clear();
         
         let isValid = await this._slpValidator.isValidSlpTxid(txid)
-        console.log("IS VALID:", txid, isValid);
-        let graph: GraphTxn = { details: <SlpTransactionDetails>this._slpValidator.cachedValidations[txid].details, validSlp: isValid!, outputs: [] }
+        //console.log("IS VALID:", txid, isValid);
+        let graphTxn: GraphTxn = { details: <SlpTransactionDetails>this._slpValidator.cachedValidations[txid].details, validSlp: isValid!, outputs: [] }
         let txn: Bitcore.Transaction = new bitcore.Transaction(this._slpValidator.cachedRawTransactions[txid])
         // Create SLP graph outputs for each valid SLP output
-        if(isValid && graph.details.transactionType === SlpTransactionType.GENESIS) {
-            if(graph.details.genesisOrMintQuantity!.isGreaterThan(0)) {
+        if(isValid && graphTxn.details.transactionType === SlpTransactionType.GENESIS) {
+            if(graphTxn.details.genesisOrMintQuantity!.isGreaterThan(0)) {
                 let spendDetails = await this.getSpendDetails(txid, 1)
-                graph.outputs.push({
+                graphTxn.outputs.push({
                     vout: 1,
                     bchAmout: txn.outputs[1].satoshis, 
-                    slpAmount: graph.details.genesisOrMintQuantity!,
+                    slpAmount: graphTxn.details.genesisOrMintQuantity!,
                     spendTxid: spendDetails.txid
                 })
-                //console.log("GENESIS GRAPH OUTPUT: ", graph.outputs);
             }
         }
-        else if(isValid && graph.details.sendOutputs!.length > 0) {
-            await this.asyncForEach(graph.details.sendOutputs!, async (output: BigNumber, vout: number) => { 
+        else if(isValid && graphTxn.details.sendOutputs!.length > 0) {
+            await this.asyncForEach(graphTxn.details.sendOutputs!, async (output: BigNumber, vout: number) => { 
                 if(output.isGreaterThan(0)) {
                     let spendDetails = await this.getSpendDetails(txid, vout)
-                    graph.outputs.push({
+                    graphTxn.outputs.push({
                         vout: vout,
                         bchAmout: txn.outputs[vout].satoshis, 
-                        slpAmount: graph.details.sendOutputs![vout],
+                        slpAmount: graphTxn.details.sendOutputs![vout],
                         spendTxid: spendDetails.txid
                     })
                     //console.log("SEND GRAPH OUTPUT: ", graph.outputs);
@@ -153,18 +155,18 @@ export class SlpTokenGraph implements TokenGraph {
             throw Error("Transaction has not token outputs!")
         }
 
-        this._txnGraph.set(txid, graph);
+        this._txnGraph.set(txid, graphTxn);
 
         // Recursively map out the outputs
-        console.log("GRAPH OUTPUTS:", graph.outputs)
-        await this.asyncForEach(graph.outputs.filter(o => o.spendTxid), async (o: any) => {
+        console.log("GRAPH OUTPUTS:", graphTxn.outputs)
+        await this.asyncForEach(graphTxn.outputs.filter(o => o.spendTxid), async (o: any) => {
             console.log("UPDATE FROM: ", o.spendTxid!);
             await this.updateTokenGraphFrom(o.spendTxid!);
         })
-        console.log("DONE:", graph.outputs)
+        console.log("DONE:", graphTxn.outputs)
 
 
-        this._txnGraph.set(this.tokenDetails.tokenIdHex, graph);
+        this._txnGraph.set(this.tokenDetails.tokenIdHex, graphTxn);
         return true;
     }
 
