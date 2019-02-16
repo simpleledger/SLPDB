@@ -238,7 +238,6 @@ export class Bit {
                 let hash = message.toString('hex')
                 console.log('[ZMQ] Txn hash:', hash)
                 let syncResult = await sync(self, 'mempool', hash)
-                console.log("ZMQ EVENT SUBSCRIBERS:", self._zmqSubscribers.length)
                 for (let i = 0; i < self._zmqSubscribers.length; i++) {
                     if(syncResult && self._zmqSubscribers[i].onTransactionHash) {
                         await self._zmqSubscribers[i].onTransactionHash!(syncResult);

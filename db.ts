@@ -1,7 +1,6 @@
 import { MongoClient, Db as MongoDb } from 'mongodb';
 import { Config, DbConfig } from './config';
 import { TNATxn } from './tna';
-import { SlpTokenGraph } from './SlpTokenGraph';
 
 export class Db {
     config: DbConfig;
@@ -16,7 +15,7 @@ export class Db {
         let client: MongoClient;
         try {
             //console.log("Initializing Mongo db...")
-            client = await MongoClient.connect(this.config.url, {useNewUrlParser: true})
+            client = await MongoClient.connect(this.config.url, { useNewUrlParser: true })
             this.db = client.db(this.config.name)
             this.mongo = <MongoClient>client;
             //console.log("Mongo db initialized.")
@@ -27,6 +26,20 @@ export class Db {
 
     async exit() {
         await this.mongo.close()
+    }
+
+    async tokeninsert(token: any) {
+        await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex })
+        return await this.db.collection('tokens').insertMany([token]);
+    }
+
+    async tokenreplace(token: any) {
+        await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex })
+        return await this.db.collection('tokens').insertMany([token]);
+    }
+
+    async tokenfetch(tokenid: string) {
+        return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenid })
     }
 
     async mempoolinsert(item: TNATxn) {

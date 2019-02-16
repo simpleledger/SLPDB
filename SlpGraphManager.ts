@@ -4,6 +4,7 @@ import BigNumber from "bignumber.js";
 import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes } from "./bit";
 import BITBOXSDK from 'bitbox-sdk/lib/bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
+import { Db } from './db';
 
 const bitqueryd = require('fountainhead-bitqueryd')
 
@@ -14,9 +15,12 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export class SlpGraphManager implements IZmqSubscriber {
     onBlockHash: undefined;
+    db: Db;
+
     async onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
         // check to see if the transaction is a token, if so then get its tokenId.
-        console.log("GRAPH MANAGER RECEIVED SYNC RESULT");
+        //console.log("GRAPH MANAGER RECEIVED SYNC RESULT");
+        let tokensUpdate: string[] = []
         if(syncResult) {
             let txns = Array.from(syncResult.filteredContent.get(SyncFilterTypes.SLP)!)
             await this.asyncForEach(txns, async (txPair: [string, string], index: number) =>
@@ -24,8 +28,8 @@ export class SlpGraphManager implements IZmqSubscriber {
                 //await sleep(5000);
                 console.log("PROCESSING SLP GRAPH UPDATE...");
                 let tokenId: string;
-                console.log("SLP TXID", txPair[0]);
-                console.log("SLP TXHEX", txPair[1]);
+                //console.log("SLP TXID", txPair[0]);
+                //console.log("SLP TXHEX", txPair[1]);
                 let txn = new bitcore.Transaction(txPair[1]);
                 let slpMsg = slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
                 if(slpMsg.transactionType === SlpTransactionType.GENESIS) {
@@ -45,23 +49,26 @@ export class SlpGraphManager implements IZmqSubscriber {
                         this._tokens.set(tokenId, graph)
                     }
                     else {
-                        //console.log("Skipping: No token details are available for this token")
+                        console.log("Skipping: No token details are available for this token")
                     }
-
                 }
                 else {
-                    //console.log("UPDATING GRAPH FOR:", tokenId);
+                    console.log("UPDATING GRAPH FOR:", tokenId);
                     await this._tokens.get(tokenId)!.updateTokenGraphFrom(txPair[0]);
-                    await this._tokens.get(tokenId)!.updateStatistics();
-
-                    console.log("########################################################################################################")
-                    console.log("TOKEN STATS/ADDRESSES FOR", this._tokens.get(tokenId)!.tokenDetails.name, this._tokens.get(tokenId)!.tokenDetails.tokenIdHex)
-                    console.log("########################################################################################################")
-                    console.log(this._tokens.get(tokenId)!.getTokenStats())
-                    console.log(this._tokens.get(tokenId)!.getAddresses())
                 }
+                tokensUpdate.push(tokenId);
             })
-            //this._tokens.forEach(token => token.updateTokenGraphFrom(txHash));
+
+            // TODO: put this code in its own processing queue.
+            await this.asyncForEach(tokensUpdate, async (tokenId: string) => {
+                await this._tokens.get(tokenId)!.updateStatistics();
+                console.log("########################################################################################################")
+                console.log("TOKEN STATS/ADDRESSES FOR", this._tokens.get(tokenId)!._tokenDetails.name, this._tokens.get(tokenId)!._tokenDetails.tokenIdHex)
+                console.log("########################################################################################################")
+                console.log(this._tokens.get(tokenId)!.getTokenStats())
+                console.log(this._tokens.get(tokenId)!.getAddresses())
+                await this.db.tokenreplace(this._tokens.get(tokenId)!.toDbObject());
+            })
         }
     }
 
@@ -74,21 +81,29 @@ export class SlpGraphManager implements IZmqSubscriber {
     _tokens!: Map<string, SlpTokenGraph>;
     //rpcClient: BitcoinRpc.RpcClient;
 
-    constructor() {
+    constructor(db: Db) {
+        this.db = db;
         this._tokens = new Map<string, SlpTokenGraph>();
     }
 
     async initFromScratch() {
         let tokens = await this.getTokensList();
-        console.log(tokens);
+        //console.log(tokens);
 
         for (let index = 0; index < tokens.length; index++) {
             let graph = new SlpTokenGraph();
+
+            //TODO: load token graph state from db
+            //let tokenState = await this.db.tokenfetch(tokens[index].tokenIdHex);
+            //console.log(tokenState.tokenDetails);
+            //graph.fromObject(tokenState);
+
             console.log("########################################################################################################")
             console.log("NEW GRAPH FOR", tokens[index].tokenIdHex)
             console.log("########################################################################################################")
             await graph.init(tokens[index]);
             this._tokens.set(tokens[index].tokenIdHex, graph);
+            await this.db.tokeninsert(this._tokens.get(tokens[index].tokenIdHex)!.toDbObject());
         }
 
         for (let index = 0; index < tokens.length; index++) {
@@ -104,7 +119,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             "v": 3,
             "q": {
               "find": { "out.h1": "534c5000", "out.s3": "GENESIS" },
-              //"limit": 2
+              "limit": 100000,
             },
             "r": { "f": "[ .[] | { tokenIdHex: .tx.h, versionTypeHex: .out[0].h2, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), symbol: .out[0].s4, name: .out[0].s5, documentUri: .out[0].s6, documentSha256Hex: .out[0].h7, decimalsHex: .out[0].h8, batonHex: .out[0].h9, quantityHex: .out[0].h10 } ]" }
         }
@@ -112,6 +127,7 @@ export class SlpGraphManager implements IZmqSubscriber {
         let db = await bitqueryd.init();
         let response: GenesisQueryResult | any = await db.read(q);
         let tokens: GenesisQueryResult[] = [].concat(response.u).concat(response.c);
+        //console.log("TOKENS", tokens.length);
         //console.log(response);
         return tokens.map(t => this.mapSlpTokenDetails(t));
     }

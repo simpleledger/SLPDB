@@ -8,11 +8,9 @@ import * as bitcore from 'bitcore-lib-cash';
 const RpcClient = require('bitcoin-rpc-promise')
 const bitqueryd = require('fountainhead-bitqueryd')
 const BITBOX = new BITBOXSDK();
-const slp  = new Slp(BITBOX);
-
 
 export interface TokenGraph {
-    tokenDetails: SlpTransactionDetails;
+    _tokenDetails: SlpTransactionDetails;
     _tokenStats: TokenStats;
     _tokenUtxos: Set<string>;
     _txnGraph: Map<txid, GraphTxn>;
@@ -20,18 +18,20 @@ export interface TokenGraph {
     updateTokenGraphFrom(txid: string): Promise<boolean>;
     initStatistics(): Promise<void>;
 }
+
 export interface AddressBalance {
     token_balance: BigNumber, bch_balance_satoshis: number
 }
+
 export class SlpTokenGraph implements TokenGraph {
-    tokenDetails!: SlpTransactionDetails;
+    _tokenDetails!: SlpTransactionDetails;
     _tokenStats!: TokenStats;
     _tokenUtxos!: Set<string>;
     _txnGraph!: Map<string, GraphTxn>;
     _addresses!: Map<cashAddr, AddressBalance>;
     _slpValidator!: LocalValidator;
     _rpcClient: BitcoinRpc.RpcClient;
-    _db!: any
+    _dbQuery!: any
 
     constructor() {
         let connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port
@@ -40,8 +40,8 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async init(tokenDetails: SlpTransactionDetails) {
-        this._db = await bitqueryd.init();
-        this.tokenDetails = tokenDetails;
+        this._dbQuery = await bitqueryd.init();
+        this._tokenDetails = tokenDetails;
         this._tokenUtxos = new Set<string>();
         this._txnGraph = new Map<string, GraphTxn>();
         this._addresses = new Map<cashAddr, AddressBalance>();
@@ -70,14 +70,10 @@ export class SlpTokenGraph implements TokenGraph {
             "r": { "f": "[ .[] | { txid: .tx.h, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), tokenid: .out[0].h4, slp1: .out[0].h5, slp2: .out[0].h6, slp3: .out[0].h7, slp4: .out[0].h8, slp5: .out[0].h9, slp6: .out[0].h10, slp7: .out[0].h11, slp8: .out[0].h12, slp9: .out[0].h13, slp10: .out[0].h14, slp11: .out[0].h15, slp12: .out[0].h16, slp13: .out[0].h17, slp14: .out[0].h18, slp15: .out[0].h19, slp16: .out[0].h20, slp17: .out[0].h21, slp18: .out[0].h22, slp19: .out[0].h23, bch0: .out[0].e.v, bch1: .out[1].e.v, bch2: .out[2].e.v, bch3: .out[3].e.v, bch4: .out[4].e.v, bch5: .out[5].e.v, bch6: .out[6].e.v, bch7: .out[7].e.v, bch8: .out[8].e.v, bch9: .out[9].e.v, bch10: .out[10].e.v, bch11: .out[11].e.v, bch12: .out[12].e.v, bch13: .out[13].e.v, bch14: .out[14].e.v, bch15: .out[15].e.v, bch16: .out[16].e.v, bch17: .out[17].e.v, bch18: .out[18].e.v, bch19: .out[19].e.v } ]" }
         }
 
-        //console.log(q)
-
-        let response: TxnQueryResponse = await this._db.read(q);
+        let response: TxnQueryResponse = await this._dbQuery.read(q);
         
         if(!response.errors) {
             let results: TxnQueryResult[] = ([].concat(<any>response.c).concat(<any>response.u));
-            //console.log("BitDB Response:", results);
-            //results = results.filter(r => r.input.h === txid && r.input.i === vout)
             if(results.length === 1) {
                 let res: any = results[0];
                 let sendOutputs: { tokenQty: BigNumber, satoshis: number }[] = [];
@@ -95,7 +91,6 @@ export class SlpTokenGraph implements TokenGraph {
                         }
                     }
                 })
-                //console.log("Bitdb Query Response = ", res)
                 return res;
             }
             else {
@@ -107,24 +102,21 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async getSpendDetails(txid: string, vout: number): Promise<SpendDetails> {
-        let txOut = await this._rpcClient.getTxOut(txid, vout, true)
-        //console.log('TXOUT', txOut);
+        let txOut = await this._rpcClient.getTxOut(txid, vout, true);
         if(txOut === null) {
             this._tokenUtxos.delete(txid + ":" + vout)
             let spendTxnInfo = await this.queryForTxoInput(txid, vout);
-            //console.log("SPENDTXNINFO:", spendTxnInfo);
             if(spendTxnInfo.txid === null) {
                 return { status: UtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null };
             }
             if(typeof spendTxnInfo!.txid === 'string') {
-                if(this.tokenDetails.tokenIdHex === spendTxnInfo.tokenid) {
+                if(this._tokenDetails.tokenIdHex === spendTxnInfo.tokenid) {
                     return { status: UtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo };
                 }
                 return { status: UtxoStatus.SPENT_WRONG_TOKEN, txid: null, queryResponse: spendTxnInfo };
             }
             throw Error("Unknown Error in SlpTokenGraph")
         }
-        //console.log('TXID', txid);
         this._tokenUtxos.add(txid + ":" + vout);
         return { status: UtxoStatus.UNSPENT, txid: null, queryResponse: null };
     }
@@ -247,7 +239,7 @@ export class SlpTokenGraph implements TokenGraph {
         }
     }
 
-    getTokenStats(){
+    getTokenStats() {
         return {
             block_created: this._tokenStats.block_created,
             block_last_active_mint: this._tokenStats.block_last_active_mint,
@@ -263,8 +255,45 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     getAddresses() {
-        return Array.from(this._addresses).map((v, _, __) => { return { addr: v[0], bal: v[1].token_balance.dividedBy(10**this.tokenDetails.decimals).toString() }})
+        return Array.from(this._addresses).map((v, _, __) => { return { addr: v[0], bal: v[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toString() }})
     }
+
+    toDbObject() {
+        let tokenDetails = this._tokenDetails;
+
+        return {
+            tokenDetails: this._tokenDetails,
+            txnGraph: this._txnGraph,
+            addresses: this._addresses,
+            tokenStats: this._tokenStats
+        }
+    }
+
+    fromObject(doc: any) {
+        this._tokenDetails = {
+            decimals: doc.tokenDetails.decimals,
+            tokenIdHex: doc.tokenDetails.tokenIdHex,
+            timestamp: doc.tokenDetails.timestamp,
+            transactionType: doc.tokenDetails.transactionType,
+            versionType: doc.tokenDetails.versionType,
+            documentUri: doc.tokenDetails.documentUri,
+            documentSha256: doc.tokenDetails.documentSha256.buffer,
+            symbol: doc.tokenDetails.symbol,
+            name: doc.tokenDetails.name,
+            batonVout: doc.tokenDetails.batonVout,
+            containsBaton: doc.tokenDetails.containsBaton,
+            genesisOrMintQuantity: new BigNumber(0) //this.createBigNumber(doc.tokenDetails.genesisOrMintQuantity)
+        }
+        console.log("BIGNUMBER", this._tokenDetails.genesisOrMintQuantity)
+    }
+
+    // createBigNumber(obj: {s: number, e: number, c: any[]}){
+    //     let n = new BigNumber(0);
+    //     n.s = obj.s;
+    //     n.e = obj.e;
+    //     n.c = obj.c;
+    //     return n;
+    // }
 }
 
 interface GraphTxn {

@@ -35,7 +35,7 @@ const daemon = {
 		console.log('[INFO] SLPDB Synchronization with BCH blockchain complete.', new Date())
 
 		// 4. Start SLP Token Manager
-		let tokenManager = new SlpGraphManager();
+		let tokenManager = new SlpGraphManager(db);
 		
 		// load graph state from db, or recreate from scratch
 		await tokenManager.initFromScratch();
