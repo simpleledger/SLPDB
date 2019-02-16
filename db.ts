@@ -1,6 +1,7 @@
 import { MongoClient, Db as MongoDb } from 'mongodb';
 import { Config, DbConfig } from './config';
 import { TNATxn } from './tna';
+import { SlpTokenGraph } from './SlpTokenGraph';
 
 export class Db {
     config: DbConfig;
@@ -28,8 +29,8 @@ export class Db {
         await this.mongo.close()
     }
 
-    mempoolinsert(item: TNATxn) {
-        return this.db.collection('unconfirmed').insertMany([item])
+    async mempoolinsert(item: TNATxn) {
+        return await this.db.collection('unconfirmed').insertMany([item])
     }
 
     async mempoolreset() {

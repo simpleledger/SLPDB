@@ -241,9 +241,7 @@ export class Bit {
                 console.log("ZMQ EVENT SUBSCRIBERS:", self._zmqSubscribers.length)
                 for (let i = 0; i < self._zmqSubscribers.length; i++) {
                     if(syncResult && self._zmqSubscribers[i].onTransactionHash) {
-                        //console.log("SYNC RESULT: ", syncResult)
-                        //console.log("FNC: ", self._zmqSubscribers[i].onTransactionHash)
-                        self._zmqSubscribers[i].onTransactionHash!(syncResult);
+                        await self._zmqSubscribers[i].onTransactionHash!(syncResult);
                     }
                 }
             } else if (topic.toString() === 'hashblock') {
@@ -252,7 +250,7 @@ export class Bit {
                 let syncResult = await sync(self, 'block')
                 for (let i = 0; i < self._zmqSubscribers.length; i++) {
                     if(self._zmqSubscribers[i].onBlockHash)
-                        self._zmqSubscribers[i].onBlockHash!(syncResult!)
+                        await self._zmqSubscribers[i].onBlockHash!(syncResult!)
                 }
             }
         })

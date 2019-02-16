@@ -36,10 +36,12 @@ const daemon = {
 
 		// 4. Start SLP Token Manager
 		let tokenManager = new SlpGraphManager();
+		
 		// load graph state from db, or recreate from scratch
 		await tokenManager.initFromScratch();
 		bit._zmqSubscribers.push(tokenManager);
-		// 4. Start listening, pass in IZmqActionables
+
+		// 4. Start listening
 		bit.listenToZmq();
 	}
 }
