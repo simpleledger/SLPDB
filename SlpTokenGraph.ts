@@ -86,7 +86,7 @@ export class SlpTokenGraph implements TokenGraph {
                             let qtyBuf = Buffer.from(res[key], 'hex');
                             res.sendOutputs.push({ tokenQty: (new BigNumber(qtyBuf.readUInt32BE(0).toString())).multipliedBy(2**32).plus(new BigNumber(qtyBuf.readUInt32BE(4).toString())), satoshis: res["bch" + key.replace('slp', '')] });
                         } catch(err) { 
-                            console.log(err);
+                            //console.log(err);
                             throw err;
                         }
                     }
@@ -105,15 +105,22 @@ export class SlpTokenGraph implements TokenGraph {
         let txOut = await this._rpcClient.getTxOut(txid, vout, true);
         if(txOut === null) {
             this._tokenUtxos.delete(txid + ":" + vout)
-            let spendTxnInfo = await this.queryForTxoInput(txid, vout);
-            if(spendTxnInfo.txid === null) {
-                return { status: UtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null };
-            }
-            if(typeof spendTxnInfo!.txid === 'string') {
-                if(this._tokenDetails.tokenIdHex === spendTxnInfo.tokenid) {
-                    return { status: UtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo };
+            try {
+                let spendTxnInfo = await this.queryForTxoInput(txid, vout);
+
+                if(spendTxnInfo.txid === null) {
+                    return { status: UtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null };
                 }
-                return { status: UtxoStatus.SPENT_WRONG_TOKEN, txid: null, queryResponse: spendTxnInfo };
+                if(typeof spendTxnInfo!.txid === 'string') {
+                    if(this._tokenDetails.tokenIdHex === spendTxnInfo.tokenid) {
+                        return { status: UtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo };
+                    }
+                    return { status: UtxoStatus.SPENT_WRONG_TOKEN, txid: null, queryResponse: spendTxnInfo };
+                }
+            } catch(e) {
+                if(e.message === "Index out of range")
+                    return { status: UtxoStatus.SPENT_INVALID_SLP, txid: null, queryResponse: null };
+                throw e;
             }
             throw Error("Unknown Error in SlpTokenGraph")
         }
@@ -328,7 +335,8 @@ enum UtxoStatus {
     "UNSPENT" = "UNSPENT", 
     "SPENT_SAME_TOKEN" = "SPENT_SAME_TOKEN",
     "SPENT_WRONG_TOKEN" = "SPENT_WRONG_TOKEN", 
-    "SPENT_NON_SLP" = "SPENT_NON_SLP"
+    "SPENT_NON_SLP" = "SPENT_NON_SLP",
+    "SPENT_INVALID_SLP" = "SPENT_INVALID_SLP"
 }
 
 interface SpendDetails {
