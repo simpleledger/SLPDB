@@ -86,7 +86,6 @@ export class SlpTokenGraph implements TokenGraph {
                             let qtyBuf = Buffer.from(res[key], 'hex');
                             res.sendOutputs.push({ tokenQty: (new BigNumber(qtyBuf.readUInt32BE(0).toString())).multipliedBy(2**32).plus(new BigNumber(qtyBuf.readUInt32BE(4).toString())), satoshis: res["bch" + key.replace('slp', '')] });
                         } catch(err) { 
-                            //console.log(err);
                             throw err;
                         }
                     }
@@ -117,10 +116,8 @@ export class SlpTokenGraph implements TokenGraph {
                     }
                     return { status: UtxoStatus.SPENT_WRONG_TOKEN, txid: null, queryResponse: spendTxnInfo };
                 }
-            } catch(e) {
-                if(e.message === "Index out of range")
-                    return { status: UtxoStatus.SPENT_INVALID_SLP, txid: null, queryResponse: null };
-                throw e;
+            } catch(_) {
+                return { status: UtxoStatus.SPENT_INVALID_SLP, txid: null, queryResponse: null };
             }
             throw Error("Unknown Error in SlpTokenGraph")
         }
