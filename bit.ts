@@ -74,7 +74,7 @@ export class Bit {
         let connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port
         this.rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
         console.log("[INFO] Testing RPC connection...");
-        let block = await this.requestblock(0);
+        await this.requestblock(0);
         console.log("[INFO] JSON-RPC is initialized.");
         this.tna = new TNA(this.rpc);
     }
@@ -84,17 +84,17 @@ export class Bit {
             let hash = await this.rpc.getBlockHash(block_index);
             return await this.rpc.getBlock(hash);
         } catch(err) {
-            //console.log('requestblock Err = ', err)
-            throw Error('Check your JSON-RPC connection. Could not get block from full node rpc call.');
+            console.log('Check your JSON-RPC connection. Could not get block from full node rpc call.');
+            throw err;
         }
     }
     
     async requestheight(): Promise<number> {
         try{
             return await this.rpc.getBlockCount();
-        } catch(err){
-            //console.log('requestheight Err = ', err)
-            throw Error('Check your JSON-RPC connection. Could not get height from full node rpc call.')
+        } catch(err) {
+            console.log('Check your JSON-RPC connection. Could not get height from full node rpc call.')
+            throw err;
         }
     }
 

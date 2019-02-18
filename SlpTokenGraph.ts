@@ -9,6 +9,8 @@ const RpcClient = require('bitcoin-rpc-promise')
 const bitqueryd = require('fountainhead-bitqueryd')
 const BITBOX = new BITBOXSDK();
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 export interface TokenGraph {
     _tokenDetails: SlpTransactionDetails;
     _tokenStats: TokenStats;
@@ -102,8 +104,10 @@ export class SlpTokenGraph implements TokenGraph {
 
     async getSpendDetails(txid: string, vout: number): Promise<SpendDetails> {
         let txOut = await this._rpcClient.getTxOut(txid, vout, true);
+        //console.log("TXOUT", txOut);
         if(txOut === null) {
-            this._tokenUtxos.delete(txid + ":" + vout)
+            this._tokenUtxos.delete(txid + ":" + vout);
+            //console.log("DELETE:", txid,":",vout);
             try {
                 let spendTxnInfo = await this.queryForTxoInput(txid, vout);
 
@@ -119,28 +123,50 @@ export class SlpTokenGraph implements TokenGraph {
             } catch(_) {
                 return { status: UtxoStatus.SPENT_INVALID_SLP, txid: null, queryResponse: null };
             }
-            throw Error("Unknown Error in SlpTokenGraph")
+        } 
+        else {
+            this._tokenUtxos.add(txid + ":" + vout);
+            //console.log("ADD:", txid,":",vout);
+            return { status: UtxoStatus.UNSPENT, txid: null, queryResponse: null };
         }
-        this._tokenUtxos.add(txid + ":" + vout);
-        return { status: UtxoStatus.UNSPENT, txid: null, queryResponse: null };
+
+        throw Error("Unknown Error in SlpTokenGraph");
     }
 
-    async updateTokenGraphFrom(txid: string): Promise<boolean> {
-        if(this._txnGraph.has(txid))
+    async updateTokenGraphFrom(txid: string, isParent=false): Promise<boolean> {
+        if(this._txnGraph.has(txid) && !isParent)
             return true;
 
         let isValid = await this._slpValidator.isValidSlpTxid(txid)
         let txnDetails = this._slpValidator.cachedValidations[txid].details;
-
-        if (!isValid || !txnDetails)
-            return false;
-
-        let graphTxn: GraphTxn = { details: <SlpTransactionDetails>txnDetails, validSlp: isValid!, outputs: [] }
         let txn: Bitcore.Transaction = new bitcore.Transaction(this._slpValidator.cachedRawTransactions[txid])
-        
-        // Create SLP graph outputs for each valid SLP output
-        if(isValid && (graphTxn.details.transactionType === SlpTransactionType.GENESIS)) {
-            if(graphTxn.details.genesisOrMintQuantity!.isGreaterThan(0)) {
+
+        if (!isValid || !txnDetails) {
+            console.log("not valid or no Txn details", txid);
+            return false;
+        }
+
+        let graphTxn: GraphTxn;
+        if(!this._txnGraph.has(txid))
+            graphTxn = { details: txnDetails, validSlp: isValid!, outputs: [] }
+        else {
+            graphTxn = this._txnGraph.get(txid)!;
+            graphTxn.outputs = [];
+        }
+
+        // First, lets update the status of the txn's input TXO parents
+        if(!isParent) {
+            let parentIds = new Set<string>([...txn.inputs.map(i => i.prevTxId.toString('hex'))])
+            await this.asyncForEach(Array.from(parentIds), async (txid: string) => {
+                if(this._txnGraph.get(txid)!) {
+                    await this.updateTokenGraphFrom(txid, true);
+                }
+            });
+        }
+
+        // Create SLP graph outputs for each new valid SLP output
+        if(isValid && (graphTxn.details.transactionType === SlpTransactionType.GENESIS || graphTxn.details.transactionType === SlpTransactionType.MINT)) {
+            if(graphTxn.details.genesisOrMintQuantity!.isGreaterThanOrEqualTo(0)) {
                 let spendDetails = await this.getSpendDetails(txid, 1)
                 graphTxn.outputs.push({
                     vout: 1,
@@ -153,34 +179,33 @@ export class SlpTokenGraph implements TokenGraph {
         }
         else if(isValid && graphTxn.details.sendOutputs!.length > 0) {
             await this.asyncForEach(graphTxn.details.sendOutputs!, async (output: BigNumber, vout: number) => { 
-                if(output.isGreaterThan(0)) {
-                    let spendDetails = await this.getSpendDetails(txid, vout)
-                    graphTxn.outputs.push({
-                        vout: vout,
-                        bchAmout: txn.outputs[vout].satoshis, 
-                        slpAmount: graphTxn.details.sendOutputs![vout],
-                        spendTxid: spendDetails.txid,
-                        status: spendDetails.status
-                    })
+                if(output.isGreaterThanOrEqualTo(0)) {
+                    if(vout > 0) {
+                        let spendDetails = await this.getSpendDetails(txid, vout)
+                        graphTxn.outputs.push({
+                            vout: vout,
+                            bchAmout: txn.outputs[vout].satoshis, 
+                            slpAmount: graphTxn.details.sendOutputs![vout],
+                            spendTxid: spendDetails.txid,
+                            status: spendDetails.status
+                        })
+                    }
                 }
             })
-        }
-        else if(isValid && (graphTxn.details.transactionType === SlpTransactionType.GENESIS)) {
-            console.log("[WARNING]: MINT graph transactions not handled yet!", txid)
         }
         else {
             console.log("[WARNING]: Transaction is not valid or is unknown token type!", txid)
         }
 
-        await this.asyncForEach(graphTxn.outputs.filter(o => o.spendTxid && o.status === UtxoStatus.SPENT_SAME_TOKEN), async (o: any) => {
-            //console.log("UPDATE FROM: ", o.spendTxid!);
-            await this.updateTokenGraphFrom(o.spendTxid!);
-        });
+        // Continue to from output UTXOs
+        if(!isParent) {
+            await this.asyncForEach(graphTxn.outputs.filter(o => o.spendTxid && o.status === UtxoStatus.SPENT_SAME_TOKEN), async (o: any) => {
+                await this.updateTokenGraphFrom(o.spendTxid!);
+            });
+        }
 
-        //console.log("TOKEN GRAPH TXN UPDATE DONE:", txid);
         this._txnGraph.set(txid, graphTxn);
 
-        //this._txnGraph.set(this.tokenDetails.tokenIdHex, graphTxn);
         return true;
     }
 
@@ -190,7 +215,6 @@ export class SlpTokenGraph implements TokenGraph {
         await this.asyncForEach(Array.from(this._tokenUtxos), async (utxo: string) => {
             let txid = utxo.split(':')[0];
             let vout = parseInt(utxo.split(':')[1]);
-
             let txout = <BitcoinRpc.VerboseTxOut>(await this._rpcClient.getTxOut(txid, vout, true))
             if(txout) {
                 let bal;
@@ -211,8 +235,9 @@ export class SlpTokenGraph implements TokenGraph {
                         bal = { bch_balance_satoshis: txout.value*10**8, token_balance: txnDetails.genesisOrMintQuantity! }
                 }
 
-                if(bal)
+                if(bal) {
                     this._addresses.set(addr, bal);
+                }
             }
         });
     }

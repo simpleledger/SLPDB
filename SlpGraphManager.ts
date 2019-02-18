@@ -11,8 +11,6 @@ const bitqueryd = require('fountainhead-bitqueryd')
 const BITBOX = new BITBOXSDK();
 const slp = new Slp(BITBOX);
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
 export class SlpGraphManager implements IZmqSubscriber {
     onBlockHash: undefined;
     db: Db;
@@ -45,8 +43,8 @@ export class SlpGraphManager implements IZmqSubscriber {
                     let tokenDetails = await this.getTokenDetails(tokenId);
                     if(tokenDetails) {
                         let graph = new SlpTokenGraph();
-                        graph.init(tokenDetails);
-                        this._tokens.set(tokenId, graph)
+                        await graph.init(tokenDetails);
+                        this._tokens.set(tokenId, graph);
                     }
                     else {
                         console.log("Skipping: No token details are available for this token")

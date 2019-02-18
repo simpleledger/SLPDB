@@ -13,15 +13,11 @@ export class Db {
 
     async init() {
         let client: MongoClient;
-        try {
-            //console.log("Initializing Mongo db...")
-            client = await MongoClient.connect(this.config.url, { useNewUrlParser: true })
-            this.db = client.db(this.config.name)
-            this.mongo = <MongoClient>client;
-            //console.log("Mongo db initialized.")
-        } catch(err) {
-            if (err) console.log('init error:',err)
-        }
+        //console.log("Initializing Mongo db...")
+        client = await MongoClient.connect(this.config.url, { useNewUrlParser: true })
+        this.db = client.db(this.config.name)
+        this.mongo = <MongoClient>client;
+        //console.log("Mongo db initialized.")
     }
 
     async exit() {
