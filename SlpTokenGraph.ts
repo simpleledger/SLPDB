@@ -9,8 +9,6 @@ const RpcClient = require('bitcoin-rpc-promise')
 const bitqueryd = require('fountainhead-bitqueryd')
 const BITBOX = new BITBOXSDK();
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
 export interface TokenGraph {
     _tokenDetails: SlpTransactionDetails;
     _tokenStats: TokenStats;
@@ -197,7 +195,7 @@ export class SlpTokenGraph implements TokenGraph {
             console.log("[WARNING]: Transaction is not valid or is unknown token type!", txid)
         }
 
-        // Continue to from output UTXOs
+        // Continue to complete graph from output UTXOs
         if(!isParent) {
             await this.asyncForEach(graphTxn.outputs.filter(o => o.spendTxid && o.status === UtxoStatus.SPENT_SAME_TOKEN), async (o: any) => {
                 await this.updateTokenGraphFrom(o.spendTxid!);
@@ -242,6 +240,49 @@ export class SlpTokenGraph implements TokenGraph {
         });
     }
 
+    async getTotalMintQuantity(): Promise<BigNumber> {
+        let qty = this._tokenDetails.genesisOrMintQuantity!;
+        //console.log("GENESIS AMOUNT:", qty.toString());
+
+        let q = {
+            "v": 3,
+            "q": {
+                "find": { "out.h1": "534c5000", "out.s3": "MINT", "out.h4": this._tokenDetails.tokenIdHex }
+            },
+            "r": { "f": "[ .[] | { txid: .tx.h, versionTypeHex: .out[0].h2, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), batonHex: .out[0].h5, quantityHex: .out[0].h6 } ]" }
+        }
+
+        let res: TxnQueryResponse = await this._dbQuery.read(q);
+
+        if(!res.errors) {
+            let results: MintQueryResult[] = ([].concat(<any>res.c).concat(<any>res.u));
+            if(results.length > 0) {
+                results.forEach(r => {
+                    if(r.quantityHex) {
+                        let qtyBuf = new Buffer(r.quantityHex, 'hex');
+                        let mint = (new BigNumber(qtyBuf.readUInt32BE(0).toString())).multipliedBy(2**32).plus(new BigNumber(qtyBuf.readUInt32BE(4).toString()));
+                        //console.log("MINT AMOUNT", mint.toString())
+                        qty = qty.plus(mint);
+                    }
+                })
+            }
+        }
+
+        return qty;
+    }
+
+    getTotalHeldByAddresses(){
+        let qty = new BigNumber(0);
+        this._addresses.forEach(a => qty = qty.plus(a.token_balance))
+        return qty;
+    }
+
+    getTotalSatoshisLockedUp(){
+        let qty = 0;
+        this._addresses.forEach(a => qty+=a.bch_balance_satoshis);
+        return qty;
+    }
+
     async initStatistics(): Promise<void> {
         this._tokenStats = <TokenStats> {
             block_created: 0,
@@ -250,11 +291,13 @@ export class SlpTokenGraph implements TokenGraph {
             qty_valid_txns_since_genesis: this._txnGraph.size,
             qty_valid_token_utxos: this._tokenUtxos.size,
             qty_valid_token_addresses: this._addresses.size,
-            qty_token_minted: new BigNumber(0),
+            qty_token_minted: await this.getTotalMintQuantity(),
             qty_token_burned: new BigNumber(0),
-            qty_token_unburned: new BigNumber(0),
-            qty_satoshis_locked_up: 0
+            qty_token_circulating_supply: this.getTotalHeldByAddresses(),
+            qty_satoshis_locked_up: this.getTotalSatoshisLockedUp()
         }
+
+        this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply)
     }
 
     async updateStatistics(): Promise<void> {
@@ -265,6 +308,10 @@ export class SlpTokenGraph implements TokenGraph {
             this._tokenStats.qty_valid_token_addresses = this._addresses.size;
             this._tokenStats.qty_valid_token_utxos = this._tokenUtxos.size;
             this._tokenStats.qty_valid_txns_since_genesis = this._txnGraph.size;
+            this._tokenStats.qty_token_minted = await this.getTotalMintQuantity();
+            this._tokenStats.qty_token_circulating_supply = this.getTotalHeldByAddresses();
+            this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply);
+            this._tokenStats.qty_satoshis_locked_up = this.getTotalSatoshisLockedUp();
         }
     }
 
@@ -278,7 +325,7 @@ export class SlpTokenGraph implements TokenGraph {
             qty_valid_token_addresses: this._tokenStats.qty_valid_token_addresses,
             qty_token_minted: this._tokenStats.qty_token_minted.toNumber(),
             qty_token_burned: this._tokenStats.qty_token_burned.toNumber(),
-            qty_token_unburned: this._tokenStats.qty_token_unburned.toNumber(),
+            qty_token_circulating_supply: this._tokenStats.qty_token_circulating_supply.toNumber(),
             qty_satoshis_locked_up: this._tokenStats.qty_satoshis_locked_up
         }
     }
@@ -349,7 +396,7 @@ interface TokenStats {
     qty_valid_token_addresses: number;
     qty_token_minted: BigNumber;
     qty_token_burned: BigNumber;
-    qty_token_unburned: BigNumber;
+    qty_token_circulating_supply: BigNumber;
     qty_satoshis_locked_up: number;
 }
 
@@ -371,6 +418,15 @@ interface TxnQueryResponse {
     c: TxnQueryResult[],
     u: TxnQueryResult[], 
     errors?: any;
+}
+
+interface MintQueryResult {
+    txid: string|null;
+    block: number|null;
+    timestamp: string|null;
+    batonHex: string|null;
+    quantityHex: string|null;
+    versionTypeHex: string|null;
 }
 
 interface TxnQueryResult {
@@ -422,4 +478,38 @@ interface TxnQueryResult {
     slp19?: number|null;
 }
 
+    // async getTotalBurnedQuantity(): Promise<BigNumber> {
+    //     let burned = new BigNumber(0);
+        
+    //     // Add up the burned quantities resulting from non_slp txns 
+    //     this._txnGraph.forEach(txn => {
+    //         txn.outputs.forEach(o => {
+    //             if(o.status !== UtxoStatus.UNSPENT && o.status !== UtxoStatus.SPENT_SAME_TOKEN)
+    //                 burned = burned.plus(o.slpAmount);
+    //         })
+    //     })
 
+    //     // Add up the amounts burned when SLP outputs is less than SLP inputs
+    //     await this.asyncForEach(Array.from(this._txnGraph), async (gtxn: [string, GraphTxn]) => {
+    //         //console.log("BURN CALC", gtxn[0])
+    //         let txnhex: string;
+    //         if(this._slpValidator.cachedRawTransactions[gtxn[0]])
+    //             txnhex = this._slpValidator.cachedRawTransactions[gtxn[0]]
+    //         else
+    //             txnhex = await this._rpcClient.getRawTransaction(gtxn[0])
+
+    //         let txn: Bitcore.Transaction = new bitcore.Transaction(txnhex)
+    //         let inputs = txn.inputs.reduce((v, i) => {
+    //             if(this._txnGraph.has(i.prevTxId.toString('hex'))) {
+    //                 let intxn = this._txnGraph.get(i.prevTxId.toString('hex'))!
+    //                 return v.plus(intxn.outputs.filter(o => o.spendTxid === gtxn[0]).reduce((w, j) => w.plus(j.slpAmount), new BigNumber(0)))
+    //             }
+    //             return v;
+    //         }, new BigNumber(0))
+
+    //         let outputs = gtxn[1].outputs.reduce((v, i)=> v.plus(i.slpAmount), new BigNumber(0))
+    //         burned = burned.plus(outputs.minus(inputs));
+    //     });
+
+    //     return burned;
+    // }
