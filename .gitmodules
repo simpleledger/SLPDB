@@ -1,0 +1,3 @@
+[submodule "vendor/bignumber.js"]
+	path = vendor/bignumber.js
+	url = https://github.com/iamdoron/bignumber.js.git
