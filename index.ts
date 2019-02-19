@@ -38,10 +38,10 @@ const daemon = {
 		let tokenManager = new SlpGraphManager(db);
 		
 		// load graph state from db, or recreate from scratch
-		await tokenManager.initFromScratch();
-		bit._zmqSubscribers.push(tokenManager);
+		await tokenManager.initAllTokens();
 
 		// 4. Start listening
+		bit._zmqSubscribers.push(tokenManager);
 		bit.listenToZmq();
 	}
 }
