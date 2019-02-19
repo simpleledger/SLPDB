@@ -50,14 +50,16 @@ export class SlpGraphManager implements IZmqSubscriber {
 
             // TODO: put this code in its own processing queue?
             await this.asyncForEach(tokensUpdate, async (tokenId: string) => {
-                await this.db.tokenreplace(this._tokens.get(tokenId)!.toDbObject());
-
+                // First
                 await this._tokens.get(tokenId)!.updateStatistics();
                 console.log("########################################################################################################")
                 console.log("TOKEN STATS/ADDRESSES FOR", this._tokens.get(tokenId)!._tokenDetails.name, this._tokens.get(tokenId)!._tokenDetails.tokenIdHex)
                 console.log("########################################################################################################")
                 console.log(this._tokens.get(tokenId)!.getTokenStats())
                 console.log(this._tokens.get(tokenId)!.getAddresses())
+
+                // Save to db must be after updateStatistics()
+                await this.db.tokenreplace(this._tokens.get(tokenId)!.toDbObject());
             })
         }
     }
