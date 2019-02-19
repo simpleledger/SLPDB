@@ -19,6 +19,10 @@ const daemon = {
 		// 2. Bootstrap actions depending on first time
 		const lastSynchronized = await Info.checkpoint()
 
+		if(lastSynchronized.height > await bit.requestheight()) {
+			throw Error("Config.core.from cannot be larger than the current blockchain height (check the config.ts file)");
+		}
+
 		console.time('[PERF] Indexing Keys')
 		if (lastSynchronized.height === Config.core.from) {
 			// First time. Try indexing
