@@ -3,13 +3,13 @@ import { VerboseRawTransaction } from 'bitbox-sdk/lib/RawTransactions'
 
 export module BitcoinRpc {
     export interface RpcClient {
-        getBlockHash(block_index: number): string;
-        getBlock(hash: string): RpcBlockInfo;
-        getBlock(hash: string, verbose: boolean): string;
-        getBlockCount(): number;
+        getBlockHash(block_index: number): Promise<string>;
+        getBlock(hash: string): Promise<RpcBlockInfo>;
+        getBlock(hash: string, verbose: boolean): Promise<string>;
+        getBlockCount(): Promise<number>;
         getRawTransaction(hash: string): Promise<string>;
         getRawTransaction(hash: string, verbose: number): Promise<VerboseRawTransaction>;
-        getRawMempool(): string[];
+        getRawMempool(): Promise<string[]>;
         getTxOut(hash: string, vout: number, includemempool: boolean): Promise<VerboseTxOut|null>;
     }
     
