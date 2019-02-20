@@ -5,6 +5,7 @@ import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes } from "./bit";
 import BITBOXSDK from 'bitbox-sdk/lib/bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { Db } from './db';
+import { Config } from "./config";
 
 const bitqueryd = require('fountainhead-bitqueryd')
 
@@ -14,6 +15,7 @@ const slp = new Slp(BITBOX);
 export class SlpGraphManager implements IZmqSubscriber {
     onBlockHash: undefined;
     db: Db;
+    dbQuery: any; 
 
     async onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
         let tokensUpdate: string[] = []
@@ -72,6 +74,7 @@ export class SlpGraphManager implements IZmqSubscriber {
     }
 
     async initAllTokens() {
+        this.dbQuery = await bitqueryd.init({ url: Config.db.url });
         let tokens = await this.queryTokensList();
 
         for (let i = 0; i < tokens.length; i++) {
@@ -130,8 +133,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             "r": { "f": "[ .[] | { txid: .tx.h } ]" }
         }
 
-        let db = await bitqueryd.init();
-        let res: TxnQueryResponse = await db.read(q);
+        let res: TxnQueryResponse = await this.dbQuery.read(q);
         let response = new Set<any>([].concat(<any>res.c).concat(<any>res.u).map((r: any) => { return r.txid } ));
         return Array.from(response);
     }
@@ -146,8 +148,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             "r": { "f": "[ .[] | { tokenIdHex: .tx.h, versionTypeHex: .out[0].h2, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), symbol: .out[0].s4, name: .out[0].s5, documentUri: .out[0].s6, documentSha256Hex: .out[0].h7, decimalsHex: .out[0].h8, batonHex: .out[0].h9, quantityHex: .out[0].h10 } ]" }
         }
 
-        let db = await bitqueryd.init();
-        let response: GenesisQueryResult | any = await db.read(q);
+        let response: GenesisQueryResult | any = await this.dbQuery.read(q);
         let tokens: GenesisQueryResult[] = [].concat(response.u).concat(response.c);
         return tokens.map(t => this.mapSlpTokenDetailsFromQuery(t));
     }
@@ -161,8 +162,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             "r": { "f": "[ .[] | { tokenIdHex: .tx.h, versionTypeHex: .out[0].h2, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), symbol: .out[0].s4, name: .out[0].s5, documentUri: .out[0].s6, documentSha256Hex: .out[0].h7, decimalsHex: .out[0].h8, batonHex: .out[0].h9, quantityHex: .out[0].h10 } ]" }
         }
 
-        let db = await bitqueryd.init();
-        let response: GenesisQueryResult | any = await db.read(q);
+        let response: GenesisQueryResult | any = await this.dbQuery.read(q);
         console.log(response);
         let tokens: GenesisQueryResult[] = [].concat(response.u).concat(response.c);
         return tokens.length === 1 ? tokens.map(t => this.mapSlpTokenDetailsFromQuery(t))[0] : null;

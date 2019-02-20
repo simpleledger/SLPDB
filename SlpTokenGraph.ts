@@ -45,7 +45,7 @@ export class SlpTokenGraph implements TokenGraph {
 
     async initFromScratch(tokenDetails: SlpTransactionDetails) {
         this._lastUpdatedBlock = 0;
-        this._dbQuery = await bitqueryd.init();
+        this._dbQuery = await bitqueryd.init({ url: Config.db.url });
         this._tokenDetails = tokenDetails;
         this._tokenUtxos = new Set<string>();
         this._txnGraph = new Map<string, GraphTxn>();
@@ -424,7 +424,7 @@ export class SlpTokenGraph implements TokenGraph {
 
     static async FromDbObject(doc: TokenDBObject): Promise<SlpTokenGraph> {
         let tg = new SlpTokenGraph();
-        tg._dbQuery = await bitqueryd.init();
+        tg._dbQuery = await bitqueryd.init({ url: Config.db.url });
 
         // Map _tokenDetails
         tg._tokenDetails = this.MapDbTokenDetails(doc.tokenDetails);
