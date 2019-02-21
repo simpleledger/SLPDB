@@ -34,8 +34,12 @@ export class Db {
         return await this.db.collection('tokens').insertMany([token]);
     }
 
-    async tokenfetch(tokenid: string) {
-        return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenid })
+    async tokendelete(tokenIdHex: string) {
+        return await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
+    }
+
+    async tokenfetch(tokenIdHex: string) {
+        return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
     async mempoolinsert(item: TNATxn) {

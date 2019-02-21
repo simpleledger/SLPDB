@@ -58,7 +58,7 @@ export class Config {
     }
   }
   static core = {
-    'version': '0.2.0',
+    'version': '1',
     'from': Number.parseInt(process.env.core_from ? process.env.core_from : "543375")
   }
 }

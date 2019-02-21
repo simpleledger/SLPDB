@@ -1,4 +1,4 @@
-import { SlpTokenGraph, TxnQueryResponse } from "./SlpTokenGraph";
+import { SlpTokenGraph, TxnQueryResponse, TokenDBObject } from "./SlpTokenGraph";
 import { SlpTransactionDetails, SlpTransactionType, Slp } from "slpjs";
 import BigNumber from "bignumber.js";
 import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes } from "./bit";
@@ -57,8 +57,8 @@ export class SlpGraphManager implements IZmqSubscriber {
                 console.log("########################################################################################################")
                 console.log("TOKEN STATS/ADDRESSES FOR", this._tokens.get(tokenId)!._tokenDetails.name, this._tokens.get(tokenId)!._tokenDetails.tokenIdHex)
                 console.log("########################################################################################################")
-                console.log(this._tokens.get(tokenId)!.getTokenStats())
-                console.log(this._tokens.get(tokenId)!.getAddresses())
+                this._tokens.get(tokenId)!.logTokenStats()
+                this._tokens.get(tokenId)!.logAddressBalances()
 
                 // Save to db must be after updateStatistics()
                 await this.db.tokenreplace(this._tokens.get(tokenId)!.toDbObject());
@@ -81,9 +81,13 @@ export class SlpGraphManager implements IZmqSubscriber {
             let graph: SlpTokenGraph;
 
             try {
-                let tokenState = await this.db.tokenfetch(tokens[i].tokenIdHex);
+                let tokenState = <TokenDBObject>await this.db.tokenfetch(tokens[i].tokenIdHex);
                 if(!tokenState)
                     throw Error("There is no db record for this token.");
+                if(!tokenState.slpdbVersion || tokenState.slpdbVersion !== Config.core.version) {
+                    this.db.tokendelete(tokens[i].tokenIdHex);
+                    throw Error("Saved token graph version is outdated");
+                }
                 graph = await SlpTokenGraph.FromDbObject(tokenState);
                 console.log("########################################################################################################")
                 console.log("LOAD FROM DB:", graph._tokenDetails.tokenIdHex);
@@ -98,19 +102,23 @@ export class SlpGraphManager implements IZmqSubscriber {
                 });
                 if(res.length === 0)
                     console.log("No token transactions after block", updateFromHeight, "werer found.");
-                else
+                else {
                     console.log("Token's graph is up to date.");
+                    if(graph.IsValid()) {
+                        this._tokens.set(tokens[i].tokenIdHex, graph);
+                        await this.db.tokenreplace(this._tokens.get(tokens[i].tokenIdHex)!.toDbObject());
+                    }
+                }
             } catch(_) {
                 graph = new SlpTokenGraph();
                 console.log("########################################################################################################")
                 console.log("NEW GRAPH FOR", tokens[i].tokenIdHex)
                 console.log("########################################################################################################")
                 await graph.initFromScratch(tokens[i]);
-            }
-
-            if(graph.IsValid()) {
-                this._tokens.set(tokens[i].tokenIdHex, graph);
-                await this.db.tokeninsert(this._tokens.get(tokens[i].tokenIdHex)!.toDbObject());
+                if(graph.IsValid()) {
+                    this._tokens.set(tokens[i].tokenIdHex, graph);
+                    await this.db.tokeninsert(this._tokens.get(tokens[i].tokenIdHex)!.toDbObject());
+                }
             }
         }
 
@@ -119,7 +127,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                 console.log("########################################################################################################")
                 console.log("TOKEN STATS FOR", tokens[i].name, tokens[i].tokenIdHex)
                 console.log("########################################################################################################")
-                console.log(this._tokens.get(tokens[i].tokenIdHex)!.getTokenStats())
+                this._tokens.get(tokens[i].tokenIdHex)!.logTokenStats()
             }
         }
     }
