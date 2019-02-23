@@ -2,6 +2,7 @@ export interface DbConfig {
   name: string; 
   url: string; 
   index: { [key: string]: { [key: string]: string[] } };
+  schema_version: number;
 }
 
 export type CollectionType = { keys: string[], fulltext: string[] }
@@ -20,8 +21,9 @@ export class Config {
     'limit': Number.parseInt(process.env.rpc_limit ? process.env.rpc_limit : "150")
   }
   static db: DbConfig = {
-    name: process.env.db_name ? process.env.db_name : 'bitdb',
+    name: process.env.db_name ? process.env.db_name : 'slpdb',
     url: process.env.db_url ? process.env.db_url : 'mongodb://localhost:27017',
+    schema_version: 1,
     index: {
       confirmed: {
         keys: [
@@ -58,7 +60,7 @@ export class Config {
     }
   }
   static core = {
-    'version': '1',
+    'version': '0.1',
     'from': Number.parseInt(process.env.core_from ? process.env.core_from : "543375")
   }
 }

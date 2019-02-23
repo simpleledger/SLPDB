@@ -1,8 +1,5 @@
-/// <reference path="./vendor/bignumber.js/bignumber.d.ts" />
-
 import { SlpTransactionDetails, SlpTransactionType, LocalValidator, Utils } from 'slpjs';
-import BigNumber from "./vendor/bignumber.js";
-//import BigNumberOld from "bignumber.js";
+import BigNumber from 'bignumber.js';
 import { Bitcore, BitcoinRpc } from './vendor';
 import BITBOXSDK from 'bitbox-sdk/lib/bitbox-sdk';
 import { Config } from './config';
@@ -16,7 +13,7 @@ export interface TokenGraph {
     _tokenDetails: SlpTransactionDetails;
     _tokenStats: TokenStats;
     _tokenUtxos: Set<string>;
-    _txnGraph: Map<txid, GraphTxn>;
+    _graphTxns: Map<txid, GraphTxn>;
     _addresses: Map<cashAddr, AddressBalance>;
     updateTokenGraphFrom(txid: string): Promise<boolean>;
     initStatistics(): Promise<void>;
@@ -31,7 +28,7 @@ export class SlpTokenGraph implements TokenGraph {
     _tokenDetails!: SlpTransactionDetails;
     _tokenStats!: TokenStats;
     _tokenUtxos!: Set<string>;
-    _txnGraph!: Map<string, GraphTxn>;
+    _graphTxns!: Map<string, GraphTxn>;
     _addresses!: Map<cashAddr, AddressBalance>;
     _slpValidator!: LocalValidator;
     _rpcClient: BitcoinRpc.RpcClient;
@@ -45,16 +42,16 @@ export class SlpTokenGraph implements TokenGraph {
 
     async initFromScratch(tokenDetails: SlpTransactionDetails) {
         this._lastUpdatedBlock = 0;
-        this._dbQuery = await bitqueryd.init({ url: Config.db.url });
+        this._dbQuery = await bitqueryd.init({ url: Config.db.url, name: Config.db.name });
         this._tokenDetails = tokenDetails;
         this._tokenUtxos = new Set<string>();
-        this._txnGraph = new Map<string, GraphTxn>();
+        this._graphTxns = new Map<string, GraphTxn>();
         this._addresses = new Map<cashAddr, AddressBalance>();
 
         await this.updateTokenGraphFrom(tokenDetails.tokenIdHex);
         let mints = await this.getMintTransactions();
         if(mints && mints.length > 0)
-            mints.forEach(async m => await this.updateTokenGraphFrom(m.txid!));
+            await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom(m.txid!));
 
         await this.updateAddresses();
         await this.initStatistics();
@@ -63,7 +60,7 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     IsValid(): boolean {
-        return this._txnGraph.has(this._tokenDetails.tokenIdHex);
+        return this._graphTxns.has(this._tokenDetails.tokenIdHex);
     }
 
     async asyncForEach(array: any[], callback: Function) {
@@ -148,7 +145,7 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async updateTokenGraphFrom(txid: string, isParent=false): Promise<boolean> {        
-        if(this._txnGraph.has(txid) && !isParent)
+        if(this._graphTxns.has(txid) && !isParent)
             return true;
 
         let isValid = await this._slpValidator.isValidSlpTxid(txid)
@@ -161,10 +158,10 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
         let graphTxn: GraphTxn;
-        if(!this._txnGraph.has(txid))
+        if(!this._graphTxns.has(txid))
             graphTxn = { details: txnSlpDetails, outputs: [], timestamp: null, block: null }
         else {
-            graphTxn = this._txnGraph.get(txid)!;
+            graphTxn = this._graphTxns.get(txid)!;
             graphTxn.outputs = [];
         }
 
@@ -172,7 +169,7 @@ export class SlpTokenGraph implements TokenGraph {
         if(!isParent) {
             let parentIds = new Set<string>([...txn.inputs.map(i => i.prevTxId.toString('hex'))])
             await this.asyncForEach(Array.from(parentIds), async (txid: string) => {
-                if(this._txnGraph.get(txid)!) {
+                if(this._graphTxns.get(txid)!) {
                     await this.updateTokenGraphFrom(txid, true);
                 }
             });
@@ -229,7 +226,7 @@ export class SlpTokenGraph implements TokenGraph {
             });
         }
 
-        this._txnGraph.set(txid, graphTxn);
+        this._graphTxns.set(txid, graphTxn);
         this._lastUpdatedBlock = await this._rpcClient.getBlockCount();
         return true;
     }
@@ -244,7 +241,7 @@ export class SlpTokenGraph implements TokenGraph {
             if(txout) {
                 let bal;
                 let addr = Utils.toSlpAddress(txout.scriptPubKey.addresses[0])
-                let txnDetails = this._txnGraph.get(txid)!.details
+                let txnDetails = this._graphTxns.get(txid)!.details
                 if(this._addresses.has(addr)) {
                     bal = this._addresses.get(addr)!
                     bal.bch_balance_satoshis+=txout.value*10**8
@@ -347,7 +344,7 @@ export class SlpTokenGraph implements TokenGraph {
             block_created: 0,
             block_last_active_mint: 0,
             block_last_active_send: 0,
-            qty_valid_txns_since_genesis: this._txnGraph.size,
+            qty_valid_txns_since_genesis: this._graphTxns.size,
             qty_valid_token_utxos: this._tokenUtxos.size,
             qty_valid_token_addresses: this._addresses.size,
             qty_token_minted: await this.getTotalMintQuantity(),
@@ -366,7 +363,7 @@ export class SlpTokenGraph implements TokenGraph {
         else {
             this._tokenStats.qty_valid_token_addresses = this._addresses.size;
             this._tokenStats.qty_valid_token_utxos = this._tokenUtxos.size;
-            this._tokenStats.qty_valid_txns_since_genesis = this._txnGraph.size;
+            this._tokenStats.qty_valid_txns_since_genesis = this._graphTxns.size;
             this._tokenStats.qty_token_minted = await this.getTotalMintQuantity();
             this._tokenStats.qty_token_circulating_supply = this.getTotalHeldByAddresses();
             this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply);
@@ -375,6 +372,8 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     logTokenStats(): void {
+        //await this.updateStatistics();
+        console.log("TOKEN STATS:")
         console.log({
             block_created: 0,                //this._tokenStats.block_created,
             block_last_active_mint: 0,       //this._tokenStats.block_last_active_mint,
@@ -390,22 +389,23 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     logAddressBalances(): void {
+        console.log("ADDRESS BALANCES:")
         console.log(Array.from(this._addresses).map((v, _, __) => { return { addr: v[0], bal: v[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toString() }}))
     }
 
     toDbObject(): TokenDBObject {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails);
         let txnGraph: [txid, GraphTxnDb][] = [];
-        this._txnGraph.forEach((g, k) => {
+        this._graphTxns.forEach((g, k) => {
             txnGraph.push([k, { 
                 timestamp: g.timestamp, 
                 block: g.block,
-                details: SlpTokenGraph.MapTokenDetailsToDbo(this._txnGraph.get(k)!.details),
-                outputs: this._txnGraph.get(k)!.outputs,
+                details: SlpTokenGraph.MapTokenDetailsToDbo(this._graphTxns.get(k)!.details),
+                outputs: this._graphTxns.get(k)!.outputs,
             }])
         })
         let result = {
-            slpdbVersion: Config.core.version,
+            slpdbVersion: Config.db.schema_version,
             lastUpdatedBlock: this._lastUpdatedBlock,
             tokenDetails: tokenDetails,
             txnGraph: txnGraph,
@@ -430,7 +430,7 @@ export class SlpTokenGraph implements TokenGraph {
             batonVout: details.batonVout,
             containsBaton: details.containsBaton,
             genesisOrMintQuantity: details.genesisOrMintQuantity,
-            sendOutputs: <BigNumber.Object[]>details.sendOutputs
+            sendOutputs: <BigNumber.Instance[]>details.sendOutputs
         }
 
         return res;
@@ -464,7 +464,7 @@ export class SlpTokenGraph implements TokenGraph {
         tg._tokenDetails = this.MapDbTokenDetails(doc.tokenDetails);
 
         // Map _txnGraph
-        tg._txnGraph = new Map<txid, GraphTxn>();
+        tg._graphTxns = new Map<txid, GraphTxn>();
         doc.txnGraph.forEach((item, idx) => {
             let gt: GraphTxn = {
                 timestamp: item[1].timestamp, 
@@ -473,7 +473,7 @@ export class SlpTokenGraph implements TokenGraph {
                 outputs: doc.txnGraph[idx][1].outputs.map(o => <any>new BigNumber(o.slpAmount))
             }
 
-            tg._txnGraph.set(item[0], gt);
+            tg._graphTxns.set(item[0], gt);
         })
 
         // Map _addresses
@@ -507,10 +507,10 @@ export class SlpTokenGraph implements TokenGraph {
 }
 
 export interface TokenDBObject {
-    slpdbVersion: string;
+    slpdbVersion: number;
     tokenDetails: SlpTransactionDetailsDb;
     txnGraph: [ txid, GraphTxnDb ][];
-    addresses: [ cashAddr, { bch_balance_satoshis: number, token_balance: BigNumber.Object } ][];
+    addresses: [ cashAddr, { bch_balance_satoshis: number, token_balance: BigNumber.Instance } ][];
     tokenStats: TokenStats | TokenStatsDb;
     lastUpdatedBlock: number;
     tokenUtxos: string[]
@@ -528,8 +528,8 @@ interface SlpTransactionDetailsDb {
     decimals: number;
     containsBaton: boolean;
     batonVout: number|null;
-    genesisOrMintQuantity: BigNumber.Object|null;
-    sendOutputs: BigNumber.Object[]|null;
+    genesisOrMintQuantity: BigNumber.Instance|null;
+    sendOutputs: BigNumber.Instance[]|null;
 }
 
 interface GraphTxnDb {
@@ -540,7 +540,7 @@ interface GraphTxnDb {
         address: string,
         vout: number, 
         bchSatoshis: number, 
-        slpAmount: BigNumber.Object, 
+        slpAmount: BigNumber.Instance, 
         slpAmountString: string,
         spendTxid: string | null,
         status: UtxoStatus,
@@ -587,9 +587,9 @@ interface TokenStatsDb {
     qty_valid_txns_since_genesis: number;
     qty_valid_token_utxos: number;
     qty_valid_token_addresses: number;
-    qty_token_minted: BigNumber.Object;
-    qty_token_burned: BigNumber.Object;
-    qty_token_circulating_supply: BigNumber.Object;
+    qty_token_minted: BigNumber.Instance;
+    qty_token_burned: BigNumber.Instance;
+    qty_token_circulating_supply: BigNumber.Instance;
     qty_satoshis_locked_up: number;
 }
 

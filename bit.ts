@@ -57,14 +57,17 @@ export class Bit {
         this.slpMempoolIgnoreList = [];
     }
 
-    slp_txn_filter(txnhex: string): boolean {
+    slp_txn_filter(txnhex: string, isBlock=false): boolean {
         if(txnhex.includes('6a04534c5000')) {
             return true
         }
-        let txn: Bitcore.Transaction = new bitcore.Transaction(txnhex);
-        this.slpMempoolIgnoreList.push(txn.id);
-        if(this.slpMempoolIgnoreList.length > 10000)
-            this.slpMempoolIgnoreList.pop();
+        if(!isBlock) {
+            let txn: Bitcore.Transaction = new bitcore.Transaction(txnhex);
+            this.slpMempoolIgnoreList.push(txn.id);
+            if(this.slpMempoolIgnoreList.length > 10000)
+                this.slpMempoolIgnoreList.pop();
+        }
+
         return false
     }
     
@@ -190,7 +193,6 @@ export class Bit {
 
             let blockHex: string = await this.rpc.getBlock(block_content.hash, false)
             let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
-
             for(let i=0; i < txs.length; i++) {
                 let txnhex = block.txs[i].toRaw().toString('hex');
                 if(this.slp_txn_filter(txnhex)) {
@@ -203,6 +205,12 @@ export class Bit {
                                 i: block_index,
                                 h: block_hash,
                                 t: block_time
+                            }
+                            t.raw = txnhex;
+                            t.slp = {
+                                valid: null,    // this SLP information is populated by each TokenGraph
+                                detail: null,
+                                invalidReason: null
                             }
                             return t;
                         } catch(err) {
@@ -336,6 +344,12 @@ export class Bit {
                     self.queue.add(async function() {
                         if(txn) {
                             let content: TNATxn = await self.tna.fromTx(txn);
+                            content.raw = txn.toString();
+                            content.slp = { 
+                                valid: null,
+                                invalidReason: null,
+                                detail: null
+                            }
                             try {
                                 await self.db.mempoolinsert(content)
                                 console.log("[INFO] SLP mempool transaction added: ", hash);

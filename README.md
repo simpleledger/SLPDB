@@ -20,13 +20,18 @@
 
 ### NOTES
 
-* The following are being calculated and updated in real-time:
-    `qty_valid_txns_since_genesis`
-    `qty_valid_token_utxos`
-    `qty_valid_token_addresses`
-    `qty_token_circulating_supply`
-    `qty_token_burned`
-    `qty_token_minted`
+* `rpcworkqueue` within bitcoin.conf should be set to something large, try `rpcworkqueue=1000`.
 
-Statistics not being computed:
-    `qty_satoshis_locked_up`
+* The following are being calculated and updated in real-time:
+    - `qty_valid_txns_since_genesis`
+    - `qty_valid_token_utxos`
+    - `qty_valid_token_addresses`
+    - `qty_token_circulating_supply`
+    - `qty_token_burned`
+    - `qty_token_minted`
+    - `qty_satoshis_locked_up`
+
+* The following stats are not being computed yet:
+    - `block_created`
+    - `block_last_active_mint`
+    - `block_last_active_send`
