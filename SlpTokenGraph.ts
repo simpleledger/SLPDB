@@ -177,8 +177,10 @@ export class SlpTokenGraph implements TokenGraph {
 
         // get block and timestamp of this txn
         let txq: any = await this.getTransactionDetails(txid);
-        graphTxn.timestamp = txq.timestamp;
-        graphTxn.block = txq.block;
+        if(txq) {
+            graphTxn.timestamp = txq.timestamp;
+            graphTxn.block = txq.block;
+        }
 
         // Create SLP graph outputs for each new valid SLP output
         if(isValid && (graphTxn.details.transactionType === SlpTransactionType.GENESIS || graphTxn.details.transactionType === SlpTransactionType.MINT)) {
@@ -279,7 +281,7 @@ export class SlpTokenGraph implements TokenGraph {
         if(!res.errors) {
             let results: { block: number|null, timestamp: string|null}[] = [];
             results = [ ...([].concat(<any>res.c).concat(<any>res.u))]
-            if(results.length === 1) {
+            if(results.length > 0) {
                 return results[0];
             }
         }
@@ -381,16 +383,16 @@ export class SlpTokenGraph implements TokenGraph {
             qty_valid_txns_since_genesis: this._tokenStats.qty_valid_txns_since_genesis,
             qty_valid_token_utxos: this._tokenStats.qty_valid_token_utxos,
             qty_valid_token_addresses: this._tokenStats.qty_valid_token_addresses,
-            qty_token_minted: this._tokenStats.qty_token_minted.toString(),
-            qty_token_burned: this._tokenStats.qty_token_burned.toString(),
-            qty_token_circulating_supply: this._tokenStats.qty_token_circulating_supply.toString(),
+            qty_token_minted: this._tokenStats.qty_token_minted.dividedBy(10**this._tokenDetails.decimals).toFixed(),
+            qty_token_burned: this._tokenStats.qty_token_burned.dividedBy(10**this._tokenDetails.decimals).toFixed(),
+            qty_token_circulating_supply: this._tokenStats.qty_token_circulating_supply.dividedBy(10**this._tokenDetails.decimals).toFixed(),
             qty_satoshis_locked_up: this._tokenStats.qty_satoshis_locked_up
         })
     }
 
     logAddressBalances(): void {
         console.log("ADDRESS BALANCES:")
-        console.log(Array.from(this._addresses).map((v, _, __) => { return { addr: v[0], bal: v[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toString() }}))
+        console.log(Array.from(this._addresses).map((v, _, __) => { return { addr: v[0], bal: v[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() }}))
     }
 
     toDbObject(): TokenDBObject {
@@ -410,10 +412,25 @@ export class SlpTokenGraph implements TokenGraph {
             tokenDetails: tokenDetails,
             txnGraph: txnGraph,
             addresses: Array.from(this._addresses),
-            tokenStats: this._tokenStats,
+            tokenStats: this.mapTokenStatstoDbo(this._tokenStats),
             tokenUtxos: Array.from(this._tokenUtxos)
         }
         return result;
+    }
+
+    mapTokenStatstoDbo(stats: TokenStats): TokenStatsDb {
+        return {
+            block_created: stats.block_created,
+            block_last_active_send: stats.block_last_active_send,
+            block_last_active_mint: stats.block_last_active_mint,
+            qty_valid_txns_since_genesis: stats.qty_valid_txns_since_genesis,
+            qty_valid_token_utxos: stats.qty_valid_token_utxos,
+            qty_valid_token_addresses: stats.qty_valid_token_addresses,
+            qty_token_minted: stats.qty_token_minted.dividedBy(10**this._tokenDetails.decimals).toFixed(),
+            qty_token_burned: stats.qty_token_burned.dividedBy(10**this._tokenDetails.decimals).toFixed(),
+            qty_token_circulating_supply: stats.qty_token_circulating_supply.dividedBy(10**this._tokenDetails.decimals).toFixed(),
+            qty_satoshis_locked_up: stats.qty_satoshis_locked_up
+        }
     }
 
     static MapTokenDetailsToDbo(details: SlpTransactionDetails): SlpTransactionDetailsDb {
@@ -485,22 +502,14 @@ export class SlpTokenGraph implements TokenGraph {
             });
         });
 
-        // Map _tokenStats
-        tg._tokenStats = {
-            qty_token_minted: new BigNumber(doc.tokenStats.qty_token_minted),
-            qty_token_burned: new BigNumber(doc.tokenStats.qty_token_burned),
-            qty_token_circulating_supply: new BigNumber(doc.tokenStats.qty_token_circulating_supply),
-            qty_satoshis_locked_up: doc.tokenStats.qty_satoshis_locked_up,
-            qty_valid_txns_since_genesis: doc.tokenStats.qty_valid_txns_since_genesis,
-            qty_valid_token_utxos: doc.tokenStats.qty_valid_token_utxos,
-            qty_valid_token_addresses: doc.tokenStats.qty_valid_token_addresses
-        }
 
         // Map _lastUpdatedBlock
         tg._lastUpdatedBlock = doc.lastUpdatedBlock;
 
         // Map _tokenUtxos
         tg._tokenUtxos = new Set(doc.tokenUtxos);
+
+        await tg.updateStatistics();
 
         return tg;
     }
@@ -568,9 +577,9 @@ type txid = string;
 type cashAddr = string;
 
 interface TokenStats {
-    block_created?: number;
-    block_last_active_send?: number;
-    block_last_active_mint?: number;
+    block_created: number;
+    block_last_active_send: number;
+    block_last_active_mint: number;
     qty_valid_txns_since_genesis: number;
     qty_valid_token_utxos: number;
     qty_valid_token_addresses: number;
@@ -587,9 +596,9 @@ interface TokenStatsDb {
     qty_valid_txns_since_genesis: number;
     qty_valid_token_utxos: number;
     qty_valid_token_addresses: number;
-    qty_token_minted: BigNumber.Instance;
-    qty_token_burned: BigNumber.Instance;
-    qty_token_circulating_supply: BigNumber.Instance;
+    qty_token_minted: string;
+    qty_token_burned: string;
+    qty_token_circulating_supply: string;
     qty_satoshis_locked_up: number;
 }
 
