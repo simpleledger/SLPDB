@@ -27,14 +27,15 @@ export class SlpGraphManager implements IZmqSubscriber {
                 console.log("PROCESSING SLP GRAPH UPDATE...");
                 let tokenId: string;
                 let txn = new bitcore.Transaction(txPair[1]);
-                let slpMsg = slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
-                tokenId = slpMsg.tokenIdHex;
-                if(slpMsg.transactionType === SlpTransactionType.GENESIS)
+                let tokenDetails = slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
+                tokenId = tokenDetails.tokenIdHex;
+                if(tokenDetails.transactionType === SlpTransactionType.GENESIS) {
                     tokenId = txn.id;
+                    tokenDetails.tokenIdHex = tokenId;
+                }
     
                 if(!this._tokens.has(tokenId)) {
                     console.log("ADDING NEW GRAPH FOR:", tokenId);
-                    let tokenDetails = await this.queryTokenDetails(tokenId);
                     if(tokenDetails) {
                         let graph = new SlpTokenGraph();
                         await graph.initFromScratch(tokenDetails);
@@ -195,7 +196,7 @@ export class SlpGraphManager implements IZmqSubscriber {
 
         let response: GenesisQueryResult | any = await this.dbQuery.read(q);
         let tokens: GenesisQueryResult[] = [].concat(response.u).concat(response.c);
-        return tokens.length === 1 ? tokens.map(t => this.mapSlpTokenDetailsFromQuery(t))[0] : null;
+        return tokens.length > 0 ? tokens.map(t => this.mapSlpTokenDetailsFromQuery(t))[0] : null;
     }
 
     mapSlpTokenDetailsFromQuery(res: GenesisQueryResult): SlpTransactionDetails {
