@@ -206,7 +206,6 @@ export class Bit {
                                 h: block_hash,
                                 t: block_time
                             }
-                            t.raw = txnhex;
                             t.slp = {
                                 valid: null,    // this SLP information is populated by each TokenGraph
                                 detail: null,
@@ -344,7 +343,6 @@ export class Bit {
                     self.queue.add(async function() {
                         if(txn) {
                             let content: TNATxn = await self.tna.fromTx(txn);
-                            content.raw = txn.toString();
                             content.slp = { 
                                 valid: null,
                                 invalidReason: null,
