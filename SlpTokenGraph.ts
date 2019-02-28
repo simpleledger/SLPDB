@@ -191,7 +191,6 @@ export class SlpTokenGraph implements TokenGraph {
                     vout: 1,
                     bchSatoshis: txn.outputs[1].satoshis, 
                     slpAmount: <any>graphTxn.details.genesisOrMintQuantity!,
-                    slpAmountString: <any>graphTxn.details.genesisOrMintQuantity!.toString(),
                     spendTxid: spendDetails.txid,
                     status: spendDetails.status,
                     invalidReason: spendDetails.txid && spendDetails.status !== UtxoStatus.UNSPENT && spendDetails.status !== UtxoStatus.SPENT_SAME_TOKEN ? this._slpValidator.cachedValidations[spendDetails.txid!].invalidReason : null
@@ -208,7 +207,6 @@ export class SlpTokenGraph implements TokenGraph {
                             vout: vout,
                             bchSatoshis: txn.outputs[vout].satoshis, 
                             slpAmount: <any>graphTxn.details.sendOutputs![vout],
-                            slpAmountString: <any>graphTxn.details.sendOutputs![vout].toString(),
                             spendTxid: spendDetails.txid,
                             status: spendDetails.status,
                             invalidReason: spendDetails.txid && spendDetails.status !== UtxoStatus.UNSPENT && spendDetails.status !== UtxoStatus.SPENT_SAME_TOKEN ? this._slpValidator.cachedValidations[spendDetails.txid!].invalidReason : null
@@ -396,13 +394,13 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     toDbObject(): TokenDBObject {
-        let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails);
+        let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
         let graphTxns: [ txid, GraphTxnDb ][] = [];
         this._graphTxns.forEach((g, k) => {
             graphTxns.push([k, { 
                 timestamp: g.timestamp, 
                 block: g.block,
-                details: SlpTokenGraph.MapTokenDetailsToDbo(this._graphTxns.get(k)!.details),
+                details: SlpTokenGraph.MapTokenDetailsToDbo(this._graphTxns.get(k)!.details, this._tokenDetails.decimals),
                 outputs: this.mapGraphTxnOutputsToDbo(this._graphTxns.get(k)!.outputs)
             }])
         })
@@ -411,7 +409,7 @@ export class SlpTokenGraph implements TokenGraph {
             lastUpdatedBlock: this._lastUpdatedBlock,
             tokenDetails: tokenDetails,
             txnGraph: graphTxns,
-            addresses: <[ cashAddr, { bch_balance_satoshis: number, token_balance: string } ][]>Array.from(this._addresses).map(a => { return [ a[0], { bch_balance_satoshis: a[1].bch_balance_satoshis, bch_token_balance: a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() } ] }),
+            addresses: <[ cashAddr, { bch_balance_satoshis: number, token_balance: string } ][]>Array.from(this._addresses).map(a => { return [ a[0], { bch_balance_satoshis: a[1].bch_balance_satoshis, token_balance: a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() } ] }),
             tokenStats: this.mapTokenStatstoDbo(this._tokenStats),
             tokenUtxos: Array.from(this._tokenUtxos)
         }
@@ -422,7 +420,12 @@ export class SlpTokenGraph implements TokenGraph {
         let mapped: GraphTxnDb["outputs"] = [];
         outputs.forEach(o => {
             let m = Object.create(o);
-            m.slpAmount = m.slpAmount.dividedBy(10**this._tokenDetails.decimals).toFixed();
+            //console.log(m);
+            try {
+                m.slpAmount = m.slpAmount.dividedBy(10**this._tokenDetails.decimals).toFixed();
+            } catch(_) {
+                m.slpAmount = "0";
+            }
             mapped.push(m);
         })
         return mapped;
@@ -443,7 +446,7 @@ export class SlpTokenGraph implements TokenGraph {
         }
     }
 
-    static MapTokenDetailsToDbo(details: SlpTransactionDetails): SlpTransactionDetailsDb {
+    static MapTokenDetailsToDbo(details: SlpTransactionDetails, decimals: number): SlpTransactionDetailsDb {
         let res: SlpTransactionDetailsDb = {
             decimals: details.decimals,
             tokenIdHex: details.tokenIdHex,
@@ -456,14 +459,14 @@ export class SlpTokenGraph implements TokenGraph {
             name: details.name,
             batonVout: details.batonVout,
             containsBaton: details.containsBaton,
-            genesisOrMintQuantity: details.genesisOrMintQuantity,
-            sendOutputs: <BigNumber.Instance[]>details.sendOutputs
+            genesisOrMintQuantity: details.genesisOrMintQuantity ? details.genesisOrMintQuantity!.dividedBy(10**decimals).toFixed() : null,
+            sendOutputs: details.sendOutputs ? details.sendOutputs.map(o => o.dividedBy(10**decimals).toFixed()) : null
         }
 
         return res;
     }
 
-    static MapDbTokenDetails(details: SlpTransactionDetailsDb): SlpTransactionDetails {
+    static MapDbTokenDetailsFromDbo(details: SlpTransactionDetailsDb, decimals: number): SlpTransactionDetails {
         let res = {
             decimals: details.decimals,
             tokenIdHex: details.tokenIdHex,
@@ -476,8 +479,8 @@ export class SlpTokenGraph implements TokenGraph {
             name: details.name,
             batonVout: details.batonVout,
             containsBaton: details.containsBaton,
-            genesisOrMintQuantity: details.genesisOrMintQuantity? <any>new BigNumber(details.genesisOrMintQuantity) : null,
-            sendOutputs: details.sendOutputs ? details.sendOutputs.map(o => <any>new BigNumber(o)) : null
+            genesisOrMintQuantity: details.genesisOrMintQuantity ? <any>new BigNumber(details.genesisOrMintQuantity).multipliedBy(10**decimals) : null,
+            sendOutputs: details.sendOutputs ? details.sendOutputs.map(o => <any>new BigNumber(o).multipliedBy(10**decimals)) : null
         }
 
         return res;
@@ -488,7 +491,7 @@ export class SlpTokenGraph implements TokenGraph {
         tg._dbQuery = await bitqueryd.init({ url: Config.db.url });
 
         // Map _tokenDetails
-        tg._tokenDetails = this.MapDbTokenDetails(doc.tokenDetails);
+        tg._tokenDetails = this.MapDbTokenDetailsFromDbo(doc.tokenDetails, doc.tokenDetails.decimals);
 
         // Map _txnGraph
         tg._graphTxns = new Map<txid, GraphTxn>();
@@ -496,7 +499,7 @@ export class SlpTokenGraph implements TokenGraph {
             let gt: GraphTxn = {
                 timestamp: item[1].timestamp, 
                 block: item[1].block,
-                details: this.MapDbTokenDetails(doc.txnGraph[idx][1].details),
+                details: this.MapDbTokenDetailsFromDbo(doc.txnGraph[idx][1].details, doc.tokenDetails.decimals),
                 outputs: doc.txnGraph[idx][1].outputs.map(o => <any>new BigNumber(o.slpAmount).multipliedBy(10**tg._tokenDetails.decimals))
             }
 
@@ -535,7 +538,7 @@ export interface TokenDBObject {
     tokenUtxos: string[]
 }
 
-interface SlpTransactionDetailsDb {
+export interface SlpTransactionDetailsDb {
     transactionType: SlpTransactionType;
     tokenIdHex: string;
     versionType: number;
@@ -547,8 +550,8 @@ interface SlpTransactionDetailsDb {
     decimals: number;
     containsBaton: boolean;
     batonVout: number|null;
-    genesisOrMintQuantity: BigNumber.Instance|null;
-    sendOutputs: BigNumber.Instance[]|null;
+    genesisOrMintQuantity: string|null;
+    sendOutputs: string[]|null;
 }
 
 interface GraphTxnDb {
@@ -563,7 +566,6 @@ interface GraphTxnOutputDbo {
     vout: number, 
     bchSatoshis: number, 
     slpAmount: string, 
-    slpAmountString: string,
     spendTxid: string | null,
     status: UtxoStatus,
     invalidReason: string | null
@@ -581,7 +583,6 @@ interface GraphTxnOutput {
     vout: number, 
     bchSatoshis: number, 
     slpAmount: BigNumber, 
-    slpAmountString: string,
     spendTxid: string | null,
     status: UtxoStatus,
     invalidReason: string | null
