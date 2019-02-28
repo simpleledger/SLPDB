@@ -1,10 +1,12 @@
 
 # SLPDB
 
-### Steps for alpha testing SLPDB: 
+SLPDB is a persistance layer for SLP token transactions.
 
-1) Get mongodb running locally on port 27017, e.g.,:
-`docker run -d -p 27017:27017 -v <absolute-path-to-data>:/data/db mongo`
+### How to use SLPDB: 
+
+1) Get mongodb running locally, e.g.,:
+`docker run -d -p 27017:27017 -v <your-absolute-path-to-data>:/data/db mongo`
 
 2) Get bitcoind rpc connection running locally, set `user`, `pass`, and `port` in `config.ts`
 

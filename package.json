@@ -1,7 +1,7 @@
 {
   "name": "slpdb",
-  "version": "0.0.1",
-  "description": "Data and caching layer for Simple Ledger Protocol transactions",
+  "version": "0.1.0",
+  "description": "Data storage layer for Simple Ledger Protocol",
   "main": "index.js",
   "scripts": {
     "test": "tsc && test",

@@ -1,6 +1,6 @@
 require('dotenv').config()
 import { BitcoinRpc, Bitcore } from './vendor';
-import { SlpTransactionDetails } from 'slpjs';
+import { SlpTransactionDetailsDb } from './SlpTokenGraph';
 
 const bitcore = require('bitcore-lib-cash')
 
@@ -100,7 +100,7 @@ export interface TNATxn {
     out: Xput[];
     blk?: { h: string; i: number; t: string };
     raw?: string;
-    slp?: { valid: boolean|null, detail: SlpTransactionDetails|null, invalidReason: string|null }
+    slp?: { valid: boolean|null, detail: SlpTransactionDetailsDb|null, invalidReason: string|null }
 }
 
 export interface Xput {
