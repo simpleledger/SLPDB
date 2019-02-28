@@ -23,7 +23,7 @@ export class Config {
   static db: DbConfig = {
     name: process.env.db_name ? process.env.db_name : 'slpdb',
     url: process.env.db_url ? process.env.db_url : 'mongodb://localhost:27017',
-    schema_version: 2,
+    schema_version: 4,
     index: {
       tokens: {
         keys: [ 'tokenDetails.tokenIdHex', 'tokenDetails.name', 'tokenDetails.symbol', 'tokenStats.qty_token_circulating_supply', 'tokenStats.qty_token_burned', 'tokenStats.qty_token_minted' ],
@@ -64,7 +64,6 @@ export class Config {
     }
   }
   static core = {
-    'version': '0.1',
     'from': Number.parseInt(process.env.core_from ? process.env.core_from : "543375")
   }
 }

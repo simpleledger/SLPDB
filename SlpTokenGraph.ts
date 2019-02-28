@@ -397,25 +397,35 @@ export class SlpTokenGraph implements TokenGraph {
 
     toDbObject(): TokenDBObject {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails);
-        let txnGraph: [txid, GraphTxnDb][] = [];
+        let graphTxns: [ txid, GraphTxnDb ][] = [];
         this._graphTxns.forEach((g, k) => {
-            txnGraph.push([k, { 
+            graphTxns.push([k, { 
                 timestamp: g.timestamp, 
                 block: g.block,
                 details: SlpTokenGraph.MapTokenDetailsToDbo(this._graphTxns.get(k)!.details),
-                outputs: this._graphTxns.get(k)!.outputs,
+                outputs: this.mapGraphTxnOutputsToDbo(this._graphTxns.get(k)!.outputs)
             }])
         })
         let result = {
             slpdbVersion: Config.db.schema_version,
             lastUpdatedBlock: this._lastUpdatedBlock,
             tokenDetails: tokenDetails,
-            txnGraph: txnGraph,
-            addresses: Array.from(this._addresses),
+            txnGraph: graphTxns,
+            addresses: <[ cashAddr, { bch_balance_satoshis: number, token_balance: string } ][]>Array.from(this._addresses).map(a => { return [ a[0], { bch_balance_satoshis: a[1].bch_balance_satoshis, bch_token_balance: a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() } ] }),
             tokenStats: this.mapTokenStatstoDbo(this._tokenStats),
             tokenUtxos: Array.from(this._tokenUtxos)
         }
         return result;
+    }
+
+    mapGraphTxnOutputsToDbo(outputs: GraphTxnOutput[]): GraphTxnOutputDbo[] {
+        let mapped: GraphTxnDb["outputs"] = [];
+        outputs.forEach(o => {
+            let m = Object.create(o);
+            m.slpAmount = m.slpAmount.dividedBy(10**this._tokenDetails.decimals).toFixed();
+            mapped.push(m);
+        })
+        return mapped;
     }
 
     mapTokenStatstoDbo(stats: TokenStats): TokenStatsDb {
@@ -487,7 +497,7 @@ export class SlpTokenGraph implements TokenGraph {
                 timestamp: item[1].timestamp, 
                 block: item[1].block,
                 details: this.MapDbTokenDetails(doc.txnGraph[idx][1].details),
-                outputs: doc.txnGraph[idx][1].outputs.map(o => <any>new BigNumber(o.slpAmount))
+                outputs: doc.txnGraph[idx][1].outputs.map(o => <any>new BigNumber(o.slpAmount).multipliedBy(10**tg._tokenDetails.decimals))
             }
 
             tg._graphTxns.set(item[0], gt);
@@ -498,7 +508,7 @@ export class SlpTokenGraph implements TokenGraph {
         doc.addresses.forEach((item, idx) => {
             tg._addresses.set(item[0], {
                 bch_balance_satoshis: doc.addresses[idx][1].bch_balance_satoshis, 
-                token_balance: new BigNumber(doc.addresses[idx][1].token_balance) 
+                token_balance: (new BigNumber(doc.addresses[idx][1].token_balance)).multipliedBy(10**tg._tokenDetails.decimals)
             });
         });
 
@@ -519,7 +529,7 @@ export interface TokenDBObject {
     slpdbVersion: number;
     tokenDetails: SlpTransactionDetailsDb;
     txnGraph: [ txid, GraphTxnDb ][];
-    addresses: [ cashAddr, { bch_balance_satoshis: number, token_balance: BigNumber.Instance } ][];
+    addresses: [ cashAddr, { bch_balance_satoshis: number, token_balance: string } ][];
     tokenStats: TokenStats | TokenStatsDb;
     lastUpdatedBlock: number;
     tokenUtxos: string[]
@@ -545,33 +555,37 @@ interface GraphTxnDb {
     details: SlpTransactionDetailsDb;
     timestamp: string|null;
     block: number|null;
-    outputs: { 
-        address: string,
-        vout: number, 
-        bchSatoshis: number, 
-        slpAmount: BigNumber.Instance, 
-        slpAmountString: string,
-        spendTxid: string | null,
-        status: UtxoStatus,
-        invalidReason: string | null
-    }[]
+    outputs: GraphTxnOutputDbo[]
+}
+
+interface GraphTxnOutputDbo { 
+    address: string,
+    vout: number, 
+    bchSatoshis: number, 
+    slpAmount: string, 
+    slpAmountString: string,
+    spendTxid: string | null,
+    status: UtxoStatus,
+    invalidReason: string | null
 }
 
 interface GraphTxn {
     details: SlpTransactionDetails;
     timestamp: string|null
     block: number|null;
-    outputs: { 
-        address: string,
-        vout: number, 
-        bchSatoshis: number, 
-        slpAmount: BigNumber, 
-        slpAmountString: string,
-        spendTxid: string | null,
-        status: UtxoStatus,
-        invalidReason: string | null
-     }[]
+    outputs: GraphTxnOutput[]
 }
+
+interface GraphTxnOutput { 
+    address: string,
+    vout: number, 
+    bchSatoshis: number, 
+    slpAmount: BigNumber, 
+    slpAmountString: string,
+    spendTxid: string | null,
+    status: UtxoStatus,
+    invalidReason: string | null
+ }
 
 type txid = string;
 type cashAddr = string;
