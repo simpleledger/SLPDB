@@ -87,7 +87,7 @@ export class SlpGraphManager implements IZmqSubscriber {
         try {
             let keys = Object.keys(tokenGraph._slpValidator.cachedValidations);
             if(!keys.includes(txid)) {
-                await tokenGraph._slpValidator.isValidSlpTxid(txid);
+                await tokenGraph._slpValidator.isValidSlpTxid(txid, tokenGraph._tokenDetails.tokenIdHex);
             }
             let validation = tokenGraph._slpValidator.cachedValidations[txid];
             isValid = validation.validity;

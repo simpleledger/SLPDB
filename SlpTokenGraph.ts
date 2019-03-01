@@ -32,7 +32,7 @@ export class SlpTokenGraph implements TokenGraph {
     _addresses!: Map<cashAddr, AddressBalance>;
     _slpValidator!: LocalValidator;
     _rpcClient: BitcoinRpc.RpcClient;
-    _dbQuery!: any
+    _dbQuery!: any;
 
     constructor() {
         let connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port
@@ -125,7 +125,7 @@ export class SlpTokenGraph implements TokenGraph {
                     return { status: UtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null };
                 }
                 if(typeof spendTxnInfo!.txid === 'string') {
-                    let valid = this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!);
+                    let valid = this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
                     if(valid) {
                         return { status: UtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo };
                     }
@@ -137,7 +137,6 @@ export class SlpTokenGraph implements TokenGraph {
         } 
         else {
             this._tokenUtxos.add(txid + ":" + vout);
-            //console.log("ADD:", txid,":",vout);
             return { status: UtxoStatus.UNSPENT, txid: null, queryResponse: null };
         }
 
@@ -148,12 +147,12 @@ export class SlpTokenGraph implements TokenGraph {
         if(this._graphTxns.has(txid) && !isParent)
             return true;
 
-        let isValid = await this._slpValidator.isValidSlpTxid(txid)
+        let isValid = await this._slpValidator.isValidSlpTxid(txid, this._tokenDetails.tokenIdHex);
         let txnSlpDetails = this._slpValidator.cachedValidations[txid].details;
         let txn: Bitcore.Transaction = new bitcore.Transaction(this._slpValidator.cachedRawTransactions[txid])
 
         if (!isValid || !txnSlpDetails) {
-            console.log("not valid or no Txn details", txid);
+            console.log("Not valid token or no token details for", txid);
             return false;
         }
 
@@ -361,12 +360,14 @@ export class SlpTokenGraph implements TokenGraph {
         if(!this._tokenStats)
             await this.initStatistics();
         else {
+            let minted = await this.getTotalMintQuantity();
+            let addressesTotal = this.getTotalHeldByAddresses()
             this._tokenStats.qty_valid_token_addresses = this._addresses.size;
             this._tokenStats.qty_valid_token_utxos = this._tokenUtxos.size;
             this._tokenStats.qty_valid_txns_since_genesis = this._graphTxns.size;
-            this._tokenStats.qty_token_minted = await this.getTotalMintQuantity();
-            this._tokenStats.qty_token_circulating_supply = this.getTotalHeldByAddresses();
-            this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply);
+            this._tokenStats.qty_token_minted = minted;
+            this._tokenStats.qty_token_circulating_supply = addressesTotal;
+            this._tokenStats.qty_token_burned = minted.minus(addressesTotal);
             this._tokenStats.qty_satoshis_locked_up = this.getTotalSatoshisLockedUp();
         }
     }
