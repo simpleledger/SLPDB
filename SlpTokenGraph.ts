@@ -20,7 +20,7 @@ export interface TokenGraph {
 }
 
 export interface AddressBalance {
-    token_balance: BigNumber, bch_balance_satoshis: number
+    token_balance: BigNumber, satoshis_balance: number
 }
 
 export class SlpTokenGraph implements TokenGraph {
@@ -243,7 +243,7 @@ export class SlpTokenGraph implements TokenGraph {
                 let txnDetails = this._graphTxns.get(txid)!.details
                 if(this._addresses.has(addr)) {
                     bal = this._addresses.get(addr)!
-                    bal.bch_balance_satoshis+=txout.value*10**8
+                    bal.satoshis_balance+=txout.value*10**8
                     if(txnDetails.transactionType === SlpTransactionType.SEND)
                         bal.token_balance = bal.token_balance.plus(txnDetails.sendOutputs![vout])
                     else if(vout === 1)
@@ -251,9 +251,9 @@ export class SlpTokenGraph implements TokenGraph {
                 }
                 else {
                     if(txnDetails.transactionType === SlpTransactionType.SEND)
-                        bal = { bch_balance_satoshis: txout.value*10**8, token_balance: txnDetails.sendOutputs![vout] }
+                        bal = { satoshis_balance: txout.value*10**8, token_balance: txnDetails.sendOutputs![vout] }
                     else if(vout === 1)
-                        bal = { bch_balance_satoshis: txout.value*10**8, token_balance: txnDetails.genesisOrMintQuantity! }
+                        bal = { satoshis_balance: txout.value*10**8, token_balance: txnDetails.genesisOrMintQuantity! }
                 }
 
                 if(bal) {
@@ -334,7 +334,7 @@ export class SlpTokenGraph implements TokenGraph {
 
     getTotalSatoshisLockedUp(): number {
         let qty = 0;
-        this._addresses.forEach(a => qty+=a.bch_balance_satoshis);
+        this._addresses.forEach(a => qty+=a.satoshis_balance);
         return Math.round(qty);
     }
 
@@ -410,7 +410,7 @@ export class SlpTokenGraph implements TokenGraph {
             lastUpdatedBlock: this._lastUpdatedBlock,
             tokenDetails: tokenDetails,
             txnGraph: graphTxns,
-            addresses: <[ cashAddr, { bch_balance_satoshis: number, token_balance: string } ][]>Array.from(this._addresses).map(a => { return [ a[0], { bch_balance_satoshis: a[1].bch_balance_satoshis, token_balance: a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() } ] }),
+            addresses: <[ cashAddr, { satoshis_balance: number, token_balance: string } ][]>Array.from(this._addresses).map(a => { return [ a[0], { satoshis_balance: a[1].satoshis_balance, token_balance: a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() } ] }),
             tokenStats: this.mapTokenStatstoDbo(this._tokenStats),
             tokenUtxos: Array.from(this._tokenUtxos)
         }
@@ -511,7 +511,7 @@ export class SlpTokenGraph implements TokenGraph {
         tg._addresses = new Map<string, AddressBalance>();
         doc.addresses.forEach((item, idx) => {
             tg._addresses.set(item[0], {
-                bch_balance_satoshis: doc.addresses[idx][1].bch_balance_satoshis, 
+                satoshis_balance: doc.addresses[idx][1].satoshis_balance, 
                 token_balance: (new BigNumber(doc.addresses[idx][1].token_balance)).multipliedBy(10**tg._tokenDetails.decimals)
             });
         });
@@ -533,7 +533,7 @@ export interface TokenDBObject {
     slpdbVersion: number;
     tokenDetails: SlpTransactionDetailsDb;
     txnGraph: [ txid, GraphTxnDb ][];
-    addresses: [ cashAddr, { bch_balance_satoshis: number, token_balance: string } ][];
+    addresses: [ cashAddr, { satoshis_balance: number, token_balance: string } ][];
     tokenStats: TokenStats | TokenStatsDb;
     lastUpdatedBlock: number;
     tokenUtxos: string[]
