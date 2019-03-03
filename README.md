@@ -3,6 +3,8 @@
 
 SLPDB is a persistance layer for SLP token transactions.
 
+### NOTICE: SLPDB is in an alpha state.  Expect changes.
+
 ### How to use SLPDB: 
 
 1) Get mongodb running locally, e.g.,:

@@ -1,15 +1,16 @@
+import { Info, ChainSyncCheckpoint } from './info';
 import { Bitcore, BitcoinRpc } from './vendor'
-const RpcClient = require('bitcoin-rpc-promise')
-import zmq from 'zeromq';
+import { TNA, TNATxn } from './tna';
+import { Config } from './config';
+import { Db } from './db';
+
 import pLimit from 'p-limit';
 import pQueue from 'p-queue';
-import { Config } from './config';
-import { Info, ChainSyncCheckpoint } from './info';
-import { Db } from './db';
-import { TNA, TNATxn } from './tna';
-const BufferReader = require('bufio/lib/reader');
-const Block = require('bcash/lib/primitives/block');
+import zmq from 'zeromq';
 
+const Block = require('bcash/lib/primitives/block');
+const BufferReader = require('bufio/lib/reader');
+const RpcClient = require('bitcoin-rpc-promise');
 const bitcore = require('bitcore-lib-cash');
 
 export enum SyncType {
@@ -50,8 +51,8 @@ export class Bit {
     _zmqSubscribers: IZmqSubscriber[];
 
     constructor() {
-        this.outsock = zmq.socket('pub')
-        this.queue = new pQueue({ concurrency: Config.rpc.limit })
+        this.outsock = zmq.socket('pub');
+        this.queue = new pQueue({ concurrency: Config.rpc.limit });
         this.slpMempool = new Map<txid, txhex>();
         this._zmqSubscribers = [];
         this.slpMempoolIgnoreList = [];
@@ -59,7 +60,7 @@ export class Bit {
 
     slp_txn_filter(txnhex: string, isBlock=false): boolean {
         if(txnhex.includes('6a04534c5000')) {
-            return true
+            return true;
         }
         if(!isBlock) {
             let txn: Bitcore.Transaction = new bitcore.Transaction(txnhex);
@@ -68,13 +69,13 @@ export class Bit {
                 this.slpMempoolIgnoreList.pop();
         }
 
-        return false
+        return false;
     }
     
     async init(db: Db) {
         console.log("[INFO] Initializing RPC connection with bitcoind...");
         this.db = db;
-        let connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port
+        let connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port;
         this.rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
         console.log("[INFO] Testing RPC connection...");
         await this.requestblock(0);
@@ -102,9 +103,7 @@ export class Bit {
     }
 
     async getSlpMempoolTransaction(txid: string): Promise<Bitcore.Transaction|null> {
-        //await this.addTransactionToSlpMempool(txid);
         if(this.slpMempool.has(txid)){
-            //console.log("getSlpMempoolTransaction")
             return new bitcore.Transaction(this.slpMempool.get(txid));
         }
         return null;
@@ -124,13 +123,11 @@ export class Bit {
             return false;
         }
         // otherwise, must be blacklisted (non-SL txn)
-        //console.log("IGNORE ALREADY SEEN NON-SLP: ", txid);
         return false;
     }
 
     removeCachedTransaction(txid: string) {
         try { 
-            //console.log("REMOVED FROM SLP MEMPOOL:", txid);
             this.slpMempool.delete(txid);
         } catch(_){ } 
     }
@@ -138,17 +135,16 @@ export class Bit {
     async requestSlpMempool(): Promise<TNATxn[]> {
         try {
             await this.syncSlpMempool();
-            let tasks: any[] = []
-            const limit = pLimit(Config.rpc.limit)
+            let tasks: any[] = [];
+            const limit = pLimit(Config.rpc.limit);
             let self = this;
-            //console.log("This mempool:", this.slpMempool);
             this.slpMempool.forEach((txhex, txid, map) => {
                 tasks.push(limit(async function() {
-                    let content = <Bitcore.Transaction>(await self.getSlpMempoolTransaction(txid))
+                    let content = <Bitcore.Transaction>(await self.getSlpMempoolTransaction(txid));
                     return self.tna.fromTx(content);
                 }))
             })
-            let res = await Promise.all(tasks)
+            let res = await Promise.all(tasks);
             return res;
         } catch(err) {
             throw Error("Any unknown error has occurred when processing mempool transactions.");
@@ -171,8 +167,6 @@ export class Bit {
         
         // Add SLP txs to the mempool not in the cache.
         let cachedSlpMempoolTxs = Array.from(this.slpMempool.keys());
-        //console.log("SLP MEMPOOL", cachedSlpMempoolTxs);
-        //console.log("BCH MEMPOOL", currentBchMempoolList);
         await this.asyncForEach(currentBchMempoolList, async (txid: string) => cachedSlpMempoolTxs.includes(txid) ? null : await this.handleWiredSlpTransaction(txid) );
         
         console.log('[INFO] SLP mempool txs =', this.slpMempool.size);
@@ -180,22 +174,22 @@ export class Bit {
 
     async crawl(block_index: number): Promise<CrawlResult|null> {
         let result = new Map<txid, CrawlTxnInfo>();
-        let block_content = await this.requestblock(block_index)
-        let block_hash = block_content.hash
-        let block_time = block_content.time
+        let block_content = await this.requestblock(block_index);
+        let block_hash = block_content.hash;
+        let block_time = block_content.time;
         
         if (block_content) {
-            let txs: string[] = block_content.tx
-            console.log('[INFO] Crawling block txs:', txs.length)
-            let tasks: Promise<any>[] = []
-            const limit = pLimit(Config.rpc.limit)
+            let txs: string[] = block_content.tx;
+            console.log('[INFO] Crawling block', block_index, 'txs:', txs.length);
+            let tasks: Promise<any>[] = [];
+            const limit = pLimit(Config.rpc.limit);
             const self = this;
 
-            let blockHex: string = await this.rpc.getBlock(block_content.hash, false)
+            let blockHex: string = await this.rpc.getBlock(block_content.hash, false);
             let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
             for(let i=0; i < txs.length; i++) {
                 let txnhex = block.txs[i].toRaw().toString('hex');
-                if(this.slp_txn_filter(txnhex)) {
+                if(this.slp_txn_filter(txnhex) && !this.slpMempool.has(block.txs[i].txid())) {
                     tasks.push(limit(async function() {
                         try {
                             let txn: Bitcore.Transaction = new bitcore.Transaction(txnhex);
@@ -205,58 +199,65 @@ export class Bit {
                                 i: block_index,
                                 h: block_hash,
                                 t: block_time
-                            }
+                            };
                             t.slp = {
                                 valid: null,    // this SLP information is populated by each TokenGraph
                                 detail: null,
                                 invalidReason: null
-                            }
+                            };
                             return t;
                         } catch(err) {
-                            console.log('[Error] crawl error:', err)
+                            console.log('[Error] crawl error:', err);
                         }
                     }))
                 }
+                else if(this.slpMempool.has(block.txs[i].txid())) {
+                    tasks.push(limit(async function() {
+                        let tx = await self.db.mempoolfetch(block.txs[i].txid());
+                        console.log("MEMPOOL HAS SLP ITEM", tx);
+                        if(!tx)
+                            throw Error("Cannot find transaction.");
+                        result.set(block.txs[i].txid(), { txHex: txnhex, tnaTxn: tx });
+                        return tx;
+                    }))
+                }
             }
-            let btxs = await Promise.all(tasks)
-            console.log('[INFO] Block', block_index, 'processed :', txs.length, 'BCH txs |', btxs.length, 'SLP txs')
+            let btxs = await Promise.all(tasks);
+            console.log('[INFO] Block', block_index, 'processed :', txs.length, 'BCH txs |', btxs.length, 'SLP txs');
             return result;
         } else {
-            return null
+            return null;
         }
     }
 
     listenToZmq() {
-        let sock = zmq.socket('sub')
-        sock.connect('tcp://' + Config.zmq.incoming.host + ':' + Config.zmq.incoming.port)
-        sock.subscribe('hashtx')
-        sock.subscribe('hashblock')
+        let sock = zmq.socket('sub');
+        sock.connect('tcp://' + Config.zmq.incoming.host + ':' + Config.zmq.incoming.port);
+        sock.subscribe('hashtx');
+        sock.subscribe('hashblock');
 
-        // TODO: Move this zmq publishing code elsewhere
-        //console.log('Subscriber connected to port', Config.zmq.incoming.port)
-        this.outsock.bindSync('tcp://' + Config.zmq.outgoing.host + ':' + Config.zmq.outgoing.port)
-        //console.log('Started publishing to ' + Config.zmq.outgoing.host + ':' + Config.zmq.outgoing.port)
+        this.outsock.bindSync('tcp://' + Config.zmq.outgoing.host + ':' + Config.zmq.outgoing.port);
         
         // Listen to ZMQ
         let sync = Bit.sync;
         let self = this;
         sock.on('message', async function(topic, message) {
             if (topic.toString() === 'hashtx') {
-                let hash = message.toString('hex')
-                console.log('[ZMQ] Txn hash:', hash)
-                let syncResult = await sync(self, 'mempool', hash)
+                let hash = message.toString('hex');
+                console.log('[ZMQ] Txn hash:', hash);
+                let syncResult = await sync(self, 'mempool', hash);
                 for (let i = 0; i < self._zmqSubscribers.length; i++) {
                     if(syncResult && self._zmqSubscribers[i].onTransactionHash) {
                         await self._zmqSubscribers[i].onTransactionHash!(syncResult);
                     }
                 }
             } else if (topic.toString() === 'hashblock') {
-                let hash = message.toString('hex')
-                console.log('[ZMQ] Block hash:', hash)
-                let syncResult = await sync(self, 'block')
+                let hash = message.toString('hex');
+                console.log('[ZMQ] Block hash:', hash);
+                let syncResult = await sync(self, 'block');
                 for (let i = 0; i < self._zmqSubscribers.length; i++) {
                     if(self._zmqSubscribers[i].onBlockHash)
-                        await self._zmqSubscribers[i].onBlockHash!(syncResult!)
+                        await self._zmqSubscribers[i].onBlockHash!(syncResult!);
                 }
             }
         })
@@ -264,10 +265,9 @@ export class Bit {
         
         // Don't trust ZMQ. Try synchronizing every 10 minutes in case ZMQ didn't fire
         setInterval(async function() {
-            console.log('[INFO] ##### Re-checking mempool #####')
-            //await Bit.sync(self, 'block')
-            await Bit.sync(self, 'mempool')
-            console.log('[INFO] ##### Re-checking complete #####')
+            console.log('[INFO] ##### Re-checking mempool #####');
+            await Bit.sync(self, 'mempool');
+            console.log('[INFO] ##### Re-checking complete #####');
         }, 60000)
     }
         
@@ -281,65 +281,54 @@ export class Bit {
                 // Handle block reorg
                 lastCheckpoint = await Bit.checkForReorg(self, lastCheckpoint);
 
-                let currentHeight: number = await self.requestheight()
+                let currentHeight: number = await self.requestheight();
             
                 for(let index: number = lastCheckpoint.height; index <= currentHeight; index++) {
-                    //console.log('RPC BEGIN ' + index, new Date().toString())
-                    console.time('[PERF] RPC END ' + index)
-                    let content = <CrawlResult>(await self.crawl(index))
-                    //result.filteredContent.set(SyncFilterTypes.SLP, result.filteredContent.get(SyncFilterTypes.SLP)!.concat(content))
-                    console.timeEnd('[PERF] RPC END ' + index)
-                    //console.log(new Date().toString())
-                    //console.log('DB BEGIN ' + index, new Date().toString())
-                    console.time('[PERF] DB Insert ' + index)
+
+                    console.time('[PERF] RPC END ' + index);
+                    let content = <CrawlResult>(await self.crawl(index));
+                    console.timeEnd('[PERF] RPC END ' + index);
+                    console.time('[PERF] DB Insert ' + index);
             
                     if(content) {
-                        let array = Array.from(content.values()).map(c => c.tnaTxn)
-                        await self.db.blockinsert(array, index)
+                        let array = Array.from(content.values()).map(c => c.tnaTxn);
+                        await self.db.blockinsert(array, index);
                     }
 
                     await Info.deleteOldTipHash(index - 1);
-                    await Info.updateTip(index, await self.rpc.getBlockHash(index))
-                    console.timeEnd('[PERF] DB Insert ' + index)
-                    //console.log('------------------------------------------')
-                    //console.log('\n')
-            
-                    // zmq broadcast
-                    let b = { i: index, txs: content }
-                    //console.log('Zmq block = ', JSON.stringify(b, null, 2))
-                    self.outsock.send(['block', JSON.stringify(b)])
+                    await Info.updateTip(index, await self.rpc.getBlockHash(index));
+                    console.timeEnd('[PERF] DB Insert ' + index);
+
+                    self.outsock.send(['block', JSON.stringify({ i: index, txs: content })]);
                 }
         
                 // clear mempool and synchronize
                 if (lastCheckpoint.height < currentHeight) {
-                    console.log('[INFO] Re-sync SLP mempool')
+                    console.log('[INFO] Re-sync SLP mempool');
                     let items: TNATxn[] = await self.requestSlpMempool();
-                    await self.db.mempoolsync(items)
+                    await self.db.mempoolsync(items);
                 }
             
                 if (lastCheckpoint.height === currentHeight) {
-                    //console.log('no update')
-                    return result
+                    return result;
                 } else {
-                    //console.log('[finished]')
                     return null;
                 }
             } catch (e) {
-                console.log('[ERROR] block sync Error', e)
-                console.log('[INFO] Shutting down SLPDB...', new Date().toString())
-                await self.db.exit()
-                process.exit()
+                console.log('[ERROR] block sync Error', e);
+                console.log('[INFO] Shutting down SLPDB...', new Date().toString());
+                await self.db.exit();
+                process.exit();
             }
         } else if (type === 'mempool') {
             result = { syncType: SyncType.Mempool, filteredContent: new Map<SyncFilterTypes, TransactionPool>() }
-            //let outsock = self.outsock;
             if (!hash) {
                 await self.syncSlpMempool();
             } else {
+                let isInMempool = self.slpMempool.has(hash);
                 let isSLP = await self.handleWiredSlpTransaction(hash);
-                let txn = await self.getSlpMempoolTransaction(hash)
-                if(isSLP) {
-                    // IS THIS QUEUE REALLY NEEDED?
+                let txn = await self.getSlpMempoolTransaction(hash);
+                if(isSLP && !isInMempool) {
                     self.queue.add(async function() {
                         if(txn) {
                             let content: TNATxn = await self.tna.fromTx(txn);
@@ -347,20 +336,17 @@ export class Bit {
                                 valid: null,
                                 invalidReason: null,
                                 detail: null
-                            }
+                            };
                             try {
-                                await self.db.mempoolinsert(content)
+                                await self.db.mempoolinsert(content);
                                 console.log("[INFO] SLP mempool transaction added: ", hash);
-                                //console.log('# Q inserted [size: ' + queue.size + ']',  hash)
-                                //console.log(content)
-                                self.outsock.send(['mempool', JSON.stringify(content)])
+                                self.outsock.send(['mempool', JSON.stringify(content)]);
                             } catch (e) {
-                                // duplicates are ok because they will be ignored
                                 if (e.code == 11000) {
-                                    console.log('[ERROR] Duplicate mempool item:', content)
+                                    console.log('[ERROR] Duplicate mempool item:', content);
                                 } else {
-                                    console.log('[ERROR] Mempool sync ERR:', e, content)
-                                    process.exit()
+                                    console.log('[ERROR] Mempool sync ERR:', e, content);
+                                    process.exit();
                                 }
                             }
                         }

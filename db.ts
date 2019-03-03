@@ -47,10 +47,15 @@ export class Db {
     }
 
     async mempoolreset() {
-        await this.db.collection('unconfirmed').deleteMany({}).catch(function(err) {
+        await this.db.collection('unconfirmed').deleteMany({})
+        .catch(function(err) {
             console.log('mempoolreset ERR ', err)
             process.exit()
         })
+    }
+
+    async mempoolfetch(txid: string) {
+        return await this.db.collection('unconfirmed').findOne({ "tx.h": txid });
     }
 
     async mempoolsync(items: TNATxn[]) {
@@ -65,19 +70,16 @@ export class Db {
             let chunk = items.splice(0, 1000)
             if (chunk.length > 0) {
                 await this.db.collection('unconfirmed').insertMany(chunk, { ordered: false }).catch(function(err) {
-                // duplicates are ok because they will be ignored
                     if (err.code !== 11000) {
                         console.log('## ERR ', err, items)
                         process.exit()
                     }
                 })
-                //console.log('..chunk ' + index + ' processed ...', new Date().toString())
                 index++
             } else {
                 break
             }
         }
-        //console.log('Mempool synchronized with ' + items.length + ' items')
     }
 
     async blockreset() {
