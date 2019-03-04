@@ -1,6 +1,6 @@
 {
   "name": "slpdb",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Data storage layer for Simple Ledger Protocol",
   "main": "index.js",
   "scripts": {
@@ -26,8 +26,8 @@
     "@types/ip": "^1.1.0",
     "@types/mongodb": "^3.1.19",
     "@types/node": "^10.12.21",
-    "@types/p-limit": "^2.0.0",
-    "@types/p-queue": "^3.0.0",
+    "@types/p-limit": "2.0.0",
+    "@types/p-queue": "3.1.0",
     "@types/zeromq": "^4.6.1",
     "bcash": "^1.1.1",
     "bignumber.js": "^8.1.0",
@@ -43,9 +43,9 @@
     "leveldown": "^4.0.1",
     "mingo": "^2.2.4",
     "mongodb": "^3.1.4",
-    "p-limit": "^2.0.0",
-    "p-queue": "^3.0.0",
-    "slpjs": "^0.15.2",
+    "p-limit": "2.0.0",
+    "p-queue": "3.1.0",
+    "slpjs": "^0.15.3",
     "traverse": "^0.6.6",
     "zeromq": "^4.6.0"
   },

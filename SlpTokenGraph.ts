@@ -370,6 +370,9 @@ export class SlpTokenGraph implements TokenGraph {
             this._tokenStats.qty_token_burned = minted.minus(addressesTotal);
             this._tokenStats.qty_satoshis_locked_up = this.getTotalSatoshisLockedUp();
         }
+
+        if(this._tokenStats.qty_token_circulating_supply.isGreaterThan(this._tokenStats.qty_token_minted))
+            throw Error("Unknown error, cannot have circulating supply larger than mint quantity.");
     }
 
     logTokenStats(): void {
