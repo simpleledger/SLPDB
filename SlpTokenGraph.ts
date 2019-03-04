@@ -489,7 +489,7 @@ export class SlpTokenGraph implements TokenGraph {
 
     static async FromDbObject(doc: TokenDBObject): Promise<SlpTokenGraph> {
         let tg = new SlpTokenGraph();
-        tg._dbQuery = await bitqueryd.init({ url: Config.db.url });
+        tg._dbQuery = await bitqueryd.init({ url: Config.db.url, name: Config.db.name });
 
         // Map _tokenDetails
         tg._tokenDetails = this.MapDbTokenDetailsFromDbo(doc.tokenDetails, doc.tokenDetails.decimals);
