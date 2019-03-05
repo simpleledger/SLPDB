@@ -5,7 +5,7 @@ import { Config } from './config';
 import { Db } from './db';
 
 import pLimit from 'p-limit';
-import pQueue from 'p-queue';
+import pQueue, { DefaultAddOptions } from 'p-queue';
 import zmq from 'zeromq';
 
 const Block = require('bcash/lib/primitives/block');
@@ -45,7 +45,7 @@ export class Bit {
     rpc!: BitcoinRpc.RpcClient;
     tna!: TNA;
     outsock: zmq.Socket;
-    queue: pQueue<pQueue.DefaultAddOptions>;
+    queue: pQueue<DefaultAddOptions>;
     slpMempool: TransactionPool;
     slpMempoolIgnoreList: string[]; 
     _zmqSubscribers: IZmqSubscriber[];
@@ -214,6 +214,7 @@ export class Bit {
                 else if(this.slpMempool.has(block.txs[i].txid())) {
                     tasks.push(limit(async function() {
                         let tx = await self.db.mempoolfetch(block.txs[i].txid());
+                        console.log("TXID", block.txs[i].txid())
                         console.log("MEMPOOL HAS SLP ITEM", tx);
                         if(!tx)
                             throw Error("Cannot find transaction.");
