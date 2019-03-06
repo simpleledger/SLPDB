@@ -89,11 +89,16 @@ const util = {
 }
 
 const start = async function() {
-	if (process.argv.length > 2) {
-		util.run()
-	} else {
-		daemon.run()
+	try {
+		if (process.argv.length > 2) {
+			await util.run();
+		} else {
+			await daemon.run();
+		}
+	} catch(err) {
+		console.log(err);
+		process.exit();
 	}
 }
 
-start()
+start();
