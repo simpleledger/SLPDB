@@ -24,6 +24,8 @@ SLPDB is a persistance layer for SLP token transactions.
 
 ### NOTES
 
+* Using different networks (e.g., mainnet vs testnet) require `db.name` within `config.ts` should be unique for each network.
+
 * `rpcworkqueue` within bitcoin.conf should be set to something large, try `rpcworkqueue=1000`.
 
 * The following are being calculated and updated in real-time:

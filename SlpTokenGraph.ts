@@ -184,9 +184,12 @@ export class SlpTokenGraph implements TokenGraph {
         // Create SLP graph outputs for each new valid SLP output
         if(isValid && (graphTxn.details.transactionType === SlpTransactionType.GENESIS || graphTxn.details.transactionType === SlpTransactionType.MINT)) {
             if(graphTxn.details.genesisOrMintQuantity!.isGreaterThanOrEqualTo(0)) {
-                let spendDetails = await this.getSpendDetails(txid, 1)
+                let spendDetails = await this.getSpendDetails(txid, 1);
+                let address;
+                try { address = Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[1]._scriptBuffer, 'testnet'))
+                } catch(_) { address = "multisig or unknown address type"; }
                 graphTxn.outputs.push({
-                    address: Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[1]._scriptBuffer)),
+                    address: address,
                     vout: 1,
                     bchSatoshis: txn.outputs[1].satoshis, 
                     slpAmount: <any>graphTxn.details.genesisOrMintQuantity!,
@@ -200,9 +203,12 @@ export class SlpTokenGraph implements TokenGraph {
             await this.asyncForEach(graphTxn.details.sendOutputs!, async (output: BigNumber, vout: number) => { 
                 if(output.isGreaterThanOrEqualTo(0)) {
                     if(vout > 0) {
-                        let spendDetails = await this.getSpendDetails(txid, vout)
+                        let spendDetails = await this.getSpendDetails(txid, vout);
+                        let address;
+                        try { address = Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[vout]._scriptBuffer))
+                        } catch(_) { address = "multisig or unknown address type"; }
                         graphTxn.outputs.push({
-                            address: Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[vout]._scriptBuffer)),
+                            address: address,
                             vout: vout,
                             bchSatoshis: txn.outputs[vout].satoshis, 
                             slpAmount: <any>graphTxn.details.sendOutputs![vout],
