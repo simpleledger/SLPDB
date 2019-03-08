@@ -8,6 +8,9 @@ import pLimit from 'p-limit';
 import pQueue, { DefaultAddOptions } from 'p-queue';
 import zmq from 'zeromq';
 import { BlockDetails } from 'bitbox-sdk/lib/Block';
+import BITBOXSDK from 'bitbox-sdk';
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const Block = require('bcash/lib/primitives/block');
 const BufferReader = require('bufio/lib/reader');
@@ -50,6 +53,7 @@ export class Bit {
     slpMempool: TransactionPool;
     slpMempoolIgnoreList: string[]; 
     _zmqSubscribers: IZmqSubscriber[];
+    network!: string;
 
     constructor() {
         this.outsock = zmq.socket('pub');
@@ -74,13 +78,30 @@ export class Bit {
     }
     
     async init(db: Db) {
-        console.log("[INFO] Initializing RPC connection with bitcoind...");
         this.db = db;
+
+        console.log("[INFO] Initializing RPC connection with bitcoind...");
         let connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port;
         this.rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
+        this.network = (await this.rpc.getInfo()).testnet ? 'testnet': 'mainnet';
+        let BITBOX = this.network === 'mainnet' ? new BITBOXSDK({ restURL: `https://rest.bitcoin.com/v2/` }) : new BITBOXSDK({ restURL: `https://trest.bitcoin.com/v2/` });
+
         console.log("[INFO] Testing RPC connection...");
         await this.requestblock(0);
         console.log("[INFO] JSON-RPC is initialized.");
+        let isSyncd = false;
+        let lastReportedSyncBlocks = 0;
+        while(!isSyncd) {
+            let syncdBlocks = (await this.rpc.getInfo()).blocks;
+            let networkBlocks = (await BITBOX.Blockchain.getBlockchainInfo()).blocks;
+            isSyncd = syncdBlocks === networkBlocks ? true : false;
+            if(syncdBlocks !== lastReportedSyncBlocks)
+                console.log("[INFO] Waiting for bitcoind to sync with network (on block", syncdBlocks, "of", networkBlocks);
+            else 
+                console.log("[WARN] bitcoind sync status did not change, check your bitcoind network connection.")
+            lastReportedSyncBlocks = syncdBlocks;
+            await sleep(2000);
+        }
         this.tna = new TNA(this.rpc);
     }
 
@@ -197,8 +218,8 @@ export class Bit {
                             let t: TNATxn = await self.tna.fromTx(txn);
                             result.set(txn.hash, { txHex: txnhex, tnaTxn: t })
                             t.blk = {
-                                i: block_index,
                                 h: block_hash,
+                                i: block_index,
                                 t: block_time
                             };
                             t.slp = {
