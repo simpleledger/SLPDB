@@ -12,39 +12,31 @@ const bit = new Bit();
 
 const daemon = {
 	run: async function() {
-		// 1. Initialize
 		await db.init();
 		await bit.init(db);
 
-		// 2. Bootstrap actions depending on first time
-		const lastSynchronized = await Info.checkpoint()
-
+		const lastSynchronized = await Info.checkpoint();
 		if(lastSynchronized.height > await bit.requestheight()) {
 			throw Error("Config.core.from cannot be larger than the current blockchain height (check the config.ts file)");
 		}
 
-		console.time('[PERF] Indexing Keys')
+		console.time('[PERF] Indexing Keys');
 		if (lastSynchronized.height === Config.core.from) {
-			// First time. Try indexing
-			console.log('[INFO] Indexing MongoDB With Configured Keys...', new Date())
-			await db.blockindex()
+			console.log('[INFO] Indexing MongoDB With Configured Keys...', new Date());
+			await db.blockindex();
 		}
-		console.timeEnd('[PERF] Indexing Keys')
+		console.timeEnd('[PERF] Indexing Keys');
 
-		// 3. Start synchronizing
-		console.log('[INFO] Synchronizing SLPDB with BCH blockchain...', new Date())
-		console.time('[PERF] Initial Sync')
-		await bit.run()
-		console.timeEnd('[PERF] Initial Sync')
-		console.log('[INFO] SLPDB Synchronization with BCH blockchain complete.', new Date())
+		console.log('[INFO] Synchronizing SLPDB with BCH blockchain...', new Date());
+		console.time('[PERF] Initial Sync');
+		await bit.run();
+		console.timeEnd('[PERF] Initial Sync');
+		console.log('[INFO] SLPDB Synchronization with BCH blockchain complete.', new Date());
 
-		// 4. Start SLP Token Manager
 		let tokenManager = new SlpGraphManager(db);
 		
-		// load graph state from db, or recreate from scratch
 		await tokenManager.initAllTokens();
 
-		// 4. Start listening
 		bit._zmqSubscribers.push(tokenManager);
 		bit.listenToZmq();
 	}

@@ -1,5 +1,5 @@
 import { Info, ChainSyncCheckpoint } from './info';
-import { Bitcore, BitcoinRpc } from './vendor'
+import { Bitcore, BitcoinRpc } from './vendor';
 import { TNA, TNATxn } from './tna';
 import { Config } from './config';
 import { Db } from './db';
@@ -7,6 +7,7 @@ import { Db } from './db';
 import pLimit from 'p-limit';
 import pQueue, { DefaultAddOptions } from 'p-queue';
 import zmq from 'zeromq';
+import { BlockDetails } from 'bitbox-sdk/lib/Block';
 
 const Block = require('bcash/lib/primitives/block');
 const BufferReader = require('bufio/lib/reader');
@@ -83,7 +84,7 @@ export class Bit {
         this.tna = new TNA(this.rpc);
     }
 
-    async requestblock(block_index: number): Promise<BitcoinRpc.RpcBlockInfo> {
+    async requestblock(block_index: number): Promise<BlockDetails> {
         try {
             let hash = await this.rpc.getBlockHash(block_index);
             return await this.rpc.getBlock(hash);

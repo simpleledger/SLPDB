@@ -98,7 +98,7 @@ export interface TNATxn {
     tx: { h: string };
     in: Xput[];
     out: Xput[];
-    blk?: { h: string; i: number; t: string };
+    blk?: { h: string; i: number; t: number };
     raw?: string;
     slp?: { valid: boolean|null, detail: SlpTransactionDetailsDb|null, invalidReason: string|null }
 }

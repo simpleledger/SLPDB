@@ -31,7 +31,7 @@
     "@types/zeromq": "^4.6.1",
     "bcash": "^1.1.1",
     "bignumber.js": "^8.1.0",
-    "bitbox-sdk": "git+https://github.com/simpleledgerinc/bitbox-javascript-sdk",
+    "bitbox-sdk": "5.0.1",
     "bitcoin-rpc-promise": "^2.1.6",
     "bitcore-lib-cash": "^0.19.0",
     "bufio": "^1.0.4",

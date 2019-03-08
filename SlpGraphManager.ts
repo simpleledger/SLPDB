@@ -1,14 +1,12 @@
-import { SlpTokenGraph, TxnQueryResponse, TokenDBObject, SlpTransactionDetailsDb } from "./SlpTokenGraph";
-import { SlpTransactionDetails, SlpTransactionType, Slp } from "slpjs";
-import BigNumber from "bignumber.js";
+import { SlpTokenGraph, TokenDBObject, SlpTransactionDetailsDb } from "./SlpTokenGraph";
+import { SlpTransactionType, Slp } from "slpjs";
 import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes } from "./bit";
+import { Query } from "./query";
 import BITBOXSDK from 'bitbox-sdk/lib/bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { Db } from './db';
 import { Config } from "./config";
 import { TNATxn } from "./tna";
-
-const bitqueryd = require('fountainhead-bitqueryd')
 
 const BITBOX = new BITBOXSDK();
 const slp = new Slp(BITBOX);
@@ -16,7 +14,6 @@ const slp = new Slp(BITBOX);
 export class SlpGraphManager implements IZmqSubscriber {
     onBlockHash: undefined;
     db: Db;
-    dbQuery: any; 
 
     async onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
         let tokensUpdate: string[] = []
@@ -111,8 +108,8 @@ export class SlpGraphManager implements IZmqSubscriber {
     }
 
     async initAllTokens() {
-        this.dbQuery = await bitqueryd.init({ url: Config.db.url, name: Config.db.name });
-        let tokens = await this.queryTokensList();
+        await Query.init();
+        let tokens = await Query.queryTokensList();
 
         // Instantiate all Token Graphs in memory
         for (let i = 0; i < tokens.length; i++) {
@@ -132,7 +129,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                 let potentialReorgFactor = 10;
                 let updateFromHeight = graph._lastUpdatedBlock - potentialReorgFactor;
                 console.log("Checking for Graph Updates since token's last update at (height - " + potentialReorgFactor + "):", updateFromHeight);
-                let res = await this.queryForRecentTokenTxns(graph._tokenDetails.tokenIdHex, updateFromHeight);
+                let res = await Query.queryForRecentTokenTxns(graph._tokenDetails.tokenIdHex, updateFromHeight);
 
                 // TODO: Pre-load validation results into the tokenGraph's local validator.
 
@@ -171,73 +168,10 @@ export class SlpGraphManager implements IZmqSubscriber {
             }
 
             // Update each entry in confirmed/unconfirmed collections with SLP info
-            let tokenTxns = await this.queryForRecentTokenTxns(tokens[i].tokenIdHex, 0);
+            let tokenTxns = await Query.queryForRecentTokenTxns(tokens[i].tokenIdHex, 0);
             for(let j = 0; j < tokenTxns.length; j++) {
                 await this.updateTxnCollections(tokenTxns[j], tokens[i].tokenIdHex);
             }
-        }
-    }
-
-    async queryForRecentTokenTxns(tokenId: string, block: number): Promise<string[]> {
-        let q = {
-            "v": 3,
-            "q": {
-                "find": { "out.h1": "534c5000", "out.h4": tokenId, "$or": [{ "blk.i": { "$gte": block } }, { "blk.i": null } ]  }
-            },
-            "r": { "f": "[ .[] | { txid: .tx.h } ]" }
-        }
-
-        let res: TxnQueryResponse = await this.dbQuery.read(q);
-        let response = new Set<any>([].concat(<any>res.c).concat(<any>res.u).map((r: any) => { return r.txid } ));
-        return Array.from(response);
-    }
-
-    async queryTokensList(): Promise<SlpTransactionDetails[]> {
-        let q = {
-            "v": 3,
-            "q": {
-              "find": { "out.h1": "534c5000", "out.s3": "GENESIS" },
-              "limit": 10000,
-            },
-            "r": { "f": "[ .[] | { tokenIdHex: .tx.h, versionTypeHex: .out[0].h2, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), symbol: .out[0].s4, name: .out[0].s5, documentUri: .out[0].s6, documentSha256Hex: .out[0].h7, decimalsHex: .out[0].h8, batonHex: .out[0].h9, quantityHex: .out[0].h10 } ]" }
-        }
-
-        let response: GenesisQueryResult | any = await this.dbQuery.read(q);
-        let tokens: GenesisQueryResult[] = [].concat(response.u).concat(response.c);
-        return tokens.map(t => this.mapSlpTokenDetailsFromQuery(t));
-    }
-
-    async queryTokenDetails(tokenIdHex: string): Promise<SlpTransactionDetails|null> {
-        let q = {
-            "v": 3,
-            "q": {
-                "find": { "tx.h": tokenIdHex, "out.h1": "534c5000", "out.s3": "GENESIS" }
-            },
-            "r": { "f": "[ .[] | { tokenIdHex: .tx.h, versionTypeHex: .out[0].h2, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), symbol: .out[0].s4, name: .out[0].s5, documentUri: .out[0].s6, documentSha256Hex: .out[0].h7, decimalsHex: .out[0].h8, batonHex: .out[0].h9, quantityHex: .out[0].h10 } ]" }
-        }
-
-        let response: GenesisQueryResult | any = await this.dbQuery.read(q);
-        let tokens: GenesisQueryResult[] = [].concat(response.u).concat(response.c);
-        return tokens.length > 0 ? tokens.map(t => this.mapSlpTokenDetailsFromQuery(t))[0] : null;
-    }
-
-    mapSlpTokenDetailsFromQuery(res: GenesisQueryResult): SlpTransactionDetails {
-        let baton: number = parseInt(res.decimalsHex, 16);
-        let qtyBuf = Buffer.from(res.quantityHex, 'hex');
-        let qty: BigNumber = (new BigNumber(qtyBuf.readUInt32BE(0).toString())).multipliedBy(2**32).plus(qtyBuf.readUInt32BE(4).toString())
-        return {
-            tokenIdHex: res.tokenIdHex,
-            timestamp: <string>res.timestamp,
-            transactionType: SlpTransactionType.GENESIS,
-            versionType: parseInt(res.versionTypeHex, 16),
-            documentUri: res.documentUri,
-            documentSha256: Buffer.from(res.documentSha256Hex, 'hex'),
-            symbol: res.symbol, 
-            name: res.name, 
-            batonVout: baton,
-            decimals: parseInt(res.decimalsHex, 16),
-            containsBaton: baton > 1 && baton < 256 ? true : false,
-            genesisOrMintQuantity: qty
         }
     }
 
@@ -246,17 +180,4 @@ export class SlpGraphManager implements IZmqSubscriber {
           await callback(array[index], index, array);
         }
     }
-}
-
-interface GenesisQueryResult {
-    tokenIdHex: string;
-    versionTypeHex: string;
-    timestamp: string|null;
-    symbol: string;
-    name: string;
-    documentUri: string;
-    documentSha256Hex: string; 
-    decimalsHex: string;
-    batonHex: string;
-    quantityHex: string;
 }
