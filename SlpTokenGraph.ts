@@ -1,7 +1,7 @@
 import { SlpTransactionDetails, SlpTransactionType, LocalValidator, Utils } from 'slpjs';
 import BigNumber from 'bignumber.js';
 import { Bitcore, BitcoinRpc } from './vendor';
-import BITBOXSDK from 'bitbox-sdk/lib/bitbox-sdk';
+import BITBOXSDK from 'bitbox-sdk';
 import { Config } from './config';
 import * as bitcore from 'bitcore-lib-cash';
 import { TxnQueryResult, MintQueryResult, Query, TxnQueryResponse } from './query';

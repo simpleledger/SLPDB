@@ -2,7 +2,7 @@ import { SlpTokenGraph, TokenDBObject, SlpTransactionDetailsDb } from "./SlpToke
 import { SlpTransactionType, Slp } from "slpjs";
 import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes } from "./bit";
 import { Query } from "./query";
-import BITBOXSDK from 'bitbox-sdk/lib/bitbox-sdk';
+import BITBOXSDK from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { Db } from './db';
 import { Config } from "./config";
