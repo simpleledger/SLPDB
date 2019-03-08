@@ -33,6 +33,7 @@ export class SlpTokenGraph implements TokenGraph {
     _addresses!: Map<cashAddr, AddressBalance>;
     _slpValidator!: LocalValidator;
     _rpcClient: BitcoinRpc.RpcClient;
+    _network!: string;
 
     constructor() {
         let connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port
@@ -42,6 +43,7 @@ export class SlpTokenGraph implements TokenGraph {
 
     async initFromScratch(tokenDetails: SlpTransactionDetails) {
         await Query.init();
+        this._network = (await this._rpcClient.getInfo()).testnet ? 'testnet': 'mainnet';
         this._lastUpdatedBlock = 0;
         this._tokenDetails = tokenDetails;
         this._tokenUtxos = new Set<string>();
@@ -143,7 +145,7 @@ export class SlpTokenGraph implements TokenGraph {
             if(graphTxn.details.genesisOrMintQuantity!.isGreaterThanOrEqualTo(0)) {
                 let spendDetails = await this.getSpendDetails(txid, 1);
                 let address;
-                try { address = Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[1]._scriptBuffer, 'testnet'))
+                try { address = Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[1]._scriptBuffer, this._network))
                 } catch(_) { address = "multisig or unknown address type"; }
                 graphTxn.outputs.push({
                     address: address,
@@ -162,7 +164,7 @@ export class SlpTokenGraph implements TokenGraph {
                     if(vout > 0) {
                         let spendDetails = await this.getSpendDetails(txid, vout);
                         let address;
-                        try { address = Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[vout]._scriptBuffer))
+                        try { address = Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[vout]._scriptBuffer, this._network))
                         } catch(_) { address = "multisig or unknown address type"; }
                         graphTxn.outputs.push({
                             address: address,
@@ -410,6 +412,7 @@ export class SlpTokenGraph implements TokenGraph {
     static async FromDbObject(doc: TokenDBObject): Promise<SlpTokenGraph> {
         let tg = new SlpTokenGraph();
         await Query.init();
+        tg._network = (await tg._rpcClient.getInfo()).testnet ? 'testnet': 'mainnet';
 
         // Map _tokenDetails
         tg._tokenDetails = this.MapDbTokenDetailsFromDbo(doc.tokenDetails, doc.tokenDetails.decimals);
