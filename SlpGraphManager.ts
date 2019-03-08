@@ -1,4 +1,4 @@
-import { SlpTokenGraph, TokenDBObject, SlpTransactionDetailsDb } from "./SlpTokenGraph";
+import { SlpTokenGraph, TokenDBObject, SlpTransactionDetailsDbo } from "./SlpTokenGraph";
 import { SlpTransactionType, Slp } from "slpjs";
 import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes } from "./bit";
 import { Query } from "./query";
@@ -79,7 +79,7 @@ export class SlpGraphManager implements IZmqSubscriber {
 
     private async updateTxnCollections(txid: string, tokenId: string) {
         console.log("Updating confirmed/unconfirmed collections for", txid);
-        let isValid: boolean|null, details: SlpTransactionDetailsDb|null, invalidReason: string|null;
+        let isValid: boolean|null, details: SlpTransactionDetailsDbo|null, invalidReason: string|null;
         let tokenGraph = this._tokens.get(tokenId)!;
         try {
             let keys = Object.keys(tokenGraph._slpValidator.cachedValidations);

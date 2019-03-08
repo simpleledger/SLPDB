@@ -96,7 +96,7 @@ export class Bit {
             let networkBlocks = (await BITBOX.Blockchain.getBlockchainInfo()).blocks;
             isSyncd = syncdBlocks === networkBlocks ? true : false;
             if(syncdBlocks !== lastReportedSyncBlocks)
-                console.log("[INFO] Waiting for bitcoind to sync with network (on block", syncdBlocks, "of", networkBlocks);
+                console.log("[INFO] Waiting for bitcoind to sync with network ( on block", syncdBlocks, "of", networkBlocks, ")");
             else 
                 console.log("[WARN] bitcoind sync status did not change, check your bitcoind network connection.")
             lastReportedSyncBlocks = syncdBlocks;

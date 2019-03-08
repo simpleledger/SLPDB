@@ -6,6 +6,7 @@ import { Config } from './config';
 import * as bitcore from 'bitcore-lib-cash';
 import { TxnQueryResult, MintQueryResult, Query, TxnQueryResponse } from './query';
 import { TxOut } from 'bitbox-sdk/lib/Blockchain';
+import { Decimal128 } from 'mongodb';
 
 const RpcClient = require('bitcoin-rpc-promise')
 const BITBOX = new BITBOXSDK();
@@ -317,7 +318,7 @@ export class SlpTokenGraph implements TokenGraph {
 
     toDbObject(): TokenDBObject {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
-        let graphTxns: GraphTxnDb[] = [];
+        let graphTxns: GraphTxnDbo[] = [];
         this._graphTxns.forEach((g, k) => {
             graphTxns.push({
                 txid: k,
@@ -340,14 +341,14 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     mapGraphTxnOutputsToDbo(outputs: GraphTxnOutput[]): GraphTxnOutputDbo[] {
-        let mapped: GraphTxnDb["outputs"] = [];
+        let mapped: GraphTxnDbo["outputs"] = [];
         outputs.forEach(o => {
             let m = Object.create(o);
             //console.log(m);
             try {
-                m.slpAmount = m.slpAmount.dividedBy(10**this._tokenDetails.decimals).toFixed();
+                m.slpAmount = new Decimal128(Utils.int2FixedBuffer(m.slpAmount.dividedBy(10**this._tokenDetails.decimals)));
             } catch(_) {
-                m.slpAmount = "0";
+                m.slpAmount = new Decimal128(new Buffer(0));
             }
             mapped.push(m);
         })
@@ -369,8 +370,8 @@ export class SlpTokenGraph implements TokenGraph {
         }
     }
 
-    static MapTokenDetailsToDbo(details: SlpTransactionDetails, decimals: number): SlpTransactionDetailsDb {
-        let res: SlpTransactionDetailsDb = {
+    static MapTokenDetailsToDbo(details: SlpTransactionDetails, decimals: number): SlpTransactionDetailsDbo {
+        let res: SlpTransactionDetailsDbo = {
             decimals: details.decimals,
             tokenIdHex: details.tokenIdHex,
             timestamp: details.timestamp,
@@ -382,14 +383,14 @@ export class SlpTokenGraph implements TokenGraph {
             name: details.name,
             batonVout: details.batonVout,
             containsBaton: details.containsBaton,
-            genesisOrMintQuantity: details.genesisOrMintQuantity ? details.genesisOrMintQuantity!.dividedBy(10**decimals).toFixed() : null,
-            sendOutputs: details.sendOutputs ? details.sendOutputs.map(o => o.dividedBy(10**decimals).toFixed()) : null
+            genesisOrMintQuantity: details.genesisOrMintQuantity ? new Decimal128(Utils.int2FixedBuffer(details.genesisOrMintQuantity!.dividedBy(10**decimals))) : null,
+            sendOutputs: details.sendOutputs ? details.sendOutputs.map(o => new Decimal128(Utils.int2FixedBuffer(o.dividedBy(10**decimals)))) : null
         }
 
         return res;
     }
 
-    static MapDbTokenDetailsFromDbo(details: SlpTransactionDetailsDb, decimals: number): SlpTransactionDetails {
+    static MapDbTokenDetailsFromDbo(details: SlpTransactionDetailsDbo, decimals: number): SlpTransactionDetails {
         let res = {
             decimals: details.decimals,
             tokenIdHex: details.tokenIdHex,
@@ -402,8 +403,8 @@ export class SlpTokenGraph implements TokenGraph {
             name: details.name,
             batonVout: details.batonVout,
             containsBaton: details.containsBaton,
-            genesisOrMintQuantity: details.genesisOrMintQuantity ? <any>new BigNumber(details.genesisOrMintQuantity).multipliedBy(10**decimals) : null,
-            sendOutputs: details.sendOutputs ? details.sendOutputs.map(o => <any>new BigNumber(o).multipliedBy(10**decimals)) : null
+            genesisOrMintQuantity: details.genesisOrMintQuantity ? Utils.buffer2BigNumber(details.genesisOrMintQuantity.bytes).multipliedBy(10**decimals) : null,
+            sendOutputs: details.sendOutputs ? details.sendOutputs.map(o => <any>Utils.buffer2BigNumber(o.bytes).multipliedBy(10**decimals)) : null
         }
 
         return res;
@@ -424,7 +425,7 @@ export class SlpTokenGraph implements TokenGraph {
                 timestamp: item.timestamp, 
                 block: item.block,
                 details: this.MapDbTokenDetailsFromDbo(doc.txnGraph[idx].details, doc.tokenDetails.decimals),
-                outputs: doc.txnGraph[idx].outputs.map(o => <any>new BigNumber(o.slpAmount).multipliedBy(10**tg._tokenDetails.decimals))
+                outputs: doc.txnGraph[idx].outputs.map(o => <any>Utils.buffer2BigNumber(o.slpAmount.bytes).multipliedBy(10**tg._tokenDetails.decimals))
             }
 
             tg._graphTxns.set(item.txid, gt);
@@ -454,15 +455,15 @@ export class SlpTokenGraph implements TokenGraph {
 
 export interface TokenDBObject {
     slpdbVersion: number;
-    tokenDetails: SlpTransactionDetailsDb;
-    txnGraph: GraphTxnDb[];
+    tokenDetails: SlpTransactionDetailsDbo;
+    txnGraph: GraphTxnDbo[];
     addresses: { address: cashAddr, satoshis_balance: number, token_balance: string }[];
     tokenStats: TokenStats | TokenStatsDb;
     lastUpdatedBlock: number;
     tokenUtxos: string[]
 }
 
-export interface SlpTransactionDetailsDb {
+export interface SlpTransactionDetailsDbo {
     transactionType: SlpTransactionType;
     tokenIdHex: string;
     versionType: number;
@@ -474,13 +475,13 @@ export interface SlpTransactionDetailsDb {
     decimals: number;
     containsBaton: boolean;
     batonVout: number|null;
-    genesisOrMintQuantity: string|null;
-    sendOutputs: string[]|null;
+    genesisOrMintQuantity: Decimal128|null;
+    sendOutputs: Decimal128[]|null;
 }
 
-interface GraphTxnDb {
+interface GraphTxnDbo {
     txid: string,
-    details: SlpTransactionDetailsDb;
+    details: SlpTransactionDetailsDbo;
     timestamp: string|null;
     block: number|null;
     outputs: GraphTxnOutputDbo[]
@@ -490,7 +491,7 @@ interface GraphTxnOutputDbo {
     address: string,
     vout: number, 
     bchSatoshis: number, 
-    slpAmount: string, 
+    slpAmount: Decimal128, 
     spendTxid: string | null,
     status: UtxoStatus,
     invalidReason: string | null
