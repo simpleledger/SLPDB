@@ -235,11 +235,15 @@ export class Bit {
                 }
                 else if(this.slpMempool.has(block.txs[i].txid())) {
                     tasks.push(limit(async function() {
-                        let tx = await self.db.mempoolfetch(block.txs[i].txid());
-                        console.log("TXID", block.txs[i].txid())
-                        console.log("MEMPOOL HAS SLP ITEM", tx);
-                        if(!tx)
-                            throw Error("Cannot find transaction.");
+                        let tx, tries=0;
+                        while(!tx) {
+                            tx = await self.db.mempoolfetch(block.txs[i].txid());
+                            if(!tx) {
+                                if(tries > 5)
+                                    throw Error("Cannot find transaction.");
+                                await sleep(1000);
+                            }
+                        }
                         result.set(block.txs[i].txid(), { txHex: txnhex, tnaTxn: tx });
                         return tx;
                     }))

@@ -236,8 +236,8 @@ export class SlpTokenGraph implements TokenGraph {
             results.forEach(r => {
                 if(r.quantityHex) {
                     let qtyBuf = new Buffer(r.quantityHex, 'hex');
-                    let mint = (new BigNumber(qtyBuf.readUInt32BE(0).toString())).multipliedBy(2**32).plus(new BigNumber(qtyBuf.readUInt32BE(4).toString()));
-                    //console.log("MINT AMOUNT", mint.toString())
+                    let mint = new BigNumber(0);
+                    try { mint = Utils.buffer2BigNumber(qtyBuf); } catch(_) { throw Error("Error in reading buffer object to BigNumber"); }
                     qty = qty.plus(<any>mint);
                 }
             })
@@ -346,9 +346,9 @@ export class SlpTokenGraph implements TokenGraph {
             let m = Object.create(o);
             //console.log(m);
             try {
-                m.slpAmount = new Decimal128(Utils.int2FixedBuffer(m.slpAmount.dividedBy(10**this._tokenDetails.decimals)));
+                m.slpAmount = Decimal128.fromString(m.slpAmount.dividedBy(10**this._tokenDetails.decimals).toFixed());
             } catch(_) {
-                m.slpAmount = new Decimal128(new Buffer(0));
+                m.slpAmount = Decimal128.fromString("0");
             }
             mapped.push(m);
         })
@@ -383,14 +383,22 @@ export class SlpTokenGraph implements TokenGraph {
             name: details.name,
             batonVout: details.batonVout,
             containsBaton: details.containsBaton,
-            genesisOrMintQuantity: details.genesisOrMintQuantity ? new Decimal128(Utils.int2FixedBuffer(details.genesisOrMintQuantity!.dividedBy(10**decimals))) : null,
-            sendOutputs: details.sendOutputs ? details.sendOutputs.map(o => new Decimal128(Utils.int2FixedBuffer(o.dividedBy(10**decimals)))) : null
+            genesisOrMintQuantity: details.genesisOrMintQuantity ? Decimal128.fromString(details.genesisOrMintQuantity!.dividedBy(10**decimals).toFixed()) : null,
+            sendOutputs: details.sendOutputs ? details.sendOutputs.map(o => Decimal128.fromString(o.dividedBy(10**decimals).toFixed())) : null
         }
 
         return res;
     }
 
     static MapDbTokenDetailsFromDbo(details: SlpTransactionDetailsDbo, decimals: number): SlpTransactionDetails {
+
+        let genesisMintQty = new BigNumber(0);
+        if(details.genesisOrMintQuantity)
+            try { genesisMintQty = new BigNumber(details.genesisOrMintQuantity.toString()).multipliedBy(10**decimals); } catch(_) { throw Error("Error in mapping database object"); }
+        
+        if(details.sendOutputs)
+            try { details.sendOutputs.map(o => o = <any>new BigNumber(o.toString()).multipliedBy(10**decimals)); } catch(_) { throw Error("Error in mapping database object"); }
+
         let res = {
             decimals: details.decimals,
             tokenIdHex: details.tokenIdHex,
@@ -403,8 +411,8 @@ export class SlpTokenGraph implements TokenGraph {
             name: details.name,
             batonVout: details.batonVout,
             containsBaton: details.containsBaton,
-            genesisOrMintQuantity: details.genesisOrMintQuantity ? Utils.buffer2BigNumber(details.genesisOrMintQuantity.bytes).multipliedBy(10**decimals) : null,
-            sendOutputs: details.sendOutputs ? details.sendOutputs.map(o => <any>Utils.buffer2BigNumber(o.bytes).multipliedBy(10**decimals)) : null
+            genesisOrMintQuantity: details.genesisOrMintQuantity ? genesisMintQty : null,
+            sendOutputs: details.sendOutputs ? details.sendOutputs as any as BigNumber[] : null
         }
 
         return res;
@@ -421,11 +429,13 @@ export class SlpTokenGraph implements TokenGraph {
         // Map _txnGraph
         tg._graphTxns = new Map<txid, GraphTxn>();
         doc.txnGraph.forEach((item, idx) => {
+            try { doc.txnGraph[idx].outputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)) } catch(_) { throw Error("Error in mapping database object"); }
+
             let gt: GraphTxn = {
                 timestamp: item.timestamp, 
                 block: item.block,
                 details: this.MapDbTokenDetailsFromDbo(doc.txnGraph[idx].details, doc.tokenDetails.decimals),
-                outputs: doc.txnGraph[idx].outputs.map(o => <any>Utils.buffer2BigNumber(o.slpAmount.bytes).multipliedBy(10**tg._tokenDetails.decimals))
+                outputs: doc.txnGraph[idx].outputs as any as GraphTxnOutput[]
             }
 
             tg._graphTxns.set(item.txid, gt);
