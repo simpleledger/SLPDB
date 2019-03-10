@@ -237,7 +237,7 @@ export class SlpTokenGraph implements TokenGraph {
                 if(r.quantityHex) {
                     let qtyBuf = new Buffer(r.quantityHex, 'hex');
                     let mint = new BigNumber(0);
-                    try { mint = Utils.buffer2BigNumber(qtyBuf); } catch(_) { throw Error("Error in reading buffer object to BigNumber"); }
+                    mint = Utils.buffer2BigNumber(qtyBuf);
                     qty = qty.plus(<any>mint);
                 }
             })
