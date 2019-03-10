@@ -396,8 +396,9 @@ export class SlpTokenGraph implements TokenGraph {
         if(details.genesisOrMintQuantity)
             try { genesisMintQty = new BigNumber(details.genesisOrMintQuantity.toString()).multipliedBy(10**decimals); } catch(_) { throw Error("Error in mapping database object"); }
         
+        let sendOutputs: BigNumber[] = [];
         if(details.sendOutputs)
-            try { details.sendOutputs.map(o => o = <any>new BigNumber(o.toString()).multipliedBy(10**decimals)); } catch(_) { throw Error("Error in mapping database object"); }
+            try { sendOutputs = details.sendOutputs.map(o => o = <any>new BigNumber(o.toString()).multipliedBy(10**decimals)); } catch(_) { throw Error("Error in mapping database object"); }
 
         let res = {
             decimals: details.decimals,
@@ -412,7 +413,7 @@ export class SlpTokenGraph implements TokenGraph {
             batonVout: details.batonVout,
             containsBaton: details.containsBaton,
             genesisOrMintQuantity: details.genesisOrMintQuantity ? genesisMintQty : null,
-            sendOutputs: details.sendOutputs ? details.sendOutputs as any as BigNumber[] : null
+            sendOutputs: details.sendOutputs ? sendOutputs as any as BigNumber[] : null
         }
 
         return res;
