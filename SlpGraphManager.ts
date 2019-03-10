@@ -168,6 +168,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             }
 
             // Update each entry in confirmed/unconfirmed collections with SLP info
+            await this.updateTxnCollections(tokens[i].tokenIdHex, tokens[i].tokenIdHex);
             let tokenTxns = await Query.queryForRecentTokenTxns(tokens[i].tokenIdHex, 0);
             for(let j = 0; j < tokenTxns.length; j++) {
                 await this.updateTxnCollections(tokenTxns[j], tokens[i].tokenIdHex);
