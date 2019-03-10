@@ -59,7 +59,7 @@ export class Query {
     }
 
     static mapSlpTokenDetailsFromQuery(res: GenesisQueryResult): SlpTransactionDetails {
-        let baton: number = parseInt(res.decimalsHex, 16);
+        let baton: number = parseInt(res.batonHex, 16);
         let qtyBuf = Buffer.from(res.quantityHex, 'hex');
         let qty: BigNumber = (new BigNumber(qtyBuf.readUInt32BE(0).toString())).multipliedBy(2**32).plus(qtyBuf.readUInt32BE(4).toString())
         return {
