@@ -100,7 +100,12 @@ export interface TNATxn {
     out: Xput[];
     blk?: { h: string; i: number; t: number };
     raw?: string;
-    slp?: { valid: boolean|null, detail: SlpTransactionDetailsDbo|null, invalidReason: string|null }
+    slp?: { 
+        valid: boolean|null, 
+        detail: SlpTransactionDetailsDbo|null, 
+        invalidReason: string|null,
+        schema_version: number 
+    }
 }
 
 export interface Xput {

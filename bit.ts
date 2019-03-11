@@ -222,11 +222,6 @@ export class Bit {
                                 i: block_index,
                                 t: block_time
                             };
-                            t.slp = {
-                                valid: null,    // this SLP information is populated by each TokenGraph
-                                detail: null,
-                                invalidReason: null
-                            };
                             return t;
                         } catch(err) {
                             console.log('[Error] crawl error:', err);
@@ -235,17 +230,22 @@ export class Bit {
                 }
                 else if(this.slpMempool.has(block.txs[i].txid())) {
                     tasks.push(limit(async function() {
-                        let tx, tries=0;
-                        while(!tx) {
-                            tx = await self.db.mempoolfetch(block.txs[i].txid());
-                            if(!tx) {
+                        let t, tries=0;
+                        while(!t) {
+                            t = await self.db.mempoolfetch(block.txs[i].txid());
+                            if(!t) {
                                 if(tries > 5)
                                     throw Error("Cannot find transaction.");
                                 await sleep(1000);
                             }
                         }
-                        result.set(block.txs[i].txid(), { txHex: txnhex, tnaTxn: tx });
-                        return tx;
+                        t.blk = {
+                            h: block_hash,
+                            i: block_index,
+                            t: block_time
+                        };
+                        result.set(block.txs[i].txid(), { txHex: txnhex, tnaTxn: t });
+                        return t;
                     }))
                 }
             }
@@ -328,7 +328,7 @@ export class Bit {
 
                     self.outsock.send(['block', JSON.stringify({ i: index, txs: content })]);
                 }
-        
+
                 // clear mempool and synchronize
                 if (lastCheckpoint.height < currentHeight) {
                     console.log('[INFO] Re-sync SLP mempool');
@@ -359,11 +359,6 @@ export class Bit {
                     self.queue.add(async function() {
                         if(txn) {
                             let content: TNATxn = await self.tna.fromTx(txn);
-                            content.slp = { 
-                                valid: null,
-                                invalidReason: null,
-                                detail: null
-                            };
                             try {
                                 await self.db.mempoolinsert(content);
                                 console.log("[INFO] SLP mempool transaction added: ", hash);

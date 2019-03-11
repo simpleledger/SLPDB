@@ -7,6 +7,9 @@ import * as bitcore from 'bitcore-lib-cash';
 import { Db } from './db';
 import { Config } from "./config";
 import { TNATxn } from "./tna";
+import { BitcoinRpc } from "./vendor";
+
+const RpcClient = require('bitcoin-rpc-promise');
 
 const BITBOX = new BITBOXSDK();
 const slp = new Slp(BITBOX);
@@ -14,9 +17,10 @@ const slp = new Slp(BITBOX);
 export class SlpGraphManager implements IZmqSubscriber {
     onBlockHash: undefined;
     db: Db;
+    _rpcClient: BitcoinRpc.RpcClient;
 
     async onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
-        let tokensUpdate: string[] = []
+        let tokensUpdate: string[] = [];
         if(syncResult) {
             let txns = Array.from(syncResult.filteredContent.get(SyncFilterTypes.SLP)!)
             await this.asyncForEach(txns, async (txPair: [string, string], index: number) =>
@@ -75,36 +79,62 @@ export class SlpGraphManager implements IZmqSubscriber {
     constructor(db: Db) {
         this.db = db;
         this._tokens = new Map<string, SlpTokenGraph>();
+        let connectionString = 'http://' + Config.rpc.user + ':' + Config.rpc.pass + '@' + Config.rpc.host + ':' + Config.rpc.port;
+        this._rpcClient = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
     }
 
     private async updateTxnCollections(txid: string, tokenId: string) {
-        console.log("Updating confirmed/unconfirmed collections for", txid);
-        let isValid: boolean|null, details: SlpTransactionDetailsDbo|null, invalidReason: string|null;
-        let tokenGraph = this._tokens.get(tokenId)!;
-        try {
-            let keys = Object.keys(tokenGraph._slpValidator.cachedValidations);
-            if(!keys.includes(txid)) {
-                await tokenGraph._slpValidator.isValidSlpTxid(txid, tokenGraph._tokenDetails.tokenIdHex);
-            }
-            let validation = tokenGraph._slpValidator.cachedValidations[txid];
-            isValid = validation.validity;
-            invalidReason = validation.invalidReason;
-            details = SlpTokenGraph.MapTokenDetailsToDbo(validation.details!, tokenGraph._tokenDetails.decimals);
-        } catch(err) {
-            isValid = false;
-            details = null;
-            invalidReason = "Invalid Token Genesis";
-        }
+        let count = 0;
         let collections = [ 'confirmed', 'unconfirmed' ];
         await this.asyncForEach(collections, async (collection: string) => {
             let tna: TNATxn | null = await this.db.db.collection(collection).findOne({ "tx.h": txid });
-            if (tna && tna.slp) {
-                tna.slp!.valid = isValid
-                tna.slp!.detail = details!;
-                tna.slp!.invalidReason = invalidReason;
-                await this.db.db.collection(collection).replaceOne({ "tx.h": txid }, tna);
+            if (tna) {
+                count++;
+                if(collection === 'confirmed' && !tna.blk) {
+                    let txn = await this._rpcClient.getRawTransaction(txid, 1);
+                    let block = await this._rpcClient.getBlock(txn.blockhash);
+                    tna.blk = {
+                        h: txn.blockhash, 
+                        i: block.height, 
+                        t: block.time
+                    }
+                    await this.db.db.collection(collection).replaceOne({ "tx.h": txid }, tna);
+                }
+                if(!tna.slp)
+                    tna.slp = {} as any;
+                if(tna.slp!.schema_version !== Config.db.schema_version) {
+                    console.log("Updating confirmed/unconfirmed collections for", txid);
+                    let isValid: boolean|null, details: SlpTransactionDetailsDbo|null, invalidReason: string|null;
+                    let tokenGraph = this._tokens.get(tokenId)!;
+                    try {
+                        let keys = Object.keys(tokenGraph._slpValidator.cachedValidations);
+                        if(!keys.includes(txid)) {
+                            await tokenGraph._slpValidator.isValidSlpTxid(txid, tokenGraph._tokenDetails.tokenIdHex);
+                        }
+                        let validation = tokenGraph._slpValidator.cachedValidations[txid];                        
+                        isValid = validation.validity;
+                        invalidReason = validation.invalidReason;
+                        details = SlpTokenGraph.MapTokenDetailsToDbo(validation.details!, tokenGraph._tokenDetails.decimals);
+                    } catch(err) {
+                        isValid = false;
+                        details = null;
+                        invalidReason = "Invalid Token Genesis";
+                    }
+
+                    if(isValid === null) {
+                        throw Error("Validitity of " + txid + " is null.")
+                    }
+                    tna.slp!.valid = isValid
+                    tna.slp!.detail = details!;
+                    tna.slp!.invalidReason = invalidReason;
+                    tna.slp!.schema_version = Config.db.schema_version;
+                    await this.db.db.collection(collection).replaceOne({ "tx.h": txid }, tna);
+                }
             }
         });
+        if(count === 0) {
+            throw Error("Transaction not found! " + txid);
+        }
     }
 
     async initAllTokens() {

@@ -16,31 +16,39 @@ export class Query {
     }
 
     static async queryForRecentTokenTxns(tokenId: string, block: number): Promise<string[]> {
+        let limit = 100000;
         let q = {
             "v": 3,
             "q": {
-                "find": { "out.h1": "534c5000", "out.h4": tokenId, "$or": [{ "blk.i": { "$gte": block } }, { "blk.i": null } ]  }
+                "find": { "out.h1": "534c5000", "out.h4": tokenId, "$or": [{ "blk.i": { "$gte": block } }, { "blk.i": null } ]  },
+                "limit": limit
             },
             "r": { "f": "[ .[] | { txid: .tx.h } ]" }
         }
 
         let res: TxnQueryResponse = await this.dbQuery.read(q);
         let response = new Set<any>([].concat(<any>res.c).concat(<any>res.u).map((r: any) => { return r.txid } ));
-        return Array.from(response);
+        let a = Array.from(response);
+        if(a.length === limit)
+            throw Error("Query limit is reached, implementation error");
+        return a;
     }
 
     static async queryTokensList(): Promise<SlpTransactionDetails[]> {
+        let limit = 100000;
         let q = {
             "v": 3,
             "q": {
               "find": { "out.h1": "534c5000", "out.s3": "GENESIS" },
-              "limit": 10000,
+              "limit": limit,
             },
             "r": { "f": "[ .[] | { tokenIdHex: .tx.h, versionTypeHex: .out[0].h2, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), symbol: .out[0].s4, name: .out[0].s5, documentUri: .out[0].s6, documentSha256Hex: .out[0].h7, decimalsHex: .out[0].h8, batonHex: .out[0].h9, quantityHex: .out[0].h10 } ]" }
         }
 
         let response: GenesisQueryResult | any = await this.dbQuery.read(q);
         let tokens: GenesisQueryResult[] = [].concat(response.u).concat(response.c);
+        if(tokens.length === limit)
+            throw Error("Query limit is reached, implementation error");
         return tokens.map(t => this.mapSlpTokenDetailsFromQuery(t));
     }
 
@@ -143,10 +151,12 @@ export class Query {
     }
 
     static async getMintTransactions(tokenId: string): Promise<MintQueryResult[]|null> {
+        let limit = 100000;
         let q = {
             "v": 3,
             "q": {
-                "find": { "out.h1": "534c5000", "out.s3": "MINT", "out.h4": tokenId }
+                "find": { "out.h1": "534c5000", "out.s3": "MINT", "out.h4": tokenId }, 
+                "limit": limit
             },
             "r": { "f": "[ .[] | { txid: .tx.h, versionTypeHex: .out[0].h2, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), batonHex: .out[0].h5, quantityHex: .out[0].h6 } ]" }
         }
@@ -154,8 +164,10 @@ export class Query {
         let res: TxnQueryResponse = await Query.dbQuery.read(q);
         
         if(!res.errors) {
-            let results: MintQueryResult[] = [];
-            [ ...([].concat(<any>res.c).concat(<any>res.u))].forEach((res: MintQueryResult) => {
+            let results: MintQueryResult[] = [ ...([].concat(<any>res.c).concat(<any>res.u))];
+            if(results.length === limit)
+                throw Error("Query limit is reached, implementation error")
+            results.forEach((res: MintQueryResult) => {
                 let i = results.findIndex(r => r.txid === res.txid);
                 if(i <= -1)
                     results.push(res);

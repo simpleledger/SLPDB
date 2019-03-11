@@ -1,7 +1,7 @@
 
 # SLPDB
 
-SLPDB is a persistance layer for SLP token transactions.
+SLPDB is a persistance layer for SLP token transaction metadata and DAG.
 
 ### NOTICE: SLPDB is in an alpha state.  Expect changes.
 
