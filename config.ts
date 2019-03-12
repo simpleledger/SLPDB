@@ -64,6 +64,6 @@ export class Config {
 		}
 	}
 	static core = {
-		'from': Number.parseInt(process.env.core_from ? process.env.core_from : "571655")//"543375")
+		'from': Number.parseInt(process.env.core_from ? process.env.core_from : "543375")
 	}
 }
