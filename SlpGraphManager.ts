@@ -1,4 +1,4 @@
-import { SlpTokenGraph, TokenDBObject } from "./SlpTokenGraph";
+import { SlpTokenGraph, TokenDBObject, UtxosDbObject, AddressesDbObject, GraphDbObject } from "./SlpTokenGraph";
 import { SlpTransactionType, Slp, SlpTransactionDetails, Utils } from "slpjs";
 import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes } from "./bit";
 import { Query } from "./query";
@@ -64,7 +64,10 @@ export class SlpGraphManager implements IZmqSubscriber {
 
                 // Update the tokens collection in db
                 await token.updateStatistics();
-                await this.db.tokenreplace(token.toDbObject());
+                await this.db.tokenreplace(token.toTokenDbObject());
+                await this.db.addressreplace(token.toAddressesDbObject());
+                await this.db.graphreplace(token.toGraphDbObject());
+                await this.db.utxoreplace(token.toUtxosDbObject());
 
                 console.log("########################################################################################################")
                 console.log("TOKEN STATS/ADDRESSES FOR", token._tokenDetails.name, token._tokenDetails.tokenIdHex)
@@ -186,9 +189,15 @@ export class SlpGraphManager implements IZmqSubscriber {
                     throw Error("There is no db record for this token.");
                 if(!tokenState.slpdbVersion || tokenState.slpdbVersion !== Config.db.schema_version) {
                     await this.db.tokendelete(tokens[i].tokenIdHex);
+                    await this.db.graphdelete(tokens[i].tokenIdHex);
+                    await this.db.utxodelete(tokens[i].tokenIdHex);
+                    await this.db.addressdelete(tokens[i].tokenIdHex);
                     throw Error("Outdated token graph detected for: " + tokens[i].tokenIdHex);
                 }
-                graph = await SlpTokenGraph.FromDbObject(tokenState);
+                let utxos = <UtxosDbObject>await this.db.utxofetch(tokens[i].tokenIdHex);
+                let addresses = <AddressesDbObject>await this.db.addressfetch(tokens[i].tokenIdHex);
+                let dag = <GraphDbObject>await this.db.graphfetch(tokens[i].tokenIdHex);
+                graph = await SlpTokenGraph.FromDbObjects(tokenState, dag, utxos, addresses);
                 console.log("########################################################################################################")
                 console.log("LOAD FROM DB:", graph._tokenDetails.tokenIdHex);
                 console.log("########################################################################################################")
@@ -219,7 +228,10 @@ export class SlpGraphManager implements IZmqSubscriber {
             
             if(graph.IsValid()) {
                 this._tokens.set(tokens[i].tokenIdHex, graph);
-                await this.db.tokeninsert(this._tokens.get(tokens[i].tokenIdHex)!.toDbObject());
+                await this.db.tokeninsert(this._tokens.get(tokens[i].tokenIdHex)!.toTokenDbObject());
+                await this.db.graphinsert(this._tokens.get(tokens[i].tokenIdHex)!.toGraphDbObject());
+                await this.db.utxoinsert(this._tokens.get(tokens[i].tokenIdHex)!.toUtxosDbObject());
+                await this.db.addressinsert(this._tokens.get(tokens[i].tokenIdHex)!.toAddressesDbObject());
             }
         }
 

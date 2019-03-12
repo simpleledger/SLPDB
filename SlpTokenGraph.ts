@@ -316,7 +316,38 @@ export class SlpTokenGraph implements TokenGraph {
         console.log(Array.from(this._addresses).map((v, _, __) => { return { addr: v[0], bal: v[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() }}))
     }
 
-    toDbObject(): TokenDBObject {
+    toTokenDbObject(): TokenDBObject {
+        let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
+
+        let result = {
+            slpdbVersion: Config.db.schema_version,
+            lastUpdatedBlock: this._lastUpdatedBlock,
+            tokenDetails: tokenDetails,
+            tokenStats: this.mapTokenStatstoDbo(this._tokenStats),
+        }
+        return result;
+    }
+
+    toAddressesDbObject(): AddressesDbObject {
+        let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
+
+        let result = {
+            tokenDetails: tokenDetails,
+            addresses: <{ address: cashAddr, satoshis_balance: number, token_balance: Decimal128 }[]>Array.from(this._addresses).map(a => { return { address: a[0], satoshis_balance: a[1].satoshis_balance, token_balance: Decimal128.fromString(a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) } })
+        }
+        return result;
+    }
+
+    toUtxosDbObject(): UtxosDbObject {
+        let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
+        let result = {
+            tokenDetails: tokenDetails,
+            tokenUtxos: Array.from(this._tokenUtxos)
+        }
+        return result;
+    }
+
+    toGraphDbObject(): GraphDbObject {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
         let graphTxns: GraphTxnDbo[] = [];
         this._graphTxns.forEach((g, k) => {
@@ -329,13 +360,8 @@ export class SlpTokenGraph implements TokenGraph {
             })
         })
         let result = {
-            slpdbVersion: Config.db.schema_version,
-            lastUpdatedBlock: this._lastUpdatedBlock,
             tokenDetails: tokenDetails,
             txnGraph: graphTxns,
-            addresses: <{ address: cashAddr, satoshis_balance: number, token_balance: Decimal128 }[]>Array.from(this._addresses).map(a => { return { address: a[0], satoshis_balance: a[1].satoshis_balance, token_balance: Decimal128.fromString(a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) } }),
-            tokenStats: this.mapTokenStatstoDbo(this._tokenStats),
-            tokenUtxos: Array.from(this._tokenUtxos)
         }
         return result;
     }
@@ -419,24 +445,24 @@ export class SlpTokenGraph implements TokenGraph {
         return res;
     }
 
-    static async FromDbObject(doc: TokenDBObject): Promise<SlpTokenGraph> {
+    static async FromDbObjects(token: TokenDBObject, dag: GraphDbObject, utxos: UtxosDbObject, addresses: AddressesDbObject): Promise<SlpTokenGraph> {
         let tg = new SlpTokenGraph();
         await Query.init();
         tg._network = (await tg._rpcClient.getInfo()).testnet ? 'testnet': 'mainnet';
 
         // Map _tokenDetails
-        tg._tokenDetails = this.MapDbTokenDetailsFromDbo(doc.tokenDetails, doc.tokenDetails.decimals);
+        tg._tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
 
         // Map _txnGraph
         tg._graphTxns = new Map<txid, GraphTxn>();
-        doc.txnGraph.forEach((item, idx) => {
-            try { doc.txnGraph[idx].outputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)) } catch(_) { throw Error("Error in mapping database object"); }
+        dag.txnGraph.forEach((item, idx) => {
+            try { dag.txnGraph[idx].outputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)) } catch(_) { throw Error("Error in mapping database object"); }
 
             let gt: GraphTxn = {
                 timestamp: item.timestamp, 
                 block: item.block,
-                details: this.MapDbTokenDetailsFromDbo(doc.txnGraph[idx].details, doc.tokenDetails.decimals),
-                outputs: doc.txnGraph[idx].outputs as any as GraphTxnOutput[]
+                details: this.MapDbTokenDetailsFromDbo(dag.txnGraph[idx].details, token.tokenDetails.decimals),
+                outputs: dag.txnGraph[idx].outputs as any as GraphTxnOutput[]
             }
 
             tg._graphTxns.set(item.txid, gt);
@@ -444,19 +470,19 @@ export class SlpTokenGraph implements TokenGraph {
 
         // Map _addresses
         tg._addresses = new Map<string, AddressBalance>();
-        doc.addresses.forEach((item, idx) => {
+        addresses.addresses.forEach((item, idx) => {
             tg._addresses.set(item.address, {
-                satoshis_balance: doc.addresses[idx].satoshis_balance, 
-                token_balance: (new BigNumber(doc.addresses[idx].token_balance.toString())).multipliedBy(10**tg._tokenDetails.decimals)
+                satoshis_balance: addresses.addresses[idx].satoshis_balance, 
+                token_balance: (new BigNumber(addresses.addresses[idx].token_balance.toString())).multipliedBy(10**tg._tokenDetails.decimals)
             });
         });
 
 
         // Map _lastUpdatedBlock
-        tg._lastUpdatedBlock = doc.lastUpdatedBlock;
+        tg._lastUpdatedBlock = token.lastUpdatedBlock;
 
         // Map _tokenUtxos
-        tg._tokenUtxos = new Set(doc.tokenUtxos);
+        tg._tokenUtxos = new Set(utxos.tokenUtxos);
 
         await tg.updateStatistics();
 
@@ -467,11 +493,23 @@ export class SlpTokenGraph implements TokenGraph {
 export interface TokenDBObject {
     slpdbVersion: number;
     tokenDetails: SlpTransactionDetailsDbo;
-    txnGraph: GraphTxnDbo[];
-    addresses: { address: cashAddr, satoshis_balance: number, token_balance: Decimal128 }[];
     tokenStats: TokenStats | TokenStatsDb;
     lastUpdatedBlock: number;
-    tokenUtxos: string[]
+}
+
+export interface GraphDbObject {
+    tokenDetails: SlpTransactionDetailsDbo;
+    txnGraph: GraphTxnDbo[];
+}
+
+export interface UtxosDbObject {
+    tokenDetails: SlpTransactionDetailsDbo;
+    tokenUtxos: string[];
+}
+
+export interface AddressesDbObject {
+    tokenDetails: SlpTransactionDetailsDbo;
+    addresses: { address: cashAddr, satoshis_balance: number, token_balance: Decimal128 }[];
 }
 
 export interface SlpTransactionDetailsDbo {

@@ -208,8 +208,11 @@ export class Bit {
             const self = this;
 
             let blockHex: string = await this.rpc.getBlock(block_content.hash, false);
+            // let re = /^([A-Fa-f0-9]{2}){80,}$/;
+            // if(!re.test(blockHex.slice(0,162)))
+            //     throw Error("RPC did not return valid block content, check your RPC connection with bitcoind.");
             let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
-            for(let i=0; i < txs.length; i++) {
+            for(let i=0; i < block.txs.length; i++) {
                 let txnhex = block.txs[i].toRaw().toString('hex');
                 if(this.slp_txn_filter(txnhex) && !this.slpMempool.has(block.txs[i].txid())) {
                     tasks.push(limit(async function() {
@@ -342,10 +345,10 @@ export class Bit {
                     return null;
                 }
             } catch (e) {
-                console.log('[ERROR] block sync Error', e);
+                console.log('[ERROR] block sync Error');
                 console.log('[INFO] Shutting down SLPDB...', new Date().toString());
                 await self.db.exit();
-                process.exit();
+                throw e;
             }
         } else if (type === 'mempool') {
             result = { syncType: SyncType.Mempool, filteredContent: new Map<SyncFilterTypes, TransactionPool>() }
@@ -403,15 +406,8 @@ export class Bit {
     }
 
     async run() {
-        // initial block sync
-        await Bit.sync(this, 'block')
-        
-        // initial mempool sync
-        let items = await this.requestSlpMempool()
-        await this.db.mempoolsync(items)
+        await Bit.sync(this, 'block');
+        let items = await this.requestSlpMempool();
+        await this.db.mempoolsync(items);
     }
 }
-
-// module.exports = {
-//   init: init, crawl: crawl, listen: listen, sync: sync, run: run
-// }
