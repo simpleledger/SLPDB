@@ -1,5 +1,5 @@
-import { SlpTokenGraph, TokenDBObject, SlpTransactionDetailsDbo } from "./SlpTokenGraph";
-import { SlpTransactionType, Slp } from "slpjs";
+import { SlpTokenGraph, TokenDBObject } from "./SlpTokenGraph";
+import { SlpTransactionType, Slp, SlpTransactionDetails, Utils } from "slpjs";
 import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes } from "./bit";
 import { Query } from "./query";
 import BITBOXSDK from 'bitbox-sdk';
@@ -8,6 +8,7 @@ import { Db } from './db';
 import { Config } from "./config";
 import { TNATxn } from "./tna";
 import { BitcoinRpc } from "./vendor";
+import { Decimal128 } from "mongodb";
 
 const RpcClient = require('bitcoin-rpc-promise');
 
@@ -104,7 +105,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                     tna.slp = {} as any;
                 if(tna.slp!.schema_version !== Config.db.schema_version) {
                     console.log("Updating confirmed/unconfirmed collections for", txid);
-                    let isValid: boolean|null, details: SlpTransactionDetailsDbo|null, invalidReason: string|null;
+                    let isValid: boolean|null, details: SlpTransactionDetailsTnaDbo|null, invalidReason: string|null;
                     let tokenGraph = this._tokens.get(tokenId)!;
                     try {
                         let keys = Object.keys(tokenGraph._slpValidator.cachedValidations);
@@ -114,16 +115,31 @@ export class SlpGraphManager implements IZmqSubscriber {
                         let validation = tokenGraph._slpValidator.cachedValidations[txid];                        
                         isValid = validation.validity;
                         invalidReason = validation.invalidReason;
-                        details = SlpTokenGraph.MapTokenDetailsToDbo(validation.details!, tokenGraph._tokenDetails.decimals);
+                        let addresses: (string|null)[] = [];
+                        if(validation.details!.transactionType === SlpTransactionType.SEND) {
+                            addresses = tna.out.map(o => {
+                                try {
+                                    if(o.e!.a && Utils.isCashAddress(o.e!.a))
+                                        return Utils.toSlpAddress(o.e!.a); 
+                                    else return null;
+                                } catch(_) { return null; }
+                            });
+                        }
+                        else {
+                            try {
+                                if(tna.out[1]!.e!.a && Utils.isCashAddress(tna.out[1]!.e!.a))
+                                    addresses = [ Utils.toSlpAddress(tna.out[1]!.e!.a) ];
+                                else addresses = [ null ];
+                            } catch(_) { return null; }
+                        }
+                        details = SlpGraphManager.MapTokenDetailsToTnaDbo(validation.details!, tokenGraph._tokenDetails.decimals, addresses);
                     } catch(err) {
                         isValid = false;
                         details = null;
                         invalidReason = "Invalid Token Genesis";
                     }
-
-                    if(isValid === null) {
+                    if(isValid === null)
                         throw Error("Validitity of " + txid + " is null.")
-                    }
                     tna.slp!.valid = isValid
                     tna.slp!.detail = details!;
                     tna.slp!.invalidReason = invalidReason;
@@ -135,6 +151,26 @@ export class SlpGraphManager implements IZmqSubscriber {
         if(count === 0) {
             throw Error("Transaction not found! " + txid);
         }
+    }
+
+    static MapTokenDetailsToTnaDbo(details: SlpTransactionDetails, decimals: number, addresses: (string|null)[]): SlpTransactionDetailsTnaDbo {
+        let res: SlpTransactionDetailsTnaDbo = {
+            decimals: details.decimals,
+            tokenIdHex: details.tokenIdHex,
+            timestamp: details.timestamp,
+            transactionType: details.transactionType,
+            versionType: details.versionType,
+            documentUri: details.documentUri,
+            documentSha256Hex: details.documentSha256 ? details.documentSha256.toString('hex')! : null,
+            symbol: details.symbol,
+            name: details.name,
+            batonVout: details.batonVout,
+            containsBaton: details.containsBaton,
+            genesisOrMintQuantity: details.genesisOrMintQuantity ? { address: addresses[0], amount: Decimal128.fromString(details.genesisOrMintQuantity!.dividedBy(10**decimals).toFixed()) } : null,
+            sendOutputs: details.sendOutputs ? details.sendOutputs.map((o,i) => { return { address: addresses[i], amount: Decimal128.fromString(o.dividedBy(10**decimals).toFixed()) } })  : null
+        }
+
+        return res;
     }
 
     async initAllTokens() {
@@ -211,4 +247,20 @@ export class SlpGraphManager implements IZmqSubscriber {
           await callback(array[index], index, array);
         }
     }
+}
+
+export interface SlpTransactionDetailsTnaDbo {
+    transactionType: SlpTransactionType;
+    tokenIdHex: string;
+    versionType: number;
+    timestamp: string;
+    symbol: string;
+    name: string;
+    documentUri: string; 
+    documentSha256Hex: string|null;
+    decimals: number;
+    containsBaton: boolean;
+    batonVout: number|null;
+    genesisOrMintQuantity: { address: string|null, amount: Decimal128|null }|null;
+    sendOutputs: { address: string|null, amount: Decimal128|null }[]|null;
 }

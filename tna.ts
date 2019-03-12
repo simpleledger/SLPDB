@@ -1,6 +1,6 @@
 require('dotenv').config()
 import { BitcoinRpc, Bitcore } from './vendor';
-import { SlpTransactionDetailsDbo } from './SlpTokenGraph';
+import { SlpTransactionDetailsTnaDbo } from './SlpGraphManager';
 
 const bitcore = require('bitcore-lib-cash')
 
@@ -102,7 +102,7 @@ export interface TNATxn {
     raw?: string;
     slp?: { 
         valid: boolean|null, 
-        detail: SlpTransactionDetailsDbo|null, 
+        detail: SlpTransactionDetailsTnaDbo|null, 
         invalidReason: string|null,
         schema_version: number 
     }
