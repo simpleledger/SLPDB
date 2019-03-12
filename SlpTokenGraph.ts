@@ -333,7 +333,7 @@ export class SlpTokenGraph implements TokenGraph {
             lastUpdatedBlock: this._lastUpdatedBlock,
             tokenDetails: tokenDetails,
             txnGraph: graphTxns,
-            addresses: <{ address: cashAddr, satoshis_balance: number, token_balance: string }[]>Array.from(this._addresses).map(a => { return { address: a[0], satoshis_balance: a[1].satoshis_balance, token_balance: a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() } }),
+            addresses: <{ address: cashAddr, satoshis_balance: number, token_balance: Decimal128 }[]>Array.from(this._addresses).map(a => { return { address: a[0], satoshis_balance: a[1].satoshis_balance, token_balance: Decimal128.fromString(a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) } }),
             tokenStats: this.mapTokenStatstoDbo(this._tokenStats),
             tokenUtxos: Array.from(this._tokenUtxos)
         }
@@ -447,7 +447,7 @@ export class SlpTokenGraph implements TokenGraph {
         doc.addresses.forEach((item, idx) => {
             tg._addresses.set(item.address, {
                 satoshis_balance: doc.addresses[idx].satoshis_balance, 
-                token_balance: (new BigNumber(doc.addresses[idx].token_balance)).multipliedBy(10**tg._tokenDetails.decimals)
+                token_balance: (new BigNumber(doc.addresses[idx].token_balance.toString())).multipliedBy(10**tg._tokenDetails.decimals)
             });
         });
 
@@ -468,7 +468,7 @@ export interface TokenDBObject {
     slpdbVersion: number;
     tokenDetails: SlpTransactionDetailsDbo;
     txnGraph: GraphTxnDbo[];
-    addresses: { address: cashAddr, satoshis_balance: number, token_balance: string }[];
+    addresses: { address: cashAddr, satoshis_balance: number, token_balance: Decimal128 }[];
     tokenStats: TokenStats | TokenStatsDb;
     lastUpdatedBlock: number;
     tokenUtxos: string[]
