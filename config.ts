@@ -14,16 +14,16 @@ export interface RpcConfig {
 export class Config {
 	static rpc = {
 		'protocol': process.env.rpc_protocol ? process.env.rpc_protocol : 'http',
-		'user': process.env.rpc_user ? process.env.rpc_user : 'bitcoin',  //'l33t',            //'bitcoin',
-		'pass': process.env.rpc_pass ? process.env.rpc_pass : 'password', //'h4x0r',           //'password',
-		'host': process.env.rpc_host ? process.env.rpc_host : '0.0.0.0',  //'159.89.153.200',  //'0.0.0.0',
-		'port': process.env.rpc_port ? process.env.rpc_port : '8332',     //'18332',           //'8332',
+		'user': process.env.rpc_user ? process.env.rpc_user : 'bitcoin',
+		'pass': process.env.rpc_pass ? process.env.rpc_pass : 'password',
+		'host': process.env.rpc_host ? process.env.rpc_host : '0.0.0.0',
+		'port': process.env.rpc_port ? process.env.rpc_port : '8332',
 		'limit': Number.parseInt(process.env.rpc_limit ? process.env.rpc_limit : "150")
 	}
 	static db: DbConfig = {
 		name: process.env.db_name ? process.env.db_name : 'slpdb',
 		url: process.env.db_url ? process.env.db_url : 'mongodb://localhost:27017',
-		schema_version: 36,
+		schema_version: 40,
 		index: {
 			tokens: {
 				keys: [ 'tokenDetails.tokenIdHex', 'tokenDetails.name', 'tokenDetails.symbol', 'tokenStats.qty_token_circulating_supply', 'tokenStats.qty_token_burned', 'tokenStats.qty_token_minted' ],

@@ -328,55 +328,49 @@ export class SlpTokenGraph implements TokenGraph {
         return result;
     }
 
-    toAddressesDbObject(): AddressesDbObject {
+    toAddressesDbObject(): AddressBalancesDbo[] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
-
-        let result = {
-            tokenDetails: tokenDetails,
-            addresses: <{ address: cashAddr, satoshis_balance: number, token_balance: Decimal128 }[]>Array.from(this._addresses).map(a => { return { address: a[0], satoshis_balance: a[1].satoshis_balance, token_balance: Decimal128.fromString(a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) } })
-        }
+        let result: AddressBalancesDbo[] = [];
+        Array.from(this._addresses).forEach(a => { result.push({ tokenDetails: tokenDetails, address: a[0], satoshis_balance: a[1].satoshis_balance, token_balance: Decimal128.fromString(a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) }) })
         return result;
     }
 
-    toUtxosDbObject(): UtxosDbObject {
+    toUtxosDbObject(): UtxoDbo[] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
-        let result = {
-            tokenDetails: tokenDetails,
-            tokenUtxos: Array.from(this._tokenUtxos)
-        }
+        let result: UtxoDbo[] = [];
+        Array.from(this._tokenUtxos).forEach(u => { result.push({ tokenDetails: tokenDetails, utxo: u })});
         return result;
     }
 
-    toGraphDbObject(): GraphDbObject {
+    toGraphDbObject(): GraphTxnDbo[] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
-        let graphTxns: GraphTxnDbo[] = [];
-        this._graphTxns.forEach((g, k) => {
-            graphTxns.push({
-                txid: k,
-                timestamp: g.timestamp, 
-                block: g.block,
-                details: SlpTokenGraph.MapTokenDetailsToDbo(this._graphTxns.get(k)!.details, this._tokenDetails.decimals),
-                outputs: this.mapGraphTxnOutputsToDbo(this._graphTxns.get(k)!.outputs)
+        let result: GraphTxnDbo[] = [];
+        Array.from(this._graphTxns).forEach(k => { 
+            result.push({ 
+                tokenDetails: tokenDetails, 
+                graphTxn: {
+                    txid: k[0],
+                    timestamp: k[1].timestamp, 
+                    block: k[1].block,
+                    details: SlpTokenGraph.MapTokenDetailsToDbo(this._graphTxns.get(k[0])!.details, this._tokenDetails.decimals),
+                    outputs: this.mapGraphTxnOutputsToDbo(this._graphTxns.get(k[0])!.outputs)
+                }
             })
-        })
-        let result = {
-            tokenDetails: tokenDetails,
-            txnGraph: graphTxns,
-        }
+        });
         return result;
     }
 
     mapGraphTxnOutputsToDbo(outputs: GraphTxnOutput[]): GraphTxnOutputDbo[] {
-        let mapped: GraphTxnDbo["outputs"] = [];
+        let mapped: GraphTxnDetailsDbo["outputs"] = [];
         outputs.forEach(o => {
-            let m = Object.create(o);
-            //console.log(m);
-            try {
-                m.slpAmount = Decimal128.fromString(m.slpAmount.dividedBy(10**this._tokenDetails.decimals).toFixed());
-            } catch(_) {
-                m.slpAmount = Decimal128.fromString("0");
-            }
-            mapped.push(m);
+                let m = Object.create(o);
+                //console.log(m);
+                try {
+                    m.slpAmount = Decimal128.fromString(m.slpAmount.dividedBy(10**this._tokenDetails.decimals).toFixed());
+                } catch(_) {
+                    m.slpAmount = Decimal128.fromString("0");
+                }
+                mapped.push(m);
         })
         return mapped;
     }
@@ -445,7 +439,7 @@ export class SlpTokenGraph implements TokenGraph {
         return res;
     }
 
-    static async FromDbObjects(token: TokenDBObject, dag: GraphDbObject, utxos: UtxosDbObject, addresses: AddressesDbObject): Promise<SlpTokenGraph> {
+    static async FromDbObjects(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], addresses: AddressBalancesDbo[]): Promise<SlpTokenGraph> {
         let tg = new SlpTokenGraph();
         await Query.init();
         tg._network = (await tg._rpcClient.getInfo()).testnet ? 'testnet': 'mainnet';
@@ -455,25 +449,25 @@ export class SlpTokenGraph implements TokenGraph {
 
         // Map _txnGraph
         tg._graphTxns = new Map<txid, GraphTxn>();
-        dag.txnGraph.forEach((item, idx) => {
-            try { dag.txnGraph[idx].outputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)) } catch(_) { throw Error("Error in mapping database object"); }
+        dag.forEach((item, idx) => {
+            try { dag[idx].graphTxn.outputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)) } catch(_) { throw Error("Error in mapping database object"); }
 
             let gt: GraphTxn = {
-                timestamp: item.timestamp, 
-                block: item.block,
-                details: this.MapDbTokenDetailsFromDbo(dag.txnGraph[idx].details, token.tokenDetails.decimals),
-                outputs: dag.txnGraph[idx].outputs as any as GraphTxnOutput[]
+                timestamp: item.graphTxn.timestamp, 
+                block: item.graphTxn.block,
+                details: this.MapDbTokenDetailsFromDbo(dag[idx].graphTxn.details, token.tokenDetails.decimals),
+                outputs: dag[idx].graphTxn.outputs as any as GraphTxnOutput[]
             }
 
-            tg._graphTxns.set(item.txid, gt);
+            tg._graphTxns.set(item.graphTxn.txid, gt);
         })
 
         // Map _addresses
         tg._addresses = new Map<string, AddressBalance>();
-        addresses.addresses.forEach((item, idx) => {
+        addresses.forEach((item, idx) => {
             tg._addresses.set(item.address, {
-                satoshis_balance: addresses.addresses[idx].satoshis_balance, 
-                token_balance: (new BigNumber(addresses.addresses[idx].token_balance.toString())).multipliedBy(10**tg._tokenDetails.decimals)
+                satoshis_balance: addresses[idx].satoshis_balance, 
+                token_balance: (new BigNumber(addresses[idx].token_balance.toString())).multipliedBy(10**tg._tokenDetails.decimals)
             });
         });
 
@@ -482,7 +476,7 @@ export class SlpTokenGraph implements TokenGraph {
         tg._lastUpdatedBlock = token.lastUpdatedBlock;
 
         // Map _tokenUtxos
-        tg._tokenUtxos = new Set(utxos.tokenUtxos);
+        tg._tokenUtxos = new Set(utxos.map(u => u.utxo));
 
         await tg.updateStatistics();
 
@@ -497,19 +491,21 @@ export interface TokenDBObject {
     lastUpdatedBlock: number;
 }
 
-export interface GraphDbObject {
+export interface GraphTxnDbo {
     tokenDetails: SlpTransactionDetailsDbo;
-    txnGraph: GraphTxnDbo[];
+    graphTxn: GraphTxnDetailsDbo;
 }
 
-export interface UtxosDbObject {
+export interface UtxoDbo {
     tokenDetails: SlpTransactionDetailsDbo;
-    tokenUtxos: string[];
+    utxo: string;
 }
 
-export interface AddressesDbObject {
+export interface AddressBalancesDbo {
     tokenDetails: SlpTransactionDetailsDbo;
-    addresses: { address: cashAddr, satoshis_balance: number, token_balance: Decimal128 }[];
+    address: cashAddr;
+    satoshis_balance: number;
+    token_balance: Decimal128;
 }
 
 export interface SlpTransactionDetailsDbo {
@@ -528,7 +524,7 @@ export interface SlpTransactionDetailsDbo {
     sendOutputs: Decimal128[]|null;
 }
 
-interface GraphTxnDbo {
+interface GraphTxnDetailsDbo {
     txid: string,
     details: SlpTransactionDetailsDbo;
     timestamp: string|null;

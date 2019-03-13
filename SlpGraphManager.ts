@@ -1,4 +1,4 @@
-import { SlpTokenGraph, TokenDBObject, UtxosDbObject, AddressesDbObject, GraphDbObject } from "./SlpTokenGraph";
+import { SlpTokenGraph, TokenDBObject, UtxoDbo, AddressBalancesDbo, GraphTxnDbo } from "./SlpTokenGraph";
 import { SlpTransactionType, Slp, SlpTransactionDetails, Utils } from "slpjs";
 import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes } from "./bit";
 import { Query } from "./query";
@@ -157,6 +157,19 @@ export class SlpGraphManager implements IZmqSubscriber {
     }
 
     static MapTokenDetailsToTnaDbo(details: SlpTransactionDetails, decimals: number, addresses: (string|null)[]): SlpTransactionDetailsTnaDbo {
+        var outputs: any|null = null;
+        if(details.sendOutputs) {
+            outputs = [];
+            details.sendOutputs.forEach((o,i) => {
+                if(i > 0) {
+                    outputs.push({
+                        address: addresses[i],
+                        amount: Decimal128.fromString(o.dividedBy(10**decimals).toFixed())
+                    })
+                }
+            })
+        }
+
         let res: SlpTransactionDetailsTnaDbo = {
             decimals: details.decimals,
             tokenIdHex: details.tokenIdHex,
@@ -170,7 +183,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             batonVout: details.batonVout,
             containsBaton: details.containsBaton,
             genesisOrMintQuantity: details.genesisOrMintQuantity ? { address: addresses[0], amount: Decimal128.fromString(details.genesisOrMintQuantity!.dividedBy(10**decimals).toFixed()) } : null,
-            sendOutputs: details.sendOutputs ? details.sendOutputs.map((o,i) => { return { address: addresses[i], amount: Decimal128.fromString(o.dividedBy(10**decimals).toFixed()) } })  : null
+            sendOutputs: outputs
         }
 
         return res;
@@ -194,9 +207,9 @@ export class SlpGraphManager implements IZmqSubscriber {
                     await this.db.addressdelete(tokens[i].tokenIdHex);
                     throw Error("Outdated token graph detected for: " + tokens[i].tokenIdHex);
                 }
-                let utxos = <UtxosDbObject>await this.db.utxofetch(tokens[i].tokenIdHex);
-                let addresses = <AddressesDbObject>await this.db.addressfetch(tokens[i].tokenIdHex);
-                let dag = <GraphDbObject>await this.db.graphfetch(tokens[i].tokenIdHex);
+                let utxos: UtxoDbo[] = await this.db.utxofetch(tokens[i].tokenIdHex);
+                let addresses: AddressBalancesDbo[] = await this.db.addressfetch(tokens[i].tokenIdHex);
+                let dag: GraphTxnDbo[] = await this.db.graphfetch(tokens[i].tokenIdHex);
                 graph = await SlpTokenGraph.FromDbObjects(tokenState, dag, utxos, addresses);
                 console.log("########################################################################################################")
                 console.log("LOAD FROM DB:", graph._tokenDetails.tokenIdHex);

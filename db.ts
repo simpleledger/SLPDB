@@ -1,6 +1,7 @@
 import { MongoClient, Db as MongoDb } from 'mongodb';
 import { Config, DbConfig } from './config';
 import { TNATxn } from './tna';
+import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo } from './SlpTokenGraph';
 
 export class Db {
     config: DbConfig;
@@ -13,11 +14,11 @@ export class Db {
 
     async init() {
         let client: MongoClient;
-        //console.log("Initializing Mongo db...")
+        console.log("[INFO] Initializing Mongo db...")
         client = await MongoClient.connect(this.config.url, { useNewUrlParser: true })
         this.db = client.db(this.config.name)
         this.mongo = <MongoClient>client;
-        //console.log("Mongo db initialized.")
+        console.log("[INFO] Mongo db initialized.")
     }
 
     async exit() {
@@ -42,58 +43,64 @@ export class Db {
         return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async graphinsert(graph: any) {
-        await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": graph.tokenDetails.tokenIdHex })
-        return await this.db.collection('graphs').insertMany([ graph ]);
+    async graphinsert(graph: GraphTxnDbo[]) {
+        if(graph.length > 0) {
+            await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": graph[0].tokenDetails.tokenIdHex })
+            return await this.db.collection('graphs').insertMany(graph);
+        }
     }
 
-    async graphreplace(graph: any) {
-        await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": graph.tokenDetails.tokenIdHex })
-        return await this.db.collection('graphs').insertMany([ graph ]);
+    async graphreplace(graph: GraphTxnDbo[]) {
+        await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": graph[0].tokenDetails.tokenIdHex })
+        return await this.db.collection('graphs').insertMany(graph);
     }
 
     async graphdelete(tokenIdHex: string) {
         return await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async graphfetch(tokenIdHex: string) {
-        return await this.db.collection('graphs').findOne({ "tokenDetails.tokenIdHex": tokenIdHex })
+    async graphfetch(tokenIdHex: string): Promise<GraphTxnDbo[]> {
+        return await this.db.collection('graphs').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
     }
 
-    async addressinsert(addresses: any) {
-        await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": addresses.tokenDetails.tokenIdHex })
-        return await this.db.collection('addresses').insertMany([ addresses ]);
+    async addressinsert(addresses: AddressBalancesDbo[]) {
+        if(addresses.length > 0) {
+            await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": addresses[0].tokenDetails.tokenIdHex })
+            return await this.db.collection('addresses').insertMany(addresses);
+        }
     }
 
-    async addressreplace(addresses: any) {
-        await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": addresses.tokenDetails.tokenIdHex })
-        return await this.db.collection('addresses').insertMany([ addresses ]);
+    async addressreplace(addresses: AddressBalancesDbo[]) {
+        await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": addresses[0].tokenDetails.tokenIdHex })
+        return await this.db.collection('addresses').insertMany(addresses);
     }
 
     async addressdelete(tokenIdHex: string) {
         return await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async addressfetch(tokenIdHex: string) {
-        return await this.db.collection('addresses').findOne({ "tokenDetails.tokenIdHex": tokenIdHex })
+    async addressfetch(tokenIdHex: string): Promise<AddressBalancesDbo[]> {
+        return await this.db.collection('addresses').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
     }
 
-    async utxoinsert(utxos: any) {
-        await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": utxos.tokenDetails.tokenIdHex })
-        return await this.db.collection('utxos').insertMany([ utxos ]);
+    async utxoinsert(utxos: UtxoDbo[]) {
+        if(utxos.length > 0) {
+            await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": utxos[0].tokenDetails.tokenIdHex })
+            return await this.db.collection('utxos').insertMany(utxos);
+        }
     }
 
-    async utxoreplace(utxos: any) {
-        await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": utxos.tokenDetails.tokenIdHex })
-        return await this.db.collection('utxos').insertMany([ utxos ]);
+    async utxoreplace(utxos: UtxoDbo[]) {
+        await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": utxos[0].tokenDetails.tokenIdHex })
+        return await this.db.collection('utxos').insertMany(utxos);
     }
 
     async utxodelete(tokenIdHex: string) {
         return await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async utxofetch(tokenIdHex: string) {
-        return await this.db.collection('utxos').findOne({ "tokenDetails.tokenIdHex": tokenIdHex })
+    async utxofetch(tokenIdHex: string): Promise<UtxoDbo[]> {
+        return await this.db.collection('utxos').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
     }
 
     async mempoolinsert(item: TNATxn) {
