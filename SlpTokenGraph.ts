@@ -72,7 +72,7 @@ export class SlpTokenGraph implements TokenGraph {
         }
     }
 
-    async getSpendDetails(txid: string, vout: number): Promise<SpendDetails> {
+    async getSpendDetails(txid: string, vout: number, slpOutputLength: number): Promise<SpendDetails> {
         let txOut = await this._rpcClient.getTxOut(txid, vout, true);
         //console.log("TXOUT", txOut);
         if(txOut === null) {
@@ -82,22 +82,28 @@ export class SlpTokenGraph implements TokenGraph {
                 let spendTxnInfo = await Query.queryForTxoInput(txid, vout);
 
                 if(spendTxnInfo.txid === null) {
-                    return { status: UtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null };
+                    if(vout < slpOutputLength)
+                        return { status: UtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
+                    else 
+                        return { status: UtxoStatus.MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
                 }
                 if(typeof spendTxnInfo!.txid === 'string') {
                     let valid = this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
                     if(valid) {
-                        return { status: UtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo };
+                        return { status: UtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null };
                     }
-                    return { status: UtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo };
+                    return { status: UtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
                 }
             } catch(_) {
-                return { status: UtxoStatus.SPENT_INVALID_SLP, txid: null, queryResponse: null };
+                if(vout < slpOutputLength)
+                    return { status: UtxoStatus.SPENT_INVALID_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
+                else
+                    return { status: UtxoStatus.MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
             }
         } 
         else {
             this._tokenUtxos.add(txid + ":" + vout);
-            return { status: UtxoStatus.UNSPENT, txid: null, queryResponse: null };
+            return { status: UtxoStatus.UNSPENT, txid: null, queryResponse: null, invalidReason: null };
         }
 
         throw Error("Unknown Error in SlpTokenGraph");
@@ -144,7 +150,7 @@ export class SlpTokenGraph implements TokenGraph {
         // Create SLP graph outputs for each new valid SLP output
         if(isValid && (graphTxn.details.transactionType === SlpTransactionType.GENESIS || graphTxn.details.transactionType === SlpTransactionType.MINT)) {
             if(graphTxn.details.genesisOrMintQuantity!.isGreaterThanOrEqualTo(0)) {
-                let spendDetails = await this.getSpendDetails(txid, 1);
+                let spendDetails = await this.getSpendDetails(txid, 1, txn.outputs.length);
                 let address;
                 try { address = Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[1]._scriptBuffer, this._network))
                 } catch(_) { address = "multisig or unknown address type"; }
@@ -155,26 +161,26 @@ export class SlpTokenGraph implements TokenGraph {
                     slpAmount: <any>graphTxn.details.genesisOrMintQuantity!,
                     spendTxid: spendDetails.txid,
                     status: spendDetails.status,
-                    invalidReason: spendDetails.txid && spendDetails.status !== UtxoStatus.UNSPENT && spendDetails.status !== UtxoStatus.SPENT_SAME_TOKEN ? this._slpValidator.cachedValidations[spendDetails.txid!].invalidReason : null
+                    invalidReason: spendDetails.invalidReason
                 })
             }
         }
         else if(isValid && graphTxn.details.sendOutputs!.length > 0) {
-            await this.asyncForEach(graphTxn.details.sendOutputs!, async (output: BigNumber, vout: number) => { 
+            await this.asyncForEach(graphTxn.details.sendOutputs!, async (output: BigNumber, slp_vout: number) => { 
                 if(output.isGreaterThanOrEqualTo(0)) {
-                    if(vout > 0) {
-                        let spendDetails = await this.getSpendDetails(txid, vout);
+                    if(slp_vout > 0) {
+                        let spendDetails = await this.getSpendDetails(txid, slp_vout, txn.outputs.length);
                         let address;
-                        try { address = Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[vout]._scriptBuffer, this._network))
-                        } catch(_) { address = "multisig or unknown address type"; }
+                        try { address = Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[slp_vout]._scriptBuffer, this._network))
+                        } catch(_) { address = "unknown address type or missing address output"; }
                         graphTxn.outputs.push({
                             address: address,
-                            vout: vout,
-                            bchSatoshis: txn.outputs[vout].satoshis, 
-                            slpAmount: <any>graphTxn.details.sendOutputs![vout],
+                            vout: slp_vout,
+                            bchSatoshis: slp_vout < txn.outputs.length ? txn.outputs[slp_vout].satoshis : 0, 
+                            slpAmount: <any>graphTxn.details.sendOutputs![slp_vout],
                             spendTxid: spendDetails.txid,
                             status: spendDetails.status,
-                            invalidReason: spendDetails.txid && spendDetails.status !== UtxoStatus.UNSPENT && spendDetails.status !== UtxoStatus.SPENT_SAME_TOKEN ? this._slpValidator.cachedValidations[spendDetails.txid!].invalidReason : null
+                            invalidReason: spendDetails.invalidReason
                         })
                     }
                 }
@@ -593,13 +599,15 @@ enum UtxoStatus {
     "SPENT_SAME_TOKEN" = "SPENT_SAME_TOKEN",
     "SPENT_WRONG_TOKEN" = "SPENT_WRONG_TOKEN", 
     "SPENT_NON_SLP" = "SPENT_NON_SLP",
-    "SPENT_INVALID_SLP" = "SPENT_INVALID_SLP"
+    "SPENT_INVALID_SLP" = "SPENT_INVALID_SLP",
+    "MISSING_BCH_VOUT" = "MISSING_BCH_VOUT"
 }
 
 interface SpendDetails {
     status: UtxoStatus;
     txid: string|null;
     queryResponse: TxnQueryResult|null;
+    invalidReason: string|null;
 }
 
     // async getTotalBurnedQuantity(): Promise<BigNumber> {
