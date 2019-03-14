@@ -135,7 +135,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                                 else addresses = [ null ];
                             } catch(_) { return null; }
                         }
-                        details = SlpGraphManager.MapTokenDetailsToTnaDbo(validation.details!, tokenGraph._tokenDetails.decimals, addresses);
+                        details = SlpGraphManager.MapTokenDetailsToTnaDbo(validation.details!, tokenGraph._tokenDetails, addresses);
                     } catch(err) {
                         isValid = false;
                         details = null;
@@ -156,36 +156,32 @@ export class SlpGraphManager implements IZmqSubscriber {
         }
     }
 
-    static MapTokenDetailsToTnaDbo(details: SlpTransactionDetails, decimals: number, addresses: (string|null)[]): SlpTransactionDetailsTnaDbo {
+    static MapTokenDetailsToTnaDbo(details: SlpTransactionDetails, genesisDetails: SlpTransactionDetails, addresses: (string|null)[]): SlpTransactionDetailsTnaDbo {
         var outputs: any|null = null;
         if(details.sendOutputs) {
             outputs = [];
             details.sendOutputs.forEach((o,i) => {
-                if(i > 0) {
-                    outputs.push({
-                        address: addresses[i],
-                        amount: Decimal128.fromString(o.dividedBy(10**decimals).toFixed())
-                    })
-                }
+                if(i > 0)
+                    outputs.push({ address: addresses[i], amount: Decimal128.fromString(o.dividedBy(10**genesisDetails.decimals).toFixed())})
             })
         }
-
-        let res: SlpTransactionDetailsTnaDbo = {
-            decimals: details.decimals,
-            tokenIdHex: details.tokenIdHex,
-            timestamp: details.timestamp,
-            transactionType: details.transactionType,
-            versionType: details.versionType,
-            documentUri: details.documentUri,
-            documentSha256Hex: details.documentSha256 ? details.documentSha256.toString('hex')! : null,
-            symbol: details.symbol,
-            name: details.name,
-            batonVout: details.batonVout,
-            containsBaton: details.containsBaton,
-            genesisOrMintQuantity: details.genesisOrMintQuantity ? { address: addresses[0], amount: Decimal128.fromString(details.genesisOrMintQuantity!.dividedBy(10**decimals).toFixed()) } : null,
-            sendOutputs: outputs
+        if(details.genesisOrMintQuantity) {
+            outputs = [];
+            outputs.push({ address: addresses[0], amount: Decimal128.fromString(details.genesisOrMintQuantity!.dividedBy(10**genesisDetails.decimals).toFixed()) })
         }
-
+        let res: SlpTransactionDetailsTnaDbo = {
+            decimals: genesisDetails.decimals,
+            tokenIdHex: details.tokenIdHex,
+            transactionType: details.transactionType,
+            versionType: genesisDetails.versionType,
+            documentUri: genesisDetails.documentUri,
+            documentSha256Hex: genesisDetails.documentSha256 ? genesisDetails.documentSha256.toString('hex')! : null,
+            symbol: genesisDetails.symbol,
+            name: genesisDetails.name,
+            txnBatonVout: details.batonVout,
+            txnContainsBaton: details.containsBaton,
+            outputs: outputs
+        }
         return res;
     }
 
@@ -278,14 +274,12 @@ export interface SlpTransactionDetailsTnaDbo {
     transactionType: SlpTransactionType;
     tokenIdHex: string;
     versionType: number;
-    timestamp: string;
     symbol: string;
     name: string;
     documentUri: string; 
     documentSha256Hex: string|null;
     decimals: number;
-    containsBaton: boolean;
-    batonVout: number|null;
-    genesisOrMintQuantity: { address: string|null, amount: Decimal128|null }|null;
-    sendOutputs: { address: string|null, amount: Decimal128|null }[]|null;
+    txnContainsBaton: boolean;
+    txnBatonVout: number|null;
+    outputs: { address: string|null, amount: Decimal128|null }[]|null;
 }
