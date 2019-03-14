@@ -337,23 +337,23 @@ export class SlpTokenGraph implements TokenGraph {
     toAddressesDbObject(): AddressBalancesDbo[] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
         let result: AddressBalancesDbo[] = [];
-        Array.from(this._addresses).forEach(a => { result.push({ tokenDetails: tokenDetails, address: a[0], satoshis_balance: a[1].satoshis_balance, token_balance: Decimal128.fromString(a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) }) })
+        Array.from(this._addresses).forEach(a => { result.push({ tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, address: a[0], satoshis_balance: a[1].satoshis_balance, token_balance: Decimal128.fromString(a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) }) })
         return result;
     }
 
     toUtxosDbObject(): UtxoDbo[] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
         let result: UtxoDbo[] = [];
-        Array.from(this._tokenUtxos).forEach(u => { result.push({ tokenDetails: tokenDetails, utxo: u })});
+        Array.from(this._tokenUtxos).forEach(u => { result.push({ tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, utxo: u })});
         return result;
     }
 
     toGraphDbObject(): GraphTxnDbo[] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
         let result: GraphTxnDbo[] = [];
-        Array.from(this._graphTxns).forEach(k => { 
-            result.push({ 
-                tokenDetails: tokenDetails, 
+        Array.from(this._graphTxns).forEach(k => {
+            result.push({
+                tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, 
                 graphTxn: {
                     txid: k[0],
                     timestamp: k[1].timestamp, 
@@ -498,17 +498,17 @@ export interface TokenDBObject {
 }
 
 export interface GraphTxnDbo {
-    tokenDetails: SlpTransactionDetailsDbo;
+    tokenDetails: { tokenIdHex: string };
     graphTxn: GraphTxnDetailsDbo;
 }
 
 export interface UtxoDbo {
-    tokenDetails: SlpTransactionDetailsDbo;
+    tokenDetails: { tokenIdHex: string };
     utxo: string;
 }
 
 export interface AddressBalancesDbo {
-    tokenDetails: SlpTransactionDetailsDbo;
+    tokenDetails: { tokenIdHex: string };
     address: cashAddr;
     satoshis_balance: number;
     token_balance: Decimal128;
