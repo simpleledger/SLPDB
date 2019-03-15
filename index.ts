@@ -17,11 +17,12 @@ const daemon = {
 
 		const lastSynchronized = await Info.checkpoint();
 		if(lastSynchronized.height > await bit.requestheight()) {
-			throw Error("Config.core.from cannot be larger than the current blockchain height (check the config.ts file)");
+			throw Error("Config.core.from or Config.core.from_testnet cannot be larger than the current blockchain height (check the config.ts file)");
 		}
 
 		console.time('[PERF] Indexing Keys');
-		if (lastSynchronized.height === Config.core.from) {
+		let from = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
+		if (lastSynchronized.height === from) {
 			console.log('[INFO] Indexing MongoDB With Configured Keys...', new Date());
 			await db.blockindex();
 		}

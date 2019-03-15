@@ -82,14 +82,16 @@ export class Bit {
         this.db = db;
 
         console.log("[INFO] Initializing RPC connection with bitcoind...");
-        let connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port;
+        let connectionString = 'http://' + Config.rpc.user + ':' + Config.rpc.pass + '@' + Config.rpc.host + ':' + Config.rpc.port;
         this.rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
-        this.network = (await this.rpc.getInfo()).testnet ? 'testnet': 'mainnet';
-        let BITBOX = this.network === 'mainnet' ? new BITBOXSDK({ restURL: `https://rest.bitcoin.com/v2/` }) : new BITBOXSDK({ restURL: `https://trest.bitcoin.com/v2/` });
-
         console.log("[INFO] Testing RPC connection...");
         await this.requestblock(0);
         console.log("[INFO] JSON-RPC is initialized.");
+
+        this.network = (await this.rpc.getInfo()).testnet ? 'testnet' : 'mainnet';
+        await Info.setNetwork(this.network);
+        let BITBOX = this.network === 'mainnet' ? new BITBOXSDK({ restURL: `https://rest.bitcoin.com/v2/` }) : new BITBOXSDK({ restURL: `https://trest.bitcoin.com/v2/` });
+
         let isSyncd = false;
         let lastReportedSyncBlocks = 0;
         while(!isSyncd) {
@@ -400,7 +402,8 @@ export class Bit {
         if (lastCheckpoint.hash) {
             let lastCheckedHash = lastCheckpoint.hash;
             let lastCheckedHeight = lastCheckpoint.height;
-            while (lastCheckedHash !== actualHash && lastCheckedHeight > Config.core.from) {
+            let from = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
+            while (lastCheckedHash !== actualHash && lastCheckedHeight > from) {
                 lastCheckedHash = await Info.getCheckpointHash(--lastCheckedHeight);
                 await Info.updateTip(lastCheckedHeight, null);
                 actualHash = (await self.rpc.getBlock(actualHash)).previousblockhash;

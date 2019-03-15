@@ -1,5 +1,5 @@
-const level = require('level')
-const kv = level('./_leveldb')
+const level = require('level');
+var kv = level('./_leveldb');
 
 import { Config } from './config';
 
@@ -13,6 +13,20 @@ export interface ChainSyncCheckpoint {
 }
 
 export module Info {
+	export const setNetwork =  async function(network: string): Promise<void> {
+		try {
+			if(network === 'testnet')
+				kv = level('./_leveldb_testnet');
+			await kv.put('network', network);
+		} catch(_) { }
+	}
+	export const getNetwork =  async function(): Promise<string> {
+		try {
+			return await kv.get('network');
+		} catch(_) { 
+			throw Error("Cannot get network");
+		}
+	}
 	export const checkpoint = async function(): Promise<ChainSyncCheckpoint> {
 		try {
 			let value = await kv.get('tip');
@@ -23,8 +37,9 @@ export module Info {
 				return { height: cp, hash: hash }
 			}
 		} catch(_) { } 
-		console.log("[INFO] Checkpoint not found, starting sync at 'Config.core.from' block index", Config.core.from)
-		return { height: Config.core.from, hash: null }
+		let from = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
+		console.log("[INFO] Checkpoint not found, starting sync at 'Config.core.from' block index", from)
+		return { height: from, hash: null }
 	}
 	export const updateTip = async function(index: number, hash: string|null): Promise<void> {
 		try {

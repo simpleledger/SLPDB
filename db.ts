@@ -2,6 +2,7 @@ import { MongoClient, Db as MongoDb } from 'mongodb';
 import { Config, DbConfig } from './config';
 import { TNATxn } from './tna';
 import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from './SlpTokenGraph';
+import { Info } from './info';
 
 export class Db {
     config: DbConfig;
@@ -16,7 +17,8 @@ export class Db {
         let client: MongoClient;
         console.log("[INFO] Initializing Mongo db...")
         client = await MongoClient.connect(this.config.url, { useNewUrlParser: true })
-        this.db = client.db(this.config.name)
+        let dbname = await Info.getNetwork() === 'mainnet' ? this.config.name : this.config.name_testnet;
+        this.db = client.db(dbname);
         this.mongo = <MongoClient>client;
         console.log("[INFO] Mongo db initialized.")
     }

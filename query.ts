@@ -1,4 +1,5 @@
 import { Config } from "./config";
+import { Info } from "./info";
 import { SlpTransactionDetails, SlpTransactionType } from "slpjs";
 import BigNumber from "bignumber.js";
 
@@ -7,10 +8,12 @@ const bitqueryd = require('fountainhead-bitqueryd')
 export class Query {
 
     static dbQuery: any; 
-    //constructor(){}
     static async init(): Promise<void> {
         if(!Query.dbQuery) { 
-            Query.dbQuery = await bitqueryd.init({ url: Config.db.url, name: Config.db.name });
+            if((await Info.getNetwork()) === 'mainnet')
+                Query.dbQuery = await bitqueryd.init({ url: Config.db.url, name: Config.db.name });
+            else
+                Query.dbQuery = await bitqueryd.init({ url: Config.db.url, name: Config.db.name_testnet });
         }
         return Query.dbQuery;
     }

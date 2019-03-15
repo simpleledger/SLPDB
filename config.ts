@@ -1,5 +1,6 @@
 export interface DbConfig { 
 	name: string; 
+	name_testnet: string;
 	url: string; 
 	index: { [key: string]: { [key: string]: string[] } };
 	schema_version: number;
@@ -22,6 +23,7 @@ export class Config {
 	}
 	static db: DbConfig = {
 		name: process.env.db_name ? process.env.db_name : 'slpdb',
+		name_testnet: process.env.db_name ? process.env.db_name + "_test" : 'slpdb_testnet',
 		url: process.env.db_url ? process.env.db_url : 'mongodb://localhost:27017',
 		schema_version: 48,
 		index: {
@@ -76,6 +78,7 @@ export class Config {
 		}
 	}
 	static core = {
-		'from': Number.parseInt(process.env.core_from ? process.env.core_from : "543375")
+		from: Number.parseInt(process.env.core_from ? process.env.core_from : "543375"),
+		from_testnet: Number.parseInt(process.env.core_from ? process.env.core_from : "1253802")
 	}
 }

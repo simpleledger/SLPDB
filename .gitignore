@@ -3,4 +3,5 @@ node_modules
 *.js.map
 
 _leveldb
+_leveldb_testnet
 _mongo
