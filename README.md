@@ -1,28 +1,76 @@
 
-# SLPDB
+# SLPDB Readme
+### Updated: 2019-03-15
+### Version: 0.9.0 (beta)
 
-SLPDB is a persistance layer for SLP token transaction metadata and DAG.
+## Introduction
 
-### NOTICE: SLPDB is in an alpha state.  Expect changes.
+SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store all pertinant SLP related data.  Additionally, this application allows other processes to subscribe to realtime SLP events via ZeroMQ subscription.  It is recommended that end users utilize the [SlpServe]() and [SlpSocket]() applications in order to conveniently access the data that is provided by SLPDB and MongoDb.
 
-### How to use SLPDB: 
+You only need to install SLPDB, SlpServe, and/or SlpSocket if any of the following is true:
+* You cannot rely on a third-party for your SLP data.
+* SLP data query API offered at `slpdb.bitcoin.com` does not meet your needs.
+* Realtime SLP data event notifcations available at `___.___.___` does not meet your needs.
 
-1) Get mongodb running locally, e.g.,:
-`docker run -d -p 27017:27017 -v <your-absolute-path-to-data>:/data/db mongo`
+## Installation
 
-2) Get bitcoind rpc connection running locally, set `user`, `pass`, and `port` in `config.ts`
+### Pre-requisites
+* Node.js 8.15+
+* MongoDB X.X
+* BitcoinBU, BitcoinABC or other Bitcoin Cash full node with RPC-JSON and ZeroMQ event notifications
 
-3) Install deps: `npm install`
+### Bitcoin Cash Full Node Settings (`bitcoin.conf`)
+The following settings should be applied to your full node's configuration.  NOTE: The settings presented here are matched up with the default settings presented in `config.ts`, you should modify these settings and use environment variables (shown in `config.ts`) if you need a custom setup.
+* server=1
+* rpcuser=bitcoin
+* rpcpassword=password
+* rpcport=8332
+* rpcworkqueue=1000
+* rpcthreads=8
+* zmqpubhashtx=tcp://127.0.0.1:28332
+* zmqpubrawtx=tcp://127.0.0.1:28332
+* zmqpubhashblock=tcp://127.0.0.1:28332
+* zmqpubrawblock=tcp://127.0.0.1:28332
 
-4) Start SLPDB: `npm start`, and then wait for sync process to complete (after console stops updating).
+### Running SLPDB (without Docker)
+
+1) Get mongodb running locally (`congif.ts` default port is 27017)
+    * (Get started with MongoDB)[https://www.mongodb.com/download-center?jmp=docs]
+
+2) Get Bitcoin Cash full node running locally, using `bitcoin.conf` settings above.
+    * (BitcoinABC)[https://www.bitcoinabc.org]
+    * (BitcoinBU)[https://www.bitcoinunlimited.info]
+
+3) (Install node.js)[https://nodejs.org/en/download/]
+
+4) Install SLPDB dependencies using `npm install` at the command-line
+
+5) Start SLPDB using `npm start` at the command-line and wait for sync process to complete (monitor status in the console).
     * First SLPDB will need to sync all SLP transactions since SLP started
     * Second SLPDB will build token graphs for each token
 
-5) In another console, run example query script: `node ./examples/addresses.js`
+6) Install and run SlpServe and/or SlpSocket to access SLP token data
 
-6) Make SLP transactions and see the information update for the particular token, check that the db addresses updated properly.
+### Running SLPDB, SlpServe, and SlpSocket usng Docker Compose
+TODO
 
-### NOTES
+## Using SlpServe To Query SLP Data
+TODO
+
+## Realtime Notifcation Services
+### SLPDB ZeroMQ (ZMQ)
+SLPDB publishes the follow messages via [ZMQ](http://zeromq.org/intro:read-the-manual) and can be subscribed to by binding to http://0.0.0.0:28339.  The following events can be subscribed to:
+* mempool-slp-genesis
+* mempool-slp-mint
+* mempool-slp-send
+* block-slp-genesis
+* block-slp-mint
+* block-slp-send
+
+### SlpSocket
+TODO
+
+### Other Notes
 
 * Using different networks (e.g., mainnet vs testnet) require `db.name` within `config.ts` should be unique for each network.
 
