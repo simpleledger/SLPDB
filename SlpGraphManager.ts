@@ -9,6 +9,7 @@ import { Config } from "./config";
 import { TNATxn } from "./tna";
 import { BitcoinRpc } from "./vendor";
 import { Decimal128 } from "mongodb";
+import zmq from 'zeromq';
 
 const RpcClient = require('bitcoin-rpc-promise');
 
@@ -16,9 +17,9 @@ const BITBOX = new BITBOXSDK();
 const slp = new Slp(BITBOX);
 
 export class SlpGraphManager implements IZmqSubscriber {
-    onBlockHash: undefined;
     db: Db;
     _rpcClient: BitcoinRpc.RpcClient;
+    zmqPubSocket?: zmq.Socket;
 
     async onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
         let tokensUpdate: string[] = [];
@@ -56,9 +57,21 @@ export class SlpGraphManager implements IZmqSubscriber {
                 
                 // Update the confirmed/unconfirmed collections with token details
                 await this.updateTxnCollections(txn.id, tokenId);
+
+                // zmq publish mempool notifications
+                if(this.zmqPubSocket) {
+                    let tna: TNATxn | null = await this.db.db.collection('unconfirmed').findOne({ "tx.h": txn.id });
+                    console.log("[ZMQ-PUB] SLP mempool notification", { txid: txn.id, slp: tna!.slp });
+                    if(tokenDetails.transactionType === SlpTransactionType.GENESIS)
+                        this.zmqPubSocket.send(['mempool-slp-genesis', JSON.stringify({ txid: txn.id, slp: tna!.slp })]);
+                    else if(tokenDetails.transactionType === SlpTransactionType.SEND) 
+                        this.zmqPubSocket.send(['mempool-slp-send', JSON.stringify({ txid: txn.id, slp: tna!.slp })]);
+                    else if(tokenDetails.transactionType === SlpTransactionType.MINT)
+                        this.zmqPubSocket.send(['mempool-slp-mint', JSON.stringify({ txid: txn.id, slp: tna!.slp })]);
+                }
             })
 
-            // TODO: put this code in its own processing queue?
+            // TODO: put the following code in its own processing queue?
             await this.asyncForEach(tokensUpdate, async (tokenId: string) => {
                 const token = this._tokens.get(tokenId)!;
 
@@ -75,6 +88,34 @@ export class SlpGraphManager implements IZmqSubscriber {
                 token.logTokenStats();
                 token.logAddressBalances();
             });
+        }
+    }
+
+    async onBlockHash(hash: string): Promise<void> {
+
+        // update tokens collection timestamps on confirmation for Genesis transactions
+        let genesisBlockTxns = await Query.getGenesisTransactionsForBlock(hash);
+        for(let i = 0; i < genesisBlockTxns.txns.length; i++) {
+            let t = await this.db.tokenfetch(genesisBlockTxns.txns[i]);
+            if(t) {
+                t.tokenDetails!.timestamp = genesisBlockTxns.timestamp!;
+                await this.db.tokenreplace(t);
+            }
+        }
+
+        // zmq publish block events
+        let blockTxns = await Query.getTransactionsForBlock(hash);
+        for(let i = 0; i < blockTxns.txns.length; i++) {
+            let tna: TNATxn | null = await this.db.db.collection('confirmed').findOne({ "tx.h": blockTxns.txns[i] });
+            if(this.zmqPubSocket && tna) {
+                console.log("[ZMQ-PUB] SLP block txn notification", { txid: blockTxns.txns[i], slp: tna!.slp });
+                if(tna!.slp!.detail!.transactionType === SlpTransactionType.GENESIS)
+                    this.zmqPubSocket.send([ 'block-slp-genesis', JSON.stringify({ txid: blockTxns.txns[i], slp: tna!.slp }) ]);
+                else if(tna!.slp!.detail!.transactionType === SlpTransactionType.SEND)
+                    this.zmqPubSocket.send([ 'block-slp-send', JSON.stringify({ txid: blockTxns.txns[i], slp: tna!.slp }) ]);
+                else if(tna!.slp!.detail!.transactionType === SlpTransactionType.MINT)
+                    this.zmqPubSocket.send([ 'block-slp-mint', JSON.stringify({ txid: blockTxns.txns[i], slp: tna!.slp }) ]);
+            }
         }
     }
 
@@ -119,7 +160,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                         isValid = validation.validity;
                         invalidReason = validation.invalidReason;
                         let addresses: (string|null)[] = [];
-                        if(validation.details!.transactionType === SlpTransactionType.SEND) {
+                        if(isValid && validation.details!.transactionType === SlpTransactionType.SEND) {
                             addresses = tna.out.map(o => {
                                 try {
                                     if(o.e!.a && Utils.isCashAddress(o.e!.a))
@@ -128,18 +169,25 @@ export class SlpGraphManager implements IZmqSubscriber {
                                 } catch(_) { return null; }
                             });
                         }
-                        else {
+                        else if(isValid) {
                             try {
                                 if(tna.out[1]!.e!.a && Utils.isCashAddress(tna.out[1]!.e!.a))
                                     addresses = [ Utils.toSlpAddress(tna.out[1]!.e!.a) ];
                                 else addresses = [ null ];
                             } catch(_) { return null; }
                         }
-                        details = SlpGraphManager.MapTokenDetailsToTnaDbo(validation.details!, tokenGraph._tokenDetails, addresses);
+                        if(isValid)
+                            details = SlpGraphManager.MapTokenDetailsToTnaDbo(validation.details!, tokenGraph._tokenDetails, addresses);
+                        else
+                            details = null;
                     } catch(err) {
-                        isValid = false;
-                        details = null;
-                        invalidReason = "Invalid Token Genesis";
+                        if(err.message === "Cannot read property '_slpValidator' of undefined") {
+                            isValid = false;
+                            details = null;
+                            invalidReason = "Invalid Token Genesis";
+                        } else {
+                            throw err;
+                        }
                     }
                     if(isValid === null)
                         throw Error("Validitity of " + txid + " is null.")

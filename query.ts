@@ -15,6 +15,44 @@ export class Query {
         return Query.dbQuery;
     }
 
+    static async getGenesisTransactionsForBlock(blockHash: string): Promise<{ txns: string[], timestamp: string|null }> {
+        let limit = 1000000;
+        let q = {
+            "v": 3,
+            "q": {
+                "find": { "blk.h": blockHash, "out.s3": "GENESIS" },
+                "limit": limit
+            },
+            "r": { "f": "[ .[] | { txid: .tx.h, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end) } ]" }
+        }
+
+        let res: TxnQueryResponse = await this.dbQuery.read(q);
+        let response = new Set<any>([].concat(<any>res.c).concat(<any>res.u).map((r: any) => { return r.txid }));
+        let a = Array.from(response);
+        if(a.length === limit)
+            throw Error("Query limit is reached, implementation error");
+        return { txns: a, timestamp: a[0] ? a[0].timestamp: null };
+    }
+
+    static async getTransactionsForBlock(blockHash: string): Promise<{ txns: string[], timestamp: string|null }> {
+        let limit = 1000000;
+        let q = {
+            "v": 3,
+            "q": {
+                "find": { "blk.h": blockHash },
+                "limit": limit
+            },
+            "r": { "f": "[ .[] | { txid: .tx.h, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end) } ]" }
+        }
+
+        let res: TxnQueryResponse = await this.dbQuery.read(q);
+        let response = new Set<any>([].concat(<any>res.c).concat(<any>res.u).map((r: any) => { return r.txid }));
+        let a = Array.from(response);
+        if(a.length === limit)
+            throw Error("Query limit is reached, implementation error");
+        return { txns: a, timestamp: a[0] ? a[0].timestamp: null };
+    }
+
     static async queryForRecentTokenTxns(tokenId: string, block: number): Promise<string[]> {
         let limit = 100000;
         let q = {

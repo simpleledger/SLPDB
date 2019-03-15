@@ -32,7 +32,8 @@ export interface SyncCompletionInfo {
 
 export interface IZmqSubscriber {
     onTransactionHash: undefined | ((syncInfo: SyncCompletionInfo) => Promise<void>);
-    onBlockHash: undefined | ((syncInfo: SyncCompletionInfo) => Promise<void>);
+    onBlockHash: undefined | ((blockhash: string) => Promise<void>);
+    zmqPubSocket?: zmq.Socket; 
 }
 export type CrawlResult = Map<txid, CrawlTxnInfo>;
 
@@ -233,7 +234,7 @@ export class Bit {
                 }
                 else if(this.slpMempool.has(block.txs[i].txid())) {
                     tasks.push(limit(async function() {
-                        let t, tries=0;
+                        let t: TNATxn|undefined, tries=0;
                         while(!t) {
                             t = await self.db.mempoolfetch(block.txs[i].txid());
                             if(!t) {
@@ -274,20 +275,24 @@ export class Bit {
         sock.on('message', async function(topic, message) {
             if (topic.toString() === 'hashtx') {
                 let hash = message.toString('hex');
-                console.log('[ZMQ] Txn hash:', hash);
+                console.log('[ZMQ-SUB] Txn hash:', hash);
                 let syncResult = await sync(self, 'mempool', hash);
                 for (let i = 0; i < self._zmqSubscribers.length; i++) {
+                    if(!self._zmqSubscribers[i].zmqPubSocket)
+                        self._zmqSubscribers[i].zmqPubSocket = self.outsock;
                     if(syncResult && self._zmqSubscribers[i].onTransactionHash) {
                         await self._zmqSubscribers[i].onTransactionHash!(syncResult);
                     }
                 }
             } else if (topic.toString() === 'hashblock') {
                 let hash = message.toString('hex');
-                console.log('[ZMQ] Block hash:', hash);
+                console.log('[ZMQ-SUB] Block hash:', hash);
                 let syncResult = await sync(self, 'block');
                 for (let i = 0; i < self._zmqSubscribers.length; i++) {
+                    if(self._zmqSubscribers[i].zmqPubSocket === null)
+                        self._zmqSubscribers[i].zmqPubSocket = self.outsock;
                     if(self._zmqSubscribers[i].onBlockHash)
-                        await self._zmqSubscribers[i].onBlockHash!(syncResult!);
+                        await self._zmqSubscribers[i].onBlockHash!(hash!);
                 }
             }
         })

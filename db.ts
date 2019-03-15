@@ -1,7 +1,7 @@
 import { MongoClient, Db as MongoDb } from 'mongodb';
 import { Config, DbConfig } from './config';
 import { TNATxn } from './tna';
-import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo } from './SlpTokenGraph';
+import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from './SlpTokenGraph';
 
 export class Db {
     config: DbConfig;
@@ -39,7 +39,7 @@ export class Db {
         return await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async tokenfetch(tokenIdHex: string) {
+    async tokenfetch(tokenIdHex: string): Promise<TokenDBObject|null> {
         return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
