@@ -3,24 +3,28 @@ import { Config, DbConfig } from './config';
 import { TNATxn } from './tna';
 import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from './SlpTokenGraph';
 import { Info } from './info';
+import { BitcoinRpc } from './vendor';
 
 export class Db {
     config: DbConfig;
     db!: MongoDb;
     mongo!: MongoClient;
+    _rpcClient!: BitcoinRpc.RpcClient;
 
     constructor() {
         this.config = Config.db;
     }
 
-    async init() {
+    async init(rpc: BitcoinRpc.RpcClient) {
+        this._rpcClient = rpc;
+        let network = await Info.getNetwork();
         let client: MongoClient;
-        console.log("[INFO] Initializing Mongo db...")
+        console.log("[INFO] Initializing MongoDB...")
         client = await MongoClient.connect(this.config.url, { useNewUrlParser: true })
-        let dbname = await Info.getNetwork() === 'mainnet' ? this.config.name : this.config.name_testnet;
+        let dbname = network === 'mainnet' ? this.config.name : this.config.name_testnet;
         this.db = client.db(dbname);
         this.mongo = <MongoClient>client;
-        console.log("[INFO] Mongo db initialized.")
+        console.log("[INFO] MongoDB initialized.")
     }
 
     async exit() {

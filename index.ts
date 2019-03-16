@@ -6,14 +6,27 @@ import { Info } from './info';
 import { Bit } from './bit';
 import { Db } from './db';
 import { SlpGraphManager } from './SlpGraphManager';
+import { BitcoinRpc } from './vendor';
+
+const RpcClient = require('bitcoin-rpc-promise');
+const connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port
+const rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
 
 const db = new Db();
 const bit = new Bit();
 
 const daemon = {
 	run: async function() {
-		await db.init();
-		await bit.init(db);
+		// test RPC connection
+        console.log("[INFO] Testing RPC connection...");
+        await rpc.getBlockCount();
+        console.log("[INFO] JSON-RPC is initialized.");
+
+		// set network
+		await Info.setNetwork((await rpc.getInfo())!.testnet ? 'testnet' : 'mainnet');
+
+		await db.init(rpc);
+		await bit.init(db, rpc);
 
 		const lastSynchronized = await Info.checkpoint();
 		if(lastSynchronized.height > await bit.requestheight()) {
@@ -45,7 +58,8 @@ const daemon = {
 
 const util = {
 	run: async function() {
-		await db.init()
+		const rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
+		await db.init(rpc)
 		let cmd = process.argv[2]
 		if (cmd === 'fix') {
 			let fromHeight: number;
@@ -67,9 +81,10 @@ const util = {
 		}
 	},
 	fix: async function(height: number) {
+		const rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
 		console.log('[INFO] Restarting sync from index ', height)
 		console.time('[PERF] replace')
-		await bit.init(db)
+		await bit.init(db, rpc)
 		let content = await bit.crawl(height)
 		if(content) {
 			let array = Array.from(content.values()).map(c => c.tnaTxn)

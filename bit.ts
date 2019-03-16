@@ -14,7 +14,6 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const Block = require('bcash/lib/primitives/block');
 const BufferReader = require('bufio/lib/reader');
-const RpcClient = require('bitcoin-rpc-promise');
 const bitcore = require('bitcore-lib-cash');
 
 export enum SyncType {
@@ -78,18 +77,11 @@ export class Bit {
         return false;
     }
     
-    async init(db: Db) {
+    async init(db: Db, rpc: BitcoinRpc.RpcClient) {
         this.db = db;
+        this.rpc = rpc;
 
-        console.log("[INFO] Initializing RPC connection with bitcoind...");
-        let connectionString = 'http://' + Config.rpc.user + ':' + Config.rpc.pass + '@' + Config.rpc.host + ':' + Config.rpc.port;
-        this.rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
-        console.log("[INFO] Testing RPC connection...");
-        await this.requestblock(0);
-        console.log("[INFO] JSON-RPC is initialized.");
-
-        this.network = (await this.rpc.getInfo()).testnet ? 'testnet' : 'mainnet';
-        await Info.setNetwork(this.network);
+        this.network = await Info.getNetwork();
         let BITBOX = this.network === 'mainnet' ? new BITBOXSDK({ restURL: `https://rest.bitcoin.com/v2/` }) : new BITBOXSDK({ restURL: `https://trest.bitcoin.com/v2/` });
 
         let isSyncd = false;
