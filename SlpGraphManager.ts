@@ -77,10 +77,10 @@ export class SlpGraphManager implements IZmqSubscriber {
 
                 // Update the tokens collection in db
                 await token.updateStatistics();
-                await this.db.tokenreplace(token.toTokenDbObject());
-                await this.db.addressreplace(token.toAddressesDbObject());
-                await this.db.graphreplace(token.toGraphDbObject());
-                await this.db.utxoreplace(token.toUtxosDbObject());
+                await this.db.tokeninsertreplace(token.toTokenDbObject());
+                await this.db.addressinsertreplace(token.toAddressesDbObject());
+                await this.db.graphinsertreplace(token.toGraphDbObject());
+                await this.db.utxoinsertreplace(token.toUtxosDbObject());
 
                 console.log("########################################################################################################")
                 console.log("TOKEN STATS/ADDRESSES FOR", token._tokenDetails.name, token._tokenDetails.tokenIdHex)
@@ -99,7 +99,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             let t = await this.db.tokenfetch(genesisBlockTxns.txns[i]);
             if(t) {
                 t.tokenDetails!.timestamp = genesisBlockTxns.timestamp!;
-                await this.db.tokenreplace(t);
+                await this.db.tokeninsertreplace(t);
             }
         }
 
@@ -285,10 +285,10 @@ export class SlpGraphManager implements IZmqSubscriber {
             
             if(graph.IsValid()) {
                 this._tokens.set(tokens[i].tokenIdHex, graph);
-                await this.db.tokeninsert(this._tokens.get(tokens[i].tokenIdHex)!.toTokenDbObject());
-                await this.db.graphinsert(this._tokens.get(tokens[i].tokenIdHex)!.toGraphDbObject());
-                await this.db.utxoinsert(this._tokens.get(tokens[i].tokenIdHex)!.toUtxosDbObject());
-                await this.db.addressinsert(this._tokens.get(tokens[i].tokenIdHex)!.toAddressesDbObject());
+                await this.db.tokeninsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toTokenDbObject());
+                await this.db.graphinsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toGraphDbObject());
+                await this.db.utxoinsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toUtxosDbObject());
+                await this.db.addressinsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toAddressesDbObject());
             }
         }
 

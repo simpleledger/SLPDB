@@ -31,15 +31,15 @@ export class Db {
         await this.mongo.close()
     }
 
-    async tokeninsert(token: any) {
+    async tokeninsertreplace(token: any) {
         await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex })
         return await this.db.collection('tokens').insertMany([ token ]);
     }
 
-    async tokenreplace(token: any) {
-        await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex })
-        return await this.db.collection('tokens').insertMany([ token ]);
-    }
+    // async tokenreplace(token: any) {
+    //     await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex })
+    //     return await this.db.collection('tokens').insertMany([ token ]);
+    // }
 
     async tokendelete(tokenIdHex: string) {
         return await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
@@ -49,17 +49,17 @@ export class Db {
         return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async graphinsert(graph: GraphTxnDbo[]) {
+    async graphinsertreplace(graph: GraphTxnDbo[]) {
         if(graph.length > 0) {
             await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": graph[0].tokenDetails.tokenIdHex })
             return await this.db.collection('graphs').insertMany(graph);
         }
     }
 
-    async graphreplace(graph: GraphTxnDbo[]) {
-        await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": graph[0].tokenDetails.tokenIdHex })
-        return await this.db.collection('graphs').insertMany(graph);
-    }
+    // async graphreplace(graph: GraphTxnDbo[]) {
+    //     await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": graph[0].tokenDetails.tokenIdHex })
+    //     return await this.db.collection('graphs').insertMany(graph);
+    // }
 
     async graphdelete(tokenIdHex: string) {
         return await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
@@ -69,17 +69,17 @@ export class Db {
         return await this.db.collection('graphs').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
     }
 
-    async addressinsert(addresses: AddressBalancesDbo[]) {
+    async addressinsertreplace(addresses: AddressBalancesDbo[]) {
         if(addresses.length > 0) {
             await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": addresses[0].tokenDetails.tokenIdHex })
             return await this.db.collection('addresses').insertMany(addresses);
         }
     }
 
-    async addressreplace(addresses: AddressBalancesDbo[]) {
-        await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": addresses[0].tokenDetails.tokenIdHex })
-        return await this.db.collection('addresses').insertMany(addresses);
-    }
+    // async addressreplace(addresses: AddressBalancesDbo[]) {
+    //     await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": addresses[0].tokenDetails.tokenIdHex })
+    //     return await this.db.collection('addresses').insertMany(addresses);
+    // }
 
     async addressdelete(tokenIdHex: string) {
         return await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
@@ -89,17 +89,17 @@ export class Db {
         return await this.db.collection('addresses').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
     }
 
-    async utxoinsert(utxos: UtxoDbo[]) {
+    async utxoinsertreplace(utxos: UtxoDbo[]) {
         if(utxos.length > 0) {
             await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": utxos[0].tokenDetails.tokenIdHex })
             return await this.db.collection('utxos').insertMany(utxos);
         }
     }
 
-    async utxoreplace(utxos: UtxoDbo[]) {
-        await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": utxos[0].tokenDetails.tokenIdHex })
-        return await this.db.collection('utxos').insertMany(utxos);
-    }
+    // async utxoreplace(utxos: UtxoDbo[]) {
+    //     await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": utxos[0].tokenDetails.tokenIdHex })
+    //     return await this.db.collection('utxos').insertMany(utxos);
+    // }
 
     async utxodelete(tokenIdHex: string) {
         return await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })

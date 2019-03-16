@@ -1,14 +1,22 @@
 
 # SLPDB Readme
-**Last Updated:** 2019-03-15
+**Last Updated:** 2019-03-16
 
-**Current SLPDB Version:** 0.9.0 (beta)
+**Current SLPDB Version:** 0.9.1 (beta)
 
 
 
 ## Introduction
 
-SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store all pertinent SLP related data.  Additionally, this application allows other processes to subscribe to real-time SLP events via ZeroMQ subscription.  It is recommended that end users utilize the [slpserve](https://github.com/fountainhead-cash/slpserve) and [slpsocket](https://github.com/simpleledger/sockserve) applications in order to conveniently access the data that is provided by SLPDB and MongoDb.
+SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store all SLP data.  Additionally, this application allows other processes to subscribe to real-time SLP events via ZeroMQ subscription.  It is recommended that end users utilize the [slpserve](https://github.com/fountainhead-cash/slpserve) and [slpsocket](https://github.com/simpleledger/sockserve) applications in order to conveniently access the data that is provided by SLPDB and MongoDB.
+
+SLPDB enables access to useful SLP data, such as:
+* List of all address token balances for a specific token ID [rest]() [jq]()
+* List of all token utxos for a specific token ID (for a specific address) [rest]() [jq]()
+* List of SLP token transaction history (for a specific address and/or token ID) [rest]() [jq]()
+* Show total circulating token supply for a token ID [rest]() [jq]()
+* Show total token supply burned for a token ID [rest]() [jq]()
+* Show current state of a token's minting baton [rest]() [jq]()
 
 You only need to install SLPDB, slpserve, and/or slpsocket if any of the following is true:
 * You cannot rely on a third-party for your SLP data.
@@ -46,10 +54,10 @@ The following settings should be applied to your full node's configuration.  NOT
 To use SLPDB with Testnet simply set your full node to the testnet network (e.g., set `testnet=1` within `bitcoin.conf`) and SLPDB will automatically instantiate using proper databases names according to the network.  For informational purposes the database names are as follows:
 * **Mainnet**
   * Mongo db name = `slpdb` (uses `./_mongo` directory)
-  * LevelDB directory = `./leveldb`
+  * LevelDB directory = `./_leveldb`
 * **Testnet**
   * Mongo db name y = `slpdb_testnet` (uses `./_mongo` directory)
-  * Testnet diectory = `./leveldb_testnet`
+  * Testnet diectory = `./_leveldb_testnet`
 
 ### Running SLPDB
 
@@ -75,18 +83,25 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 
 ## SLP Token Statistics
 
-The following statistics are being calculated and updated in real-time:
-    - `qty_valid_txns_since_genesis`
-    - `qty_valid_token_utxos`
-    - `qty_valid_token_addresses`
-    - `qty_token_circulating_supply`
-    - `qty_token_burned`
-    - `qty_token_minted`
-    - `qty_satoshis_locked_up`
-    - `block_created` - in testing
-    - `block_last_active_mint` - in testing
-    - `block_last_active_send` - in testing
-    - `baton_status` - in testing
+The following statistics are maintained for each token:
+
+### Supply Statistics
+  * `qty_token_minted` = Total token quantity created in GENESIS and MINT transactions 
+  * `qty_token_burned` = Total token quantity burned in invalid SLP transactions or in transactions having lower token outputs than inputs.
+  * `qty_token_circulating_supply` = Total quantity of tokens circulating (i.e., Genesis + Minting - Burned = Circulating Supply).
+  * `minting_baton_status`  = State of the minting baton (possible baton status: `ALIVE`, `NEVER_CREATED`, `DEAD_BURNED`, or `DEAD_ENDED`).
+  * `mint_baton_address (NOT YET IMPLEMENTED)` = Address holding the minting baton or last address to hold.
+  * `mint_baton_txid (NOT YET IMPLEMENTED)` = TXID where the minting baton exists or existed before being destroyed.
+
+### Useage Statistics
+  * `qty_valid_txns_since_genesis` = Number of valid SLP transactions made since Genesis (Includes GENESIS, SEND and MINT transactions)
+  * `qty_valid_token_utxos` = Number of current unspent & valid SLP UTXOs
+  * `qty_valid_token_addresses` = Number of unique address holders
+  * `qty_satoshis_locked_up` = Quantity of BCH that is locked up in SLP UTXOs
+  * `block_last_active_mint` - in testing = The block containing the token's MINT transaction
+  * `block_last_active_send` - in testing = The block containing the token's SEND transaction
+  * `block_created` - in testing = The block containing the token's GENESIS transaction
+
 
 ## Real-time SLP Notifications
 
@@ -102,7 +117,7 @@ SLPDB publishes the following notifications via [ZMQ](http://zeromq.org/intro:re
 
 Each notification is published in the following data format:
 
-```json
+```ts
 {
   txid: string,
   slp: {
@@ -125,6 +140,18 @@ Each notification is published in the following data format:
   }
 }
 ```
+
+## MongoDB Data Schema
+MongoDB is used to persist all token data. The following db collections are used:
+ * `confirmed` - Includes any confirmed Bitcoin Cash Transaction that includes "SLP" lokadID in the first output
+ * `unconfirmed` - Same as confirmed except includes transactions within the BCH mempool
+ * `tokens` - Includes metadata and statistics for each valid token
+ * `utxos` - Includes all valid SLP UTXOs holding a token (does not include mint baton UTXOs)
+ * `addresses` - Includes all addresses with a token balance
+ * `graphs` - Includes all valid SLP txids (can be GENESIS, MINT, and SEND)
+
+## TokenID Filtering (Coming Soon)
+SLPDB will soon include tokenID filtering so that only user specified tokens (or ranges of tokens) will be included or excluded.
 
 ### SlpSocket
 TODO
