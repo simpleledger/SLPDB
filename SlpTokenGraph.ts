@@ -265,19 +265,41 @@ export class SlpTokenGraph implements TokenGraph {
 
     async initStatistics(): Promise<void> {
         this._tokenStats = <TokenStats> {
-            block_created: 0,
-            block_last_active_mint: 0,
-            block_last_active_send: 0,
+            block_created: await Query.queryTokenGenesisBlock(this._tokenDetails.tokenIdHex),
+            block_last_active_mint: await Query.queryTokenLastMint(this._tokenDetails.tokenIdHex),
+            block_last_active_send: await Query.queryTokenLastSend(this._tokenDetails.tokenIdHex),
             qty_valid_txns_since_genesis: this._graphTxns.size,
             qty_valid_token_utxos: this._tokenUtxos.size,
             qty_valid_token_addresses: this._addresses.size,
             qty_token_minted: await this.getTotalMintQuantity(),
             qty_token_burned: new BigNumber(0),
             qty_token_circulating_supply: this.getTotalHeldByAddresses(),
-            qty_satoshis_locked_up: this.getTotalSatoshisLockedUp()
+            qty_satoshis_locked_up: this.getTotalSatoshisLockedUp(),
+            baton_status: await this.getBatonStatus()
         }
 
         this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply)
+    }
+
+    async getBatonStatus(): Promise<BatonStatus> {
+        if(this._tokenDetails.containsBaton === false)
+            return BatonStatus.NEVER_CREATED;
+        else if(this._tokenDetails.containsBaton === true) {
+            if(this._tokenUtxos.has(this._tokenDetails.tokenIdHex + ":" + this._tokenDetails.batonVout))
+                return BatonStatus.ALIVE_UNSPENT;
+            let mints = await Query.getMintTransactions(this._tokenDetails.tokenIdHex);
+            if(mints) {
+                for(let i = 0; i < mints!.length; i++) {
+                    let valid = mints[i].slp.valid;
+                    let vout = mints[i].batonHex && parseInt(mints[i].batonHex!, 16) > 0 ? parseInt(mints[i].batonHex!, 16) : null;
+                    if(valid && vout && this._tokenUtxos.has(mints[i].txid + ":" + vout))
+                        return BatonStatus.ALIVE_UNSPENT;
+                    if(valid && !vout)
+                        return BatonStatus.DEAD_ENDED;
+                }
+            }
+        }
+        return BatonStatus.DEAD_BURNED;
     }
 
     async updateStatistics(): Promise<void> {
@@ -287,6 +309,8 @@ export class SlpTokenGraph implements TokenGraph {
         else {
             let minted = await this.getTotalMintQuantity();
             let addressesTotal = this.getTotalHeldByAddresses()
+            this._tokenStats.block_last_active_mint = await Query.queryTokenLastMint(this._tokenDetails.tokenIdHex),
+            this._tokenStats.block_last_active_send = await Query.queryTokenLastSend(this._tokenDetails.tokenIdHex),
             this._tokenStats.qty_valid_token_addresses = this._addresses.size;
             this._tokenStats.qty_valid_token_utxos = this._tokenUtxos.size;
             this._tokenStats.qty_valid_txns_since_genesis = this._graphTxns.size;
@@ -294,6 +318,7 @@ export class SlpTokenGraph implements TokenGraph {
             this._tokenStats.qty_token_circulating_supply = addressesTotal;
             this._tokenStats.qty_token_burned = minted.minus(addressesTotal);
             this._tokenStats.qty_satoshis_locked_up = this.getTotalSatoshisLockedUp();
+            this._tokenStats.baton_status = await this.getBatonStatus();
         }
 
         if(this._tokenStats.qty_token_circulating_supply.isGreaterThan(this._tokenStats.qty_token_minted))
@@ -304,16 +329,17 @@ export class SlpTokenGraph implements TokenGraph {
         //await this.updateStatistics();
         console.log("TOKEN STATS:")
         console.log({
-            block_created: 0,                //this._tokenStats.block_created,
-            block_last_active_mint: 0,       //this._tokenStats.block_last_active_mint,
-            block_last_active_send: 0,       //this._tokenStats.block_last_active_send,
+            block_created: this._tokenStats.block_created,
+            block_last_active_mint: this._tokenStats.block_last_active_mint,
+            block_last_active_send: this._tokenStats.block_last_active_send,
             qty_valid_txns_since_genesis: this._tokenStats.qty_valid_txns_since_genesis,
             qty_valid_token_utxos: this._tokenStats.qty_valid_token_utxos,
             qty_valid_token_addresses: this._tokenStats.qty_valid_token_addresses,
             qty_token_minted: this._tokenStats.qty_token_minted.dividedBy(10**this._tokenDetails.decimals).toFixed(),
             qty_token_burned: this._tokenStats.qty_token_burned.dividedBy(10**this._tokenDetails.decimals).toFixed(),
             qty_token_circulating_supply: this._tokenStats.qty_token_circulating_supply.dividedBy(10**this._tokenDetails.decimals).toFixed(),
-            qty_satoshis_locked_up: this._tokenStats.qty_satoshis_locked_up
+            qty_satoshis_locked_up: this._tokenStats.qty_satoshis_locked_up,
+            baton_status: this._tokenStats.baton_status
         })
     }
 
@@ -392,7 +418,8 @@ export class SlpTokenGraph implements TokenGraph {
             qty_token_minted: stats.qty_token_minted.dividedBy(10**this._tokenDetails.decimals).toFixed(),
             qty_token_burned: stats.qty_token_burned.dividedBy(10**this._tokenDetails.decimals).toFixed(),
             qty_token_circulating_supply: stats.qty_token_circulating_supply.dividedBy(10**this._tokenDetails.decimals).toFixed(),
-            qty_satoshis_locked_up: stats.qty_satoshis_locked_up
+            qty_satoshis_locked_up: stats.qty_satoshis_locked_up,
+            baton_status: stats.baton_status
         }
     }
 
@@ -490,6 +517,13 @@ export class SlpTokenGraph implements TokenGraph {
     }
 }
 
+export enum BatonStatus {
+    "NEVER_CREATED" = "NEVER_CREATED",
+    "ALIVE_UNSPENT" = "ALIVE_UNSPENT",
+    "DEAD_BURNED" = "DEAD_BURNED",
+    "DEAD_ENDED" = "DEAD_ENDED"
+}
+
 export interface TokenDBObject {
     slpdbVersion: number;
     tokenDetails: SlpTransactionDetailsDbo;
@@ -569,9 +603,9 @@ type txid = string;
 type cashAddr = string;
 
 interface TokenStats {
-    block_created: number;
-    block_last_active_send: number;
-    block_last_active_mint: number;
+    block_created: number|null;
+    block_last_active_send: number|null;
+    block_last_active_mint: number|null;
     qty_valid_txns_since_genesis: number;
     qty_valid_token_utxos: number;
     qty_valid_token_addresses: number;
@@ -579,12 +613,13 @@ interface TokenStats {
     qty_token_burned: BigNumber;
     qty_token_circulating_supply: BigNumber;
     qty_satoshis_locked_up: number;
+    baton_status: BatonStatus;
 }
 
 interface TokenStatsDb {
-    block_created: number;
-    block_last_active_send: number;
-    block_last_active_mint: number;
+    block_created: number|null;
+    block_last_active_send: number|null;
+    block_last_active_mint: number|null;
     qty_valid_txns_since_genesis: number;
     qty_valid_token_utxos: number;
     qty_valid_token_addresses: number;
@@ -592,6 +627,7 @@ interface TokenStatsDb {
     qty_token_burned: string;
     qty_token_circulating_supply: string;
     qty_satoshis_locked_up: number;
+    baton_status: BatonStatus;
 }
 
 enum UtxoStatus {

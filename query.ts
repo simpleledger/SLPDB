@@ -2,6 +2,7 @@ import { Config } from "./config";
 import { Info } from "./info";
 import { SlpTransactionDetails, SlpTransactionType } from "slpjs";
 import BigNumber from "bignumber.js";
+import { TNATxnSlpDetails } from "./tna";
 
 const bitqueryd = require('fountainhead-bitqueryd')
 
@@ -91,6 +92,50 @@ export class Query {
         if(tokens.length === limit)
             throw Error("Query limit is reached, implementation error");
         return tokens.map(t => this.mapSlpTokenDetailsFromQuery(t));
+    }
+
+    static async queryTokenLastMint(tokenIdHex: string): Promise<number|null> {
+        let q = {
+            "v": 3,
+            "q": {
+                "find": { "out.h4": tokenIdHex, "out.h1": "534c5000", "out.s3": "MINT" },
+                "sort": { "blk.i": 1 }
+            },
+            "r": { "f": "[ .[] | { block: (if .blk? then .blk.i else null end)} ]" }
+        }
+
+        let response: any = await this.dbQuery.read(q);
+        let tokens: any[] = [].concat(response.u).concat(response.c);
+        return tokens.length > 0 ? tokens[0].block : null;
+    }
+
+    static async queryTokenLastSend(tokenIdHex: string): Promise<number|null> {
+        let q = {
+            "v": 3,
+            "q": {
+                "find": { "out.h4": tokenIdHex, "out.h1": "534c5000", "out.s3": "SEND" },
+                "sort": { "blk.i": 1 }
+            },
+            "r": { "f": "[ .[] | { block: (if .blk? then .blk.i else null end)} ]" }
+        }
+
+        let response: any = await this.dbQuery.read(q);
+        let tokens: any[] = [].concat(response.u).concat(response.c);
+        return tokens.length > 0 ? tokens[0].block : null;
+    }
+
+    static async queryTokenGenesisBlock(tokenIdHex: string): Promise<number|null> {
+        let q = {
+            "v": 3,
+            "q": {
+                "find": { "tx.h": tokenIdHex, "out.h1": "534c5000", "out.s3": "GENESIS" }
+            },
+            "r": { "f": "[ .[] | { block: (if .blk? then .blk.i else null end)} ]" }
+        }
+
+        let response: any = await this.dbQuery.read(q);
+        let tokens: any[] = [].concat(response.u).concat(response.c);
+        return tokens.length > 0 ? tokens[0].block : null;
     }
 
     static async queryTokenDetails(tokenIdHex: string): Promise<SlpTransactionDetails|null> {
@@ -199,7 +244,7 @@ export class Query {
                 "find": { "out.h1": "534c5000", "out.s3": "MINT", "out.h4": tokenId }, 
                 "limit": limit
             },
-            "r": { "f": "[ .[] | { txid: .tx.h, versionTypeHex: .out[0].h2, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), batonHex: .out[0].h5, quantityHex: .out[0].h6 } ]" }
+            "r": { "f": "[ .[] | { slp: .slp, txid: .tx.h, versionTypeHex: .out[0].h2, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), batonHex: .out[0].h5, quantityHex: .out[0].h6 } ]" }
         }
 
         let res: TxnQueryResponse = await Query.dbQuery.read(q);
@@ -210,12 +255,11 @@ export class Query {
                 throw Error("Query limit is reached, implementation error")
             results.forEach((res: MintQueryResult) => {
                 let i = results.findIndex(r => r.txid === res.txid);
-                if(i <= -1)
+                if(i < 0)
                     results.push(res);
             });
-            if(results.length > 0) {
+            if(results.length > 0)
                 return results;
-            }
         }
         return null;
     }
@@ -249,6 +293,7 @@ export interface MintQueryResult {
     batonHex: string|null;
     quantityHex: string|null;
     versionTypeHex: string|null;
+    slp: TNATxnSlpDetails;
 }
 
 export interface TxnQueryResult {
@@ -298,4 +343,5 @@ export interface TxnQueryResult {
     slp17?: number|null;
     slp18?: number|null;
     slp19?: number|null;
+    slp?: TNATxnSlpDetails;
 }

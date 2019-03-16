@@ -8,7 +8,7 @@
 
 ## Introduction
 
-SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store all pertinent SLP related data.  Additionally, this application allows other processes to subscribe to realtime SLP events via ZeroMQ subscription.  It is recommended that end users utilize the [slpserve](https://github.com/fountainhead-cash/slpserve) and [slpsocket](https://github.com/simpleledger/sockserve) applications in order to conveniently access the data that is provided by SLPDB and MongoDb.
+SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store all pertinent SLP related data.  Additionally, this application allows other processes to subscribe to real-time SLP events via ZeroMQ subscription.  It is recommended that end users utilize the [slpserve](https://github.com/fountainhead-cash/slpserve) and [slpsocket](https://github.com/simpleledger/sockserve) applications in order to conveniently access the data that is provided by SLPDB and MongoDb.
 
 You only need to install SLPDB, slpserve, and/or slpsocket if any of the following is true:
 * You cannot rely on a third-party for your SLP data.
@@ -51,7 +51,7 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
   * Mongo db name y = `slpdb_testnet` (uses `./_mongo` directory)
   * Testnet diectory = `./leveldb_testnet`
 
-### Running SLPDB (without Docker)
+### Running SLPDB
 
 1) Run MongoDB locally (`congif.ts` default port is 27017)
 
@@ -73,17 +73,20 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 
 6) Install and run [slpserve](https://github.com/fountainhead-cash/slpserve) and/or [slpsocket](https://github.com/simpleledger/sockserve) to access SLP token data and statistics
 
-### Running SLPDB using Docker Compose
+## SLP Token Statistics
 
-TODO
-
-
-
-## SlpServe Data Queries
-
-TODO
-
-
+The following statistics are being calculated and updated in real-time:
+    - `qty_valid_txns_since_genesis`
+    - `qty_valid_token_utxos`
+    - `qty_valid_token_addresses`
+    - `qty_token_circulating_supply`
+    - `qty_token_burned`
+    - `qty_token_minted`
+    - `qty_satoshis_locked_up`
+    - `block_created` - in testing
+    - `block_last_active_mint` - in testing
+    - `block_last_active_send` - in testing
+    - `baton_status` - in testing
 
 ## Real-time SLP Notifications
 
@@ -126,21 +129,3 @@ Each notification is published in the following data format:
 ### SlpSocket
 TODO
 
-
-
-## Other Notes
-
-* The following are being calculated and updated in real-time:
-    - `qty_valid_txns_since_genesis`
-    - `qty_valid_token_utxos`
-    - `qty_valid_token_addresses`
-    - `qty_token_circulating_supply`
-    - `qty_token_burned`
-    - `qty_token_minted`
-    - `qty_satoshis_locked_up`
-
-* The following stats are not being computed yet:
-    - `block_created`
-    - `block_last_active_mint`
-    - `block_last_active_send`
-    - `Token_baton_status`

@@ -100,12 +100,14 @@ export interface TNATxn {
     out: Xput[];
     blk?: { h: string; i: number; t: number };
     raw?: string;
-    slp?: { 
-        valid: boolean|null, 
-        detail: SlpTransactionDetailsTnaDbo|null, 
-        invalidReason: string|null,
-        schema_version: number 
-    }
+    slp?: TNATxnSlpDetails;
+}
+
+export interface TNATxnSlpDetails {
+    valid: boolean|null, 
+    detail: SlpTransactionDetailsTnaDbo|null, 
+    invalidReason: string|null,
+    schema_version: number 
 }
 
 export interface Xput {

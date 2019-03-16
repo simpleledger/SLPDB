@@ -25,7 +25,7 @@ export class Config {
 		name: process.env.db_name ? process.env.db_name : 'slpdb',
 		name_testnet: process.env.db_name ? process.env.db_name + "_test" : 'slpdb_testnet',
 		url: process.env.db_url ? process.env.db_url : 'mongodb://localhost:27017',
-		schema_version: 48,
+		schema_version: 49,
 		index: {
 			tokens: {
 				keys: [ 'tokenDetails.tokenIdHex', 'tokenDetails.name', 'tokenDetails.symbol', 'tokenStats.qty_token_circulating_supply', 'tokenStats.qty_token_burned', 'tokenStats.qty_token_minted' ],
@@ -69,8 +69,8 @@ export class Config {
 	}
 	static zmq = {
 		'incoming': {
-			'host': process.env.zmq_incoming_host ? process.env.zmq_incoming_host : '0.0.0.0',  //'159.89.153.200', //'0.0.0.0',
-			'port': process.env.zmq_incoming_port ? process.env.zmq_incoming_port : '28332',    //'28331', //'28332'
+			'host': process.env.zmq_incoming_host ? process.env.zmq_incoming_host : '0.0.0.0',
+			'port': process.env.zmq_incoming_port ? process.env.zmq_incoming_port : '28332',
 		},
 		'outgoing': {
 			'host': process.env.zmq_outgoing_host ? process.env.zmq_outgoing_host : '0.0.0.0',
