@@ -11,9 +11,9 @@
 SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store all SLP data.  Additionally, this application allows other processes to subscribe to real-time SLP events via ZeroMQ subscription.  It is recommended that end users utilize the [slpserve](https://github.com/fountainhead-cash/slpserve) and [slpsocket](https://github.com/simpleledger/sockserve) applications in order to conveniently access the data that is provided by SLPDB and MongoDB.
 
 SLPDB enables access to useful SLP data, such as:
-* List of all address token balances for a specific token ID [rest]() [jq]()
-* List of all token utxos for a specific token ID (for a specific address) [rest]() [jq]()
-* List of SLP token transaction history (for a specific address and/or token ID) [rest]() [jq]()
+* List of all balances, by address, for a specific token ID [rest]() [jq]()
+* List of all balances, by utxo, for a specific token ID (for a specific address) [rest]() [jq]()
+* List transaction history for an address for any token ID [rest]() [jq]()
 * Show total circulating token supply for a token ID [rest]() [jq]()
 * Show total token supply burned for a token ID [rest]() [jq]()
 * Show current state of a token's minting baton [rest]() [jq]()
@@ -98,9 +98,9 @@ The following statistics are maintained for each token:
   * `qty_valid_token_utxos` = Number of current unspent & valid SLP UTXOs
   * `qty_valid_token_addresses` = Number of unique address holders
   * `qty_satoshis_locked_up` = Quantity of BCH that is locked up in SLP UTXOs
-  * `block_last_active_mint` - in testing = The block containing the token's MINT transaction
-  * `block_last_active_send` - in testing = The block containing the token's SEND transaction
-  * `block_created` - in testing = The block containing the token's GENESIS transaction
+  * `block_last_active_mint` - The block containing the token's MINT transaction
+  * `block_last_active_send` - The block containing the token's SEND transaction
+  * `block_created` - The block containing the token's GENESIS transaction
 
 
 ## Real-time SLP Notifications

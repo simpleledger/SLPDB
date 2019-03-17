@@ -4,9 +4,11 @@ import { Bitcore, BitcoinRpc } from './vendor';
 import BITBOXSDK from 'bitbox-sdk';
 import { Config } from './config';
 import * as bitcore from 'bitcore-lib-cash';
-import { SendTxnQueryResult, MintQueryResult, Query, SendTxnQueryResponse, MintTxnQueryResult } from './query';
+import { SendTxnQueryResult, MintQueryResult, Query, MintTxnQueryResult } from './query';
 import { TxOut } from 'bitbox-sdk/lib/Blockchain';
 import { Decimal128 } from 'mongodb';
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const RpcClient = require('bitcoin-rpc-promise')
 const BITBOX = new BITBOXSDK();
@@ -311,12 +313,14 @@ export class SlpTokenGraph implements TokenGraph {
         else if(this._tokenDetails.containsBaton === true) {
             if(this._mintBatonUtxo.includes(this._tokenDetails.tokenIdHex + ":" + this._tokenDetails.batonVout))
                 return TokenBatonStatus.ALIVE;
-            let mints = await Query.getMintTransactions(this._tokenDetails.tokenIdHex);
+            //let mints = await Query.getMintTransactions(this._tokenDetails.tokenIdHex);
+            let mintTxids = Array.from(this._graphTxns).filter(o => o[1].details.transactionType === SlpTransactionType.MINT).map(o => o[0]);
+            let mints = mintTxids.map(i => this._slpValidator.cachedValidations[i])
             if(mints) {
                 for(let i = 0; i < mints!.length; i++) {
-                    let valid = mints[i].slp.valid;
-                    let vout = mints[i].batonHex && parseInt(mints[i].batonHex!, 16) > 0 ? parseInt(mints[i].batonHex!, 16) : null;
-                    if(valid && vout && this._mintBatonUtxo.includes(mints[i].txid + ":" + vout))
+                    let valid = mints[i].validity;
+                    let vout = mints[i].details!.batonVout;
+                    if(valid && vout && this._mintBatonUtxo.includes(mintTxids[i] + ":" + vout))
                         return TokenBatonStatus.ALIVE;
                     if(valid && !vout)
                         return TokenBatonStatus.DEAD_ENDED;
