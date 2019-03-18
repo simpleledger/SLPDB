@@ -6,10 +6,12 @@ import BITBOXSDK from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { Db } from './db';
 import { Config } from "./config";
-import { TNATxn } from "./tna";
+import { TNATxn, TNATxnSlpDetails } from "./tna";
 import { BitcoinRpc } from "./vendor";
 import { Decimal128 } from "mongodb";
 import zmq from 'zeromq';
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const RpcClient = require('bitcoin-rpc-promise');
 
@@ -93,6 +95,23 @@ export class SlpGraphManager implements IZmqSubscriber {
 
     async onBlockHash(hash: string): Promise<void> {
 
+        // Wait until the txn count is greater than 0 
+        let retries = 0;
+        let count = 0;
+        let blockTxns: { txns: {txid: string, slp: TNATxnSlpDetails }[], timestamp: string|null }|null; 
+        while(count === 0) {
+            await sleep(1000);
+            blockTxns = await Query.getTransactionsForBlock(hash);
+            try {
+                count = blockTxns!.txns.length;
+            } catch(_){ }
+            if(retries > 5) {
+                console.log("No SLP transactions found in block.");
+                return;
+            }
+            retries++;
+        }
+
         // update tokens collection timestamps on confirmation for Genesis transactions
         let genesisBlockTxns = await Query.getGenesisTransactionsForBlock(hash);
         if(genesisBlockTxns) {
@@ -106,38 +125,35 @@ export class SlpGraphManager implements IZmqSubscriber {
         }
 
         // update all statistics for tokens included in this block
-        let blockTxns = await Query.getTransactionsForBlock(hash);
-        if(blockTxns) {
-            let tokenIds = Array.from(new Set<string>([...blockTxns.txns.map(t => t.slp.detail!.tokenIdHex)]));
+        let tokenIds = Array.from(new Set<string>([...blockTxns!.txns.map(t => t.slp.detail!.tokenIdHex)]));
 
-            // update statistics for each token
-            for(let i = 0; i < tokenIds.length; i++) {
-                let token = this._tokens.get(tokenIds[i])!;
-                await token.updateStatistics();
-                await this.db.tokeninsertreplace(token.toTokenDbObject());
-                await this.db.addressinsertreplace(token.toAddressesDbObject());
-                await this.db.graphinsertreplace(token.toGraphDbObject());
-                await this.db.utxoinsertreplace(token.toUtxosDbObject());
+        // update statistics for each token
+        for(let i = 0; i < tokenIds.length; i++) {
+            let token = this._tokens.get(tokenIds[i])!;
+            await token.updateStatistics();
+            await this.db.tokeninsertreplace(token.toTokenDbObject());
+            await this.db.addressinsertreplace(token.toAddressesDbObject());
+            await this.db.graphinsertreplace(token.toGraphDbObject());
+            await this.db.utxoinsertreplace(token.toUtxosDbObject());
 
-                console.log("########################################################################################################")
-                console.log("TOKEN STATS/ADDRESSES FOR", token._tokenDetails.name, token._tokenDetails.tokenIdHex)
-                console.log("########################################################################################################")
-                token.logTokenStats();
-                token.logAddressBalances();
-            }
+            console.log("########################################################################################################")
+            console.log("TOKEN STATS/ADDRESSES FOR", token._tokenDetails.name, token._tokenDetails.tokenIdHex)
+            console.log("########################################################################################################")
+            token.logTokenStats();
+            token.logAddressBalances();
+        }
 
-            // zmq publish block events
-            for(let i = 0; i < blockTxns.txns.length; i++) {
-                //let tna: TNATxn | null = await this.db.db.collection('confirmed').findOne({ "tx.h": blockTxns.txns[i] });
-                if(this.zmqPubSocket) {
-                    console.log("[ZMQ-PUB] SLP block txn notification", blockTxns.txns[i]);
-                    if(blockTxns.txns[i].slp!.detail!.transactionType === SlpTransactionType.GENESIS)
-                        this.zmqPubSocket.send([ 'block-slp-genesis', JSON.stringify(blockTxns.txns[i]) ]);
-                    else if(blockTxns.txns[i].slp!.detail!.transactionType === SlpTransactionType.SEND)
-                        this.zmqPubSocket.send([ 'block-slp-send', JSON.stringify(blockTxns.txns[i]) ]);
-                    else if(blockTxns.txns[i].slp!.detail!.transactionType === SlpTransactionType.MINT)
-                        this.zmqPubSocket.send([ 'block-slp-mint', JSON.stringify(blockTxns.txns[i]) ]);
-                }
+        // zmq publish block events
+        for(let i = 0; i < blockTxns!.txns.length; i++) {
+            //let tna: TNATxn | null = await this.db.db.collection('confirmed').findOne({ "tx.h": blockTxns.txns[i] });
+            if(this.zmqPubSocket) {
+                console.log("[ZMQ-PUB] SLP block txn notification", blockTxns!.txns[i]);
+                if(blockTxns!.txns[i].slp!.detail!.transactionType === SlpTransactionType.GENESIS)
+                    this.zmqPubSocket.send([ 'block-slp-genesis', JSON.stringify(blockTxns!.txns[i]) ]);
+                else if(blockTxns!.txns[i].slp!.detail!.transactionType === SlpTransactionType.SEND)
+                    this.zmqPubSocket.send([ 'block-slp-send', JSON.stringify(blockTxns!.txns[i]) ]);
+                else if(blockTxns!.txns[i].slp!.detail!.transactionType === SlpTransactionType.MINT)
+                    this.zmqPubSocket.send([ 'block-slp-mint', JSON.stringify(blockTxns!.txns[i]) ]);
             }
         }
     }
