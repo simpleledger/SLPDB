@@ -11,12 +11,14 @@
 SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store all SLP data.  Additionally, this application allows other processes to subscribe to real-time SLP events via ZeroMQ subscription.  It is recommended that end users utilize the [slpserve](https://github.com/fountainhead-cash/slpserve) and [slpsocket](https://github.com/simpleledger/sockserve) applications in order to conveniently access the data that is provided by SLPDB and MongoDB.
 
 SLPDB enables access to useful SLP data, such as:
-* List of all balances, by address, for a specific token ID [rest]() [jq]()
-* List of all balances, by utxo, for a specific token ID (for a specific address) [rest]() [jq]()
-* List transaction history for an address for any token ID [rest]() [jq]()
-* Show total circulating token supply for a token ID [rest]() [jq]()
-* Show total token supply burned for a token ID [rest]() [jq]()
-* Show current state of a token's minting baton [rest]() [jq]()
+* Show token information [jq example](https://slpdb.fountainhead.cash/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjoKICAgICAgewogICAgICAgICJ0b2tlbkRldGFpbHMudG9rZW5JZEhleCI6ICI5NTlhNjgxOGNiYTVhZjhhYmEzOTFkM2Y3NjQ5ZjVmNmE1Y2ViNmNkY2QyYzJhM2RjYjVkMmZiZmM0YjA4ZTk4IgogICAgICB9CiAgICB9LAogICAgInByb2plY3QiOiB7ICJ0b2tlblN0YXRzIjogMSB9LAogICAgImxpbWl0IjogMTAwMDAKICB9Cn0=)
+* List of all balances, by address, for a specific token ID [jq example](https://slpdb.fountainhead.cash/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYSJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjoKICAgICAgewogICAgICAgICJ0b2tlbkRldGFpbHMudG9rZW5JZEhleCI6ICI1NTBkMTllYjgyMGU2MTZhNTRiOGE3MzM3MmM0NDIwYjVhMDU2N2Q4ZGMwMGY2MTNiNzFjNTIzNGRjODg0YjM1IiwKICAgICAgICAidG9rZW5fYmFsYW5jZSI6IHsgIiRndGUiOiAxICB9CiAgICAgIH0KICAgIH0sCiAgICAicHJvamVjdCI6IHsiYWRkcmVzcyI6IDEsICJzYXRvc2hpc19iYWxhbmNlIjogMSwgInRva2VuX2JhbGFuY2UiOiAxfSwKICAgICJsaW1pdCI6IDEwMDAwCiAgfQp9)
+* List of all balances, by utxo, for a specific token ID (for a specific address) [jq example]()
+* List transaction history for an address for any token ID [jq example]()
+* Show total circulating token supply for a token ID [jq example]()
+* Show total token supply burned for a token ID [jq example]()
+* Show current state of a token's minting baton [jq example]()
+* Show invalid token transactions [jq example]()
 
 You only need to install SLPDB, slpserve, and/or slpsocket if any of the following is true:
 * You cannot rely on a third-party for your SLP data.

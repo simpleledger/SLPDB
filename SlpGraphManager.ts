@@ -125,7 +125,7 @@ export class SlpGraphManager implements IZmqSubscriber {
         }
 
         // update all statistics for tokens included in this block
-        let tokenIds = Array.from(new Set<string>([...blockTxns!.txns.map(t => t.slp.detail!.tokenIdHex)]));
+        let tokenIds = Array.from(new Set<string>([...blockTxns!.txns.filter(t => t.slp).map(t => t.slp.detail!.tokenIdHex)]));
 
         // update statistics for each token
         for(let i = 0; i < tokenIds.length; i++) {
