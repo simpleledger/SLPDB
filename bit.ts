@@ -267,27 +267,31 @@ export class Bit {
         let sync = Bit.sync;
         let self = this;
         sock.on('message', async function(topic, message) {
-            if (topic.toString() === 'hashtx') {
-                let hash = message.toString('hex');
-                console.log('[ZMQ-SUB] Txn hash:', hash);
-                let syncResult = await sync(self, 'mempool', hash);
-                for (let i = 0; i < self._zmqSubscribers.length; i++) {
-                    if(!self._zmqSubscribers[i].zmqPubSocket)
-                        self._zmqSubscribers[i].zmqPubSocket = self.outsock;
-                    if(syncResult && self._zmqSubscribers[i].onTransactionHash) {
-                        await self._zmqSubscribers[i].onTransactionHash!(syncResult);
+            try {
+                if (topic.toString() === 'hashtx') {
+                    let hash = message.toString('hex');
+                    console.log('[ZMQ-SUB] Txn hash:', hash);
+                    let syncResult = await sync(self, 'mempool', hash);
+                    for (let i = 0; i < self._zmqSubscribers.length; i++) {
+                        if(!self._zmqSubscribers[i].zmqPubSocket)
+                            self._zmqSubscribers[i].zmqPubSocket = self.outsock;
+                        if(syncResult && self._zmqSubscribers[i].onTransactionHash) {
+                            await self._zmqSubscribers[i].onTransactionHash!(syncResult);
+                        }
+                    }
+                } else if (topic.toString() === 'hashblock') {
+                    let hash = message.toString('hex');
+                    console.log('[ZMQ-SUB] Block hash:', hash);
+                    for (let i = 0; i < self._zmqSubscribers.length; i++) {
+                        if(self._zmqSubscribers[i].zmqPubSocket === null)
+                            self._zmqSubscribers[i].zmqPubSocket = self.outsock;
+                        if(self._zmqSubscribers[i].onBlockHash)
+                            await self._zmqSubscribers[i].onBlockHash!(hash!);
                     }
                 }
-            } else if (topic.toString() === 'hashblock') {
-                let hash = message.toString('hex');
-                console.log('[ZMQ-SUB] Block hash:', hash);
-                let syncResult = await sync(self, 'block');
-                for (let i = 0; i < self._zmqSubscribers.length; i++) {
-                    if(self._zmqSubscribers[i].zmqPubSocket === null)
-                        self._zmqSubscribers[i].zmqPubSocket = self.outsock;
-                    if(self._zmqSubscribers[i].onBlockHash)
-                        await self._zmqSubscribers[i].onBlockHash!(hash!);
-                }
+            } catch(err) {
+                console.log(err);
+                process.exit();
             }
         })
         console.log('[INFO] Listening for blockchain events...');

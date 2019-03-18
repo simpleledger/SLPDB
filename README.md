@@ -10,15 +10,19 @@
 
 SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store all SLP data.  Additionally, this application allows other processes to subscribe to real-time SLP events via ZeroMQ subscription.  It is recommended that end users utilize the [slpserve](https://github.com/fountainhead-cash/slpserve) and [slpsocket](https://github.com/simpleledger/sockserve) applications in order to conveniently access the data that is provided by SLPDB and MongoDB.
 
-SLPDB enables access to useful SLP data, such as:
-* Show token information [jq example](https://slpdb.fountainhead.cash/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjoKICAgICAgewogICAgICAgICJ0b2tlbkRldGFpbHMudG9rZW5JZEhleCI6ICI5NTlhNjgxOGNiYTVhZjhhYmEzOTFkM2Y3NjQ5ZjVmNmE1Y2ViNmNkY2QyYzJhM2RjYjVkMmZiZmM0YjA4ZTk4IgogICAgICB9CiAgICB9LAogICAgInByb2plY3QiOiB7ICJ0b2tlblN0YXRzIjogMSB9LAogICAgImxpbWl0IjogMTAwMDAKICB9Cn0=)
-* List of all balances, by address, for a specific token ID [jq example](https://slpdb.fountainhead.cash/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYSJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjoKICAgICAgewogICAgICAgICJ0b2tlbkRldGFpbHMudG9rZW5JZEhleCI6ICI1NTBkMTllYjgyMGU2MTZhNTRiOGE3MzM3MmM0NDIwYjVhMDU2N2Q4ZGMwMGY2MTNiNzFjNTIzNGRjODg0YjM1IiwKICAgICAgICAidG9rZW5fYmFsYW5jZSI6IHsgIiRndGUiOiAxICB9CiAgICAgIH0KICAgIH0sCiAgICAicHJvamVjdCI6IHsiYWRkcmVzcyI6IDEsICJzYXRvc2hpc19iYWxhbmNlIjogMSwgInRva2VuX2JhbGFuY2UiOiAxfSwKICAgICJsaW1pdCI6IDEwMDAwCiAgfQp9)
-* List of all balances, by utxo, for a specific token ID (for a specific address) [jq example]()
-* List transaction history for an address for any token ID [jq example]()
-* Show total circulating token supply for a token ID [jq example]()
-* Show total token supply burned for a token ID [jq example]()
-* Show current state of a token's minting baton [jq example]()
-* Show invalid token transactions [jq example]()
+SLPDB enables access to useful SLP data (use [slpserve](https://github.com/fountainhead-cash/slpserve) to run linked examples):
+* List all token details and useage information [slpserve example](http://localhost:3000/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjoKICAgICAgeyB9CiAgICB9LAogICAgInByb2plY3QiOiB7InRva2VuRGV0YWlscyI6IDEsICJ0b2tlblN0YXRzIjogMSwgIl9pZCI6IDAgfSwKICAgICJsaW1pdCI6IDEwMDAKICB9Cn0=)
+* Token details and useage information by token ID [slpserve example](http://localhost:3000/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjoKICAgICAgewogICAgICAgICJ0b2tlbkRldGFpbHMudG9rZW5JZEhleCI6ICI5NTlhNjgxOGNiYTVhZjhhYmEzOTFkM2Y3NjQ5ZjVmNmE1Y2ViNmNkY2QyYzJhM2RjYjVkMmZiZmM0YjA4ZTk4IgogICAgICB9CiAgICB9LAogICAgInByb2plY3QiOiB7InRva2VuRGV0YWlscyI6IDEsICJ0b2tlblN0YXRzIjogMSwgIl9pZCI6IDAgfSwKICAgICJsaW1pdCI6IDEwMDAKICB9Cn0=)
+* List all address balances by token ID [slpserve example](http://localhost:3000/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJmaW5kIjogewogICAgICAidG9rZW5EZXRhaWxzLnRva2VuSWRIZXgiOiAiOTU5YTY4MThjYmE1YWY4YWJhMzkxZDNmNzY0OWY1ZjZhNWNlYjZjZGNkMmMyYTNkY2I1ZDJmYmZjNGIwOGU5OCIsCiAgICAgICJ0b2tlbl9iYWxhbmNlIjogeyAiJGd0ZSI6IDAgIH0KICAgIH0sCiAgICAibGltaXQiOiAxMDAwMCwKICAgICJwcm9qZWN0IjogeyJhZGRyZXNzIjogMSwgInNhdG9zaGlzX2JhbGFuY2UiOiAxLCAidG9rZW5fYmFsYW5jZSI6IDEsICJfaWQiOiAwIH0KICB9Cn0=)
+* List all token balances by address [slpserve example](http://localhost:3000/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYSJdLCAKICAgICJmaW5kIjogewogICAgICAiYWRkcmVzcyI6ICJzaW1wbGVsZWRnZXI6cXJkbDBoZWswd3ltZHV4a3k0bHFxMzd1am1lODIyYWc5eTBoejJ3dnFxIiwKICAgICAgInRva2VuX2JhbGFuY2UiOiB7ICIkZ3RlIjogMCB9CiAgICB9LAogICAgImxpbWl0IjogMTAwMDAKICB9LCAKICAiciI6IHsKICAgICJmIjogIlsuW10gfCB7IHRva2VuSWQ6IC50b2tlbkRldGFpbHMudG9rZW5JZEhleCwgc2F0b3NoaXNfYmFsYW5jZTogLnNhdG9zaGlzX2JhbGFuY2UsIHRva2VuX2JhbGFuY2U6IC50b2tlbl9iYWxhbmNlIH1dIgogIH0KfQ==)
+* List all token utxos by token ID [slpserve example](http://localhost:3000/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsieCJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjogeyAKICAgICAgICAidG9rZW5EZXRhaWxzLnRva2VuSWRIZXgiOiAiOTU5YTY4MThjYmE1YWY4YWJhMzkxZDNmNzY0OWY1ZjZhNWNlYjZjZGNkMmMyYTNkY2I1ZDJmYmZjNGIwOGU5OCIgCiAgICAgIH0KICAgIH0sCiAgICAibGltaXQiOiAxMDAwCiAgfSwKICAiciI6IHsKICAgICJmIjogIlsuW10gfCB7IHRva2VuSWQ6IC50b2tlbkRldGFpbHMudG9rZW5JZEhleCwgdXR4bzogLnV0eG8gfV0iCiAgfQp9)
+* List transaction history by token ID (example coming soon)
+* List transaction history by address (example coming soon)
+* List transaction history by address and token ID (example coming soon)
+* Show total circulating token supply for a token ID (example coming soon)
+* Show total token supply burned for a token ID (example coming soon)
+* Show current state of a token's minting baton (example coming soon)
+* Show invalid token transactions [slpserve example](http://localhost:3000/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYyIsICJ1Il0sCiAgICAiZmluZCI6IHsKICAgICAgInNscC52YWxpZCI6IGZhbHNlCiAgICB9LAogICAgImxpbWl0IjogMzAwLAogICAgInByb2plY3QiOiB7InR4LmgiOiAxfQogIH0sCiAgInIiOiB7CiAgICAiZiI6ICJbLltdIHwge3R4aWQ6IC50eC5ofV0iCiAgfQp9)
 
 You only need to install SLPDB, slpserve, and/or slpsocket if any of the following is true:
 * You cannot rely on a third-party for your SLP data.
@@ -55,10 +59,10 @@ The following settings should be applied to your full node's configuration.  NOT
 
 To use SLPDB with Testnet simply set your full node to the testnet network (e.g., set `testnet=1` within `bitcoin.conf`) and SLPDB will automatically instantiate using proper databases names according to the network.  For informational purposes the database names are as follows:
 * **Mainnet**
-  * Mongo db name = `slpdb` (uses `./_mongo` directory)
+  * Mongo db name = `slpdb`
   * LevelDB directory = `./_leveldb`
 * **Testnet**
-  * Mongo db name y = `slpdb_testnet` (uses `./_mongo` directory)
+  * Mongo db name = `slpdb_testnet`
   * Testnet diectory = `./_leveldb_testnet`
 
 ### Running SLPDB
