@@ -1,6 +1,6 @@
 {
   "name": "slpdb",
-  "version": "0.9.0",
+  "version": "0.9.3",
   "description": "Data storage layer for Simple Ledger Protocol",
   "main": "index.js",
   "scripts": {

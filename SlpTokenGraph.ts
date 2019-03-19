@@ -312,7 +312,7 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async getBatonStatus(): Promise<TokenBatonStatus> {
-        if(this._tokenDetails.containsBaton === false)
+        if(!this._tokenDetails.containsBaton)
             return TokenBatonStatus.NEVER_CREATED;
         else if(this._tokenDetails.containsBaton === true) {
             if(this._mintBatonUtxo.includes(this._tokenDetails.tokenIdHex + ":" + this._tokenDetails.batonVout))
@@ -384,7 +384,7 @@ export class SlpTokenGraph implements TokenGraph {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
 
         let result = {
-            slpdbVersion: Config.db.schema_version,
+            schema_version: Config.db.schema_version,
             lastUpdatedBlock: this._lastUpdatedBlock,
             tokenDetails: tokenDetails,
             tokenStats: this.mapTokenStatstoDbo(this._tokenStats),
@@ -439,7 +439,7 @@ export class SlpTokenGraph implements TokenGraph {
         return mapped;
     }
 
-    mapTokenStatstoDbo(stats: TokenStats): TokenStatsDb {
+    mapTokenStatstoDbo(stats: TokenStats): TokenStatsDbo {
         return {
             block_created: stats.block_created,
             block_last_active_send: stats.block_last_active_send,
@@ -565,9 +565,9 @@ export interface AddressBalance {
 }
 
 export interface TokenDBObject {
-    slpdbVersion: number;
+    schema_version: number;
     tokenDetails: SlpTransactionDetailsDbo;
-    tokenStats: TokenStats | TokenStatsDb;
+    tokenStats: TokenStats | TokenStatsDbo;
     lastUpdatedBlock: number;
 }
 
@@ -656,7 +656,7 @@ interface TokenStats {
     minting_baton_status: TokenBatonStatus;
 }
 
-interface TokenStatsDb {
+interface TokenStatsDbo {
     block_created: number|null;
     block_last_active_send: number|null;
     block_last_active_mint: number|null;

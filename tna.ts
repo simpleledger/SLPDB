@@ -98,8 +98,7 @@ export interface TNATxn {
     tx: { h: string };
     in: Xput[];
     out: Xput[];
-    blk?: { h: string; i: number; t: number };
-    raw?: string;
+    blk?: { h: string; i: number; t: number; };
     slp?: TNATxnSlpDetails;
 }
 

@@ -266,7 +266,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             symbol: genesisDetails.symbol,
             name: genesisDetails.name,
             txnBatonVout: details.batonVout,
-            txnContainsBaton: details.containsBaton,
+            txnContainsBaton: details.containsBaton ? true : false,
             outputs: outputs
         }
         return res;
@@ -283,7 +283,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                 let tokenState = <TokenDBObject>await this.db.tokenfetch(tokens[i].tokenIdHex);
                 if(!tokenState)
                     throw Error("There is no db record for this token.");
-                if(!tokenState.slpdbVersion || tokenState.slpdbVersion !== Config.db.schema_version) {
+                if(!tokenState.schema_version || tokenState.schema_version !== Config.db.schema_version) {
                     await this.db.tokendelete(tokens[i].tokenIdHex);
                     await this.db.graphdelete(tokens[i].tokenIdHex);
                     await this.db.utxodelete(tokens[i].tokenIdHex);
