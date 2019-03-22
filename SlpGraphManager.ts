@@ -98,62 +98,65 @@ export class SlpGraphManager implements IZmqSubscriber {
         // Wait until the txn count is greater than 0 
         let retries = 0;
         let count = 0;
-        let blockTxns: { txns: {txid: string, slp: TNATxnSlpDetails }[], timestamp: string|null }|null; 
-        while(count === 0) {
+        let blockTxns: { txns: { txid: string, slp: TNATxnSlpDetails }[], timestamp: string|null }|null; 
+        while(count === 0 && retries < 5) {
             await sleep(1000);
             blockTxns = await Query.getTransactionsForBlock(hash);
+            console.log("BLOCK TXNS", blockTxns);
             try {
                 count = blockTxns!.txns.length;
+                console.log("COUNT", count);
             } catch(_){ }
-            if(retries > 5) {
-                console.log("No SLP transactions found in block.");
-                return;
-            }
+            if(retries > 5)
+                console.log("No SLP transactions found in block " + hash + " .");
+                //throw Error("No SLP transactions found in block " + hash + " .");
             retries++;
         }
 
-        // update tokens collection timestamps on confirmation for Genesis transactions
-        let genesisBlockTxns = await Query.getGenesisTransactionsForBlock(hash);
-        if(genesisBlockTxns) {
-            for(let i = 0; i < genesisBlockTxns.txns.length; i++) {
-                let t = await this.db.tokenfetch(genesisBlockTxns.txns[i]);
-                if(t) {
-                    t.tokenDetails!.timestamp = genesisBlockTxns.timestamp!;
-                    await this.db.tokeninsertreplace(t);
+        if(blockTxns!) {
+            // update tokens collection timestamps on confirmation for Genesis transactions
+            let genesisBlockTxns = await Query.getGenesisTransactionsForBlock(hash);
+            if(genesisBlockTxns) {
+                for(let i = 0; i < genesisBlockTxns.txns.length; i++) {
+                    let t = await this.db.tokenfetch(genesisBlockTxns.txns[i]);
+                    if(t) {
+                        t.tokenDetails!.timestamp = genesisBlockTxns.timestamp!;
+                        await this.db.tokeninsertreplace(t);
+                    }
                 }
             }
-        }
 
-        // update all statistics for tokens included in this block
-        let tokenIds = Array.from(new Set<string>([...blockTxns!.txns.filter(t => t.slp).map(t => t.slp.detail!.tokenIdHex)]));
+            // update all statistics for tokens included in this block
+            let tokenIds = Array.from(new Set<string>([...blockTxns!.txns.filter(t => t.slp).map(t => t.slp.detail!.tokenIdHex)]));
 
-        // update statistics for each token
-        for(let i = 0; i < tokenIds.length; i++) {
-            let token = this._tokens.get(tokenIds[i])!;
-            await token.updateStatistics();
-            await this.db.tokeninsertreplace(token.toTokenDbObject());
-            await this.db.addressinsertreplace(token.toAddressesDbObject());
-            await this.db.graphinsertreplace(token.toGraphDbObject());
-            await this.db.utxoinsertreplace(token.toUtxosDbObject());
+            // update statistics for each token
+            for(let i = 0; i < tokenIds.length; i++) {
+                let token = this._tokens.get(tokenIds[i])!;
+                await token.updateStatistics();
+                await this.db.tokeninsertreplace(token.toTokenDbObject());
+                await this.db.addressinsertreplace(token.toAddressesDbObject());
+                await this.db.graphinsertreplace(token.toGraphDbObject());
+                await this.db.utxoinsertreplace(token.toUtxosDbObject());
 
-            console.log("########################################################################################################")
-            console.log("TOKEN STATS/ADDRESSES FOR", token._tokenDetails.name, token._tokenDetails.tokenIdHex)
-            console.log("########################################################################################################")
-            token.logTokenStats();
-            token.logAddressBalances();
-        }
+                console.log("########################################################################################################")
+                console.log("TOKEN STATS/ADDRESSES FOR", token._tokenDetails.name, token._tokenDetails.tokenIdHex)
+                console.log("########################################################################################################")
+                token.logTokenStats();
+                token.logAddressBalances();
+            }
 
-        // zmq publish block events
-        for(let i = 0; i < blockTxns!.txns.length; i++) {
-            //let tna: TNATxn | null = await this.db.db.collection('confirmed').findOne({ "tx.h": blockTxns.txns[i] });
-            if(this.zmqPubSocket) {
-                console.log("[ZMQ-PUB] SLP block txn notification", blockTxns!.txns[i]);
-                if(blockTxns!.txns[i].slp!.detail!.transactionType === SlpTransactionType.GENESIS)
-                    this.zmqPubSocket.send([ 'block-slp-genesis', JSON.stringify(blockTxns!.txns[i]) ]);
-                else if(blockTxns!.txns[i].slp!.detail!.transactionType === SlpTransactionType.SEND)
-                    this.zmqPubSocket.send([ 'block-slp-send', JSON.stringify(blockTxns!.txns[i]) ]);
-                else if(blockTxns!.txns[i].slp!.detail!.transactionType === SlpTransactionType.MINT)
-                    this.zmqPubSocket.send([ 'block-slp-mint', JSON.stringify(blockTxns!.txns[i]) ]);
+            // zmq publish block events
+            for(let i = 0; i < blockTxns!.txns.length; i++) {
+                //let tna: TNATxn | null = await this.db.db.collection('confirmed').findOne({ "tx.h": blockTxns.txns[i] });
+                if(this.zmqPubSocket) {
+                    console.log("[ZMQ-PUB] SLP block txn notification", blockTxns!.txns[i]);
+                    if(blockTxns!.txns[i].slp!.detail!.transactionType === SlpTransactionType.GENESIS)
+                        this.zmqPubSocket.send([ 'block-slp-genesis', JSON.stringify(blockTxns!.txns[i]) ]);
+                    else if(blockTxns!.txns[i].slp!.detail!.transactionType === SlpTransactionType.SEND)
+                        this.zmqPubSocket.send([ 'block-slp-send', JSON.stringify(blockTxns!.txns[i]) ]);
+                    else if(blockTxns!.txns[i].slp!.detail!.transactionType === SlpTransactionType.MINT)
+                        this.zmqPubSocket.send([ 'block-slp-mint', JSON.stringify(blockTxns!.txns[i]) ]);
+                }
             }
         }
     }
@@ -279,16 +282,18 @@ export class SlpGraphManager implements IZmqSubscriber {
         // Instantiate all Token Graphs in memory
         for (let i = 0; i < tokens.length; i++) {
             let graph: SlpTokenGraph;
+            let throwMsg1 = "There is no db record for this token.";
+            let throwMsg2 = "Outdated token graph detected for: ";
             try {
                 let tokenState = <TokenDBObject>await this.db.tokenfetch(tokens[i].tokenIdHex);
                 if(!tokenState)
-                    throw Error("There is no db record for this token.");
+                    throw Error(throwMsg1);
                 if(!tokenState.schema_version || tokenState.schema_version !== Config.db.schema_version) {
                     await this.db.tokendelete(tokens[i].tokenIdHex);
                     await this.db.graphdelete(tokens[i].tokenIdHex);
                     await this.db.utxodelete(tokens[i].tokenIdHex);
                     await this.db.addressdelete(tokens[i].tokenIdHex);
-                    throw Error("Outdated token graph detected for: " + tokens[i].tokenIdHex);
+                    throw Error(throwMsg2 + tokens[i].tokenIdHex);
                 }
                 let utxos: UtxoDbo[] = await this.db.utxofetch(tokens[i].tokenIdHex);
                 let addresses: AddressBalancesDbo[] = await this.db.addressfetch(tokens[i].tokenIdHex);
@@ -314,12 +319,16 @@ export class SlpGraphManager implements IZmqSubscriber {
                     console.log("Token's graph is up to date.");
                 
             } catch(err) {
-                console.log(err.message);
-                graph = new SlpTokenGraph();
-                console.log("########################################################################################################")
-                console.log("NEW GRAPH FOR", tokens[i].tokenIdHex)
-                console.log("########################################################################################################")
-                await graph.initFromScratch(tokens[i]);
+                if(err.message.includes(throwMsg1) || err.message.includes(throwMsg2)) {
+                    graph = new SlpTokenGraph();
+                    console.log("########################################################################################################")
+                    console.log("NEW GRAPH FOR", tokens[i].tokenIdHex)
+                    console.log("########################################################################################################")
+                    await graph.initFromScratch(tokens[i]);
+                } else {
+                    //console.log(err);
+                    throw err;
+                }
             }
             
             if(graph.IsValid()) {

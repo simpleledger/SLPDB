@@ -1,4 +1,4 @@
-import { SlpTransactionDetails, SlpTransactionType, LocalValidator, Utils } from 'slpjs';
+import { SlpTransactionDetails, SlpTransactionType, LocalValidator, Utils, Validation } from 'slpjs';
 import BigNumber from 'bignumber.js';
 import { Bitcore, BitcoinRpc } from './vendor';
 import BITBOXSDK from 'bitbox-sdk';
@@ -41,13 +41,15 @@ export class SlpTokenGraph implements TokenGraph {
         this._graphTxns = new Map<string, GraphTxn>();
         this._addresses = new Map<cashAddr, AddressBalance>();
 
-        await this.updateTokenGraphFrom(tokenDetails.tokenIdHex);
-        let mints = await Query.getMintTransactions(tokenDetails.tokenIdHex);
-        if(mints && mints.length > 0)
-            await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom(m.txid!));
-
-        await this.updateAddresses();
-        await this.initStatistics();
+        let valid = await this.updateTokenGraphFrom(tokenDetails.tokenIdHex);
+        if(valid) {
+            let mints = await Query.getMintTransactions(tokenDetails.tokenIdHex);
+            if(mints && mints.length > 0)
+                await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom(m.txid!));
+    
+            await this.updateAddresses();
+            await this.initStatistics();
+        }
     }
 
     IsValid(): boolean {
@@ -98,7 +100,7 @@ export class SlpTokenGraph implements TokenGraph {
             this._tokenUtxos.delete(txid + ":" + vout);
             try {
                 let spendTxnInfo = await Query.queryForTxoInputSlpSend(txid, vout);
-
+                console.log("spendTxnInfo", spendTxnInfo);
                 if(spendTxnInfo.txid === null) {
                     if(vout < slpOutputLength)
                         return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
@@ -217,7 +219,7 @@ export class SlpTokenGraph implements TokenGraph {
             })
         }
         else {
-            console.log("[WARNING]: Transaction is not valid or is unknown token type!", txid)
+            console.log("[WARNING]: Transaction is not valid or is unknown token type!", txid);
         }
 
         // Continue to complete graph from output UTXOs
@@ -266,7 +268,9 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async getTotalMintQuantity(): Promise<BigNumber> {
-        let qty = this._tokenDetails.genesisOrMintQuantity!;
+        let qty = this._tokenDetails.genesisOrMintQuantity;
+        if(!qty)
+            throw Error("Cannot have token without Genesis quantity.");
         let results = await Query.getMintTransactions(this._tokenDetails.tokenIdHex);
         if(results) {
             results.forEach(r => {
@@ -274,11 +278,11 @@ export class SlpTokenGraph implements TokenGraph {
                     let qtyBuf = new Buffer(r.quantityHex, 'hex');
                     let mint = new BigNumber(0);
                     mint = Utils.buffer2BigNumber(qtyBuf);
-                    qty = qty.plus(<any>mint);
+                    qty = qty!.plus(mint);
                 }
             })
         }
-        return <any>qty;
+        return qty;
     }
 
     getTotalHeldByAddresses(): BigNumber {
@@ -387,6 +391,7 @@ export class SlpTokenGraph implements TokenGraph {
             schema_version: Config.db.schema_version,
             lastUpdatedBlock: this._lastUpdatedBlock,
             tokenDetails: tokenDetails,
+            mintBatonUtxo: this._mintBatonUtxo,
             tokenStats: this.mapTokenStatstoDbo(this._tokenStats),
         }
         return result;
@@ -507,6 +512,7 @@ export class SlpTokenGraph implements TokenGraph {
     static async FromDbObjects(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], addresses: AddressBalancesDbo[]): Promise<SlpTokenGraph> {
         let tg = new SlpTokenGraph();
         await Query.init();
+        tg._mintBatonUtxo = token.mintBatonUtxo;
         tg._network = (await tg._rpcClient.getInfo()).testnet ? 'testnet': 'mainnet';
 
         // Map _tokenDetails
@@ -526,6 +532,18 @@ export class SlpTokenGraph implements TokenGraph {
 
             tg._graphTxns.set(item.graphTxn.txid, gt);
         })
+
+        // Preload SlpValidator with cachedValidations
+        let txids = Array.from(tg._graphTxns.keys());
+        //console.log(tg._slpValidator.cachedValidations);
+        txids.forEach(txid => {
+            let validation = <Validation>{ validity: null, details: null, invalidReason: "", parents: [] }
+            validation.validity = tg._graphTxns.get(txid) ? true : false;
+            validation.details = tg._graphTxns.get(txid)!.details;
+            if(!validation.details)
+                throw Error("No saved details about transaction" + txid);
+            tg._slpValidator.cachedValidations[txid] = validation;
+        });
 
         // Map _addresses
         tg._addresses = new Map<string, AddressBalance>();
@@ -568,6 +586,7 @@ export interface TokenDBObject {
     schema_version: number;
     tokenDetails: SlpTransactionDetailsDbo;
     tokenStats: TokenStats | TokenStatsDbo;
+    mintBatonUtxo: string;
     lastUpdatedBlock: number;
 }
 

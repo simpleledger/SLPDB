@@ -146,7 +146,9 @@ export class Bit {
     removeCachedTransaction(txid: string) {
         try { 
             this.slpMempool.delete(txid);
-        } catch(_){ } 
+        } catch(err){ 
+            console.log(err);
+        } 
     }
 
     async requestSlpMempool(): Promise<TNATxn[]> {
@@ -164,7 +166,8 @@ export class Bit {
             let res = await Promise.all(tasks);
             return res;
         } catch(err) {
-            throw Error("Any unknown error has occurred when processing mempool transactions.");
+            console.log("An unknown error occurred while processing mempool transactions.");
+            throw err;
         }
     }
 
@@ -222,7 +225,8 @@ export class Bit {
                             };
                             return t;
                         } catch(err) {
-                            console.log('[Error] crawl error:', err);
+                            console.log('[Error] crawl error:', err.message);
+                            throw err;
                         }
                     }))
                 }
@@ -282,6 +286,7 @@ export class Bit {
                 } else if (topic.toString() === 'hashblock') {
                     let hash = message.toString('hex');
                     console.log('[ZMQ-SUB] Block hash:', hash);
+                    await sync(self, 'block', hash);
                     for (let i = 0; i < self._zmqSubscribers.length; i++) {
                         if(self._zmqSubscribers[i].zmqPubSocket === null)
                             self._zmqSubscribers[i].zmqPubSocket = self.outsock;
@@ -307,6 +312,9 @@ export class Bit {
     static async sync(self: Bit, type: string, hash?: string): Promise<SyncCompletionInfo|null> {
         let result: SyncCompletionInfo;
         if (type === 'block') {
+            // TODO: Handle case where block sync is already underway (e.g., situation where 2 blocks mined together)
+            if(hash)
+                console.log("[INFO] Sync started at block", hash);
             result = { syncType: SyncType.Block, filteredContent: new Map<SyncFilterTypes, TransactionPool>() }
             try {
                 let lastCheckpoint: ChainSyncCheckpoint = await Info.checkpoint();
@@ -317,7 +325,6 @@ export class Bit {
                 let currentHeight: number = await self.requestheight();
             
                 for(let index: number = lastCheckpoint.height; index <= currentHeight; index++) {
-
                     console.time('[PERF] RPC END ' + index);
                     let content = <CrawlResult>(await self.crawl(index));
                     console.timeEnd('[PERF] RPC END ' + index);
@@ -333,6 +340,9 @@ export class Bit {
                     console.timeEnd('[PERF] DB Insert ' + index);
 
                     self.outsock.send(['block', JSON.stringify({ i: index, txs: content })]);
+
+                    // re-check current height in case it was updated during crawl()
+                    currentHeight = await self.requestheight();
                 }
 
                 // clear mempool and synchronize

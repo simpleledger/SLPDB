@@ -20,6 +20,7 @@ export class Query {
     }
 
     static async getGenesisTransactionsForBlock(blockHash: string): Promise<{ txns: string[], timestamp: string|null }|null> {
+        console.log("[Query] getGenesisTransactionsForBlock("+blockHash+")")
         let limit = 1000000;
         let q = {
             "v": 3,
@@ -41,6 +42,7 @@ export class Query {
     }
 
     static async getTransactionsForBlock(blockHash: string): Promise<{ txns: {txid: string, slp: TNATxnSlpDetails }[], timestamp: string|null }|null> {
+        console.log("[Query] getTransactionsForBlock(" + blockHash + ")")
         let limit = 1000000;
         let q = {
             "v": 3,
@@ -62,6 +64,7 @@ export class Query {
     }
 
     static async queryForRecentTokenTxns(tokenId: string, block: number): Promise<string[]> {
+        console.log("[Query] queryForRecentTokenTxns("+tokenId+","+block+")");
         let limit = 100000;
         let q = {
             "v": 3,
@@ -81,6 +84,7 @@ export class Query {
     }
 
     static async queryTokensList(): Promise<SlpTransactionDetails[]> {
+        console.log("[Query] queryTokensList()");
         let limit = 100000;
         let q = {
             "v": 3,
@@ -99,6 +103,7 @@ export class Query {
     }
 
     static async blockLastMinted(tokenIdHex: string): Promise<number|null> {
+        console.log("[Query] blockLastMinted(" + tokenIdHex + ")");
         let q = {
             "v": 3,
             "q": {
@@ -114,6 +119,7 @@ export class Query {
     }
 
     static async blockLastSent(tokenIdHex: string): Promise<number|null> {
+        console.log("[Query] blockLastSent(" + tokenIdHex + ")");
         let q = {
             "v": 3,
             "q": {
@@ -129,6 +135,7 @@ export class Query {
     }
 
     static async queryTokenGenesisBlock(tokenIdHex: string): Promise<number|null> {
+        console.log("[Query] queryTokenGenesisBlock(" + tokenIdHex + ")");
         let q = {
             "v": 3,
             "q": {
@@ -143,6 +150,7 @@ export class Query {
     }
 
     static async queryTokenDetails(tokenIdHex: string): Promise<SlpTransactionDetails|null> {
+        console.log("[Query] queryTokenDetails(" + tokenIdHex + ")");
         let q = {
             "v": 3,
             "q": {
@@ -157,9 +165,13 @@ export class Query {
     }
 
     static mapSlpTokenDetailsFromQuery(res: GenesisQueryResult): SlpTransactionDetails {
-        let baton: number = parseInt(res.batonHex, 16);
+        console.log("mapSlpTokenDetailsFromQuery", res);
+        let baton: number|null = res.batonHex ? parseInt(res.batonHex, 16) : null;
         let qtyBuf = Buffer.from(res.quantityHex, 'hex');
-        let qty: BigNumber = (new BigNumber(qtyBuf.readUInt32BE(0).toString())).multipliedBy(2**32).plus(qtyBuf.readUInt32BE(4).toString())
+        let qty: BigNumber|null;
+        try {
+            qty = Utils.buffer2BigNumber(qtyBuf);
+        } catch(_) { qty = null; }
         return {
             tokenIdHex: res.tokenIdHex,
             timestamp: <string>res.timestamp,
@@ -171,12 +183,13 @@ export class Query {
             name: res.name, 
             batonVout: baton,
             decimals: parseInt(res.decimalsHex, 16),
-            containsBaton: baton > 1 && baton < 256 ? true : false,
+            containsBaton: baton && baton > 1 && baton < 256 ? true : false,
             genesisOrMintQuantity: qty
         }
     }
 
     static async queryForTxoInputSlpMint(txid: string, vout: number): Promise<MintTxnQueryResult> {
+        console.log("[Query] queryForTxoInputSlpMint(" + txid + "," + vout + ")");
         let q = {
             "v": 3,
             "q": {
@@ -212,6 +225,7 @@ export class Query {
     }
 
     static async queryForTxoInputSlpSend(txid: string, vout: number): Promise<SendTxnQueryResult> {
+        console.log("[Query] queryForTxoInputSlpSend(" + txid + "," + vout + ")");
         let q = {
             "v": 3,
             "q": {
@@ -255,6 +269,7 @@ export class Query {
     }
 
     static async getSendTransactionDetails(txid: string): Promise<{ block: number|null, timestamp: string|null} |null> {
+        console.log("[Query] getSendTransactionDetails(" + txid + ")");
         let q = {
             "v": 3,
             "q": {
@@ -276,6 +291,7 @@ export class Query {
     }
 
     static async getMintTransactions(tokenId: string): Promise<MintQueryResult[]|null> {
+        console.log("[Query] getMintTransactions(" + tokenId + ")");
         let limit = 100000;
         let q = {
             "v": 3,

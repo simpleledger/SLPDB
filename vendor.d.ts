@@ -70,7 +70,3 @@ export declare module Bitcore {
         toString(format: string): string;
     }
 }
-
-export interface SlpTransaction {
-
-}
