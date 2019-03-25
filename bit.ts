@@ -126,26 +126,27 @@ export class Bit {
         return null;
     }
 
-    async handleWiredSlpTransaction(txid: string): Promise<boolean> {
+    async handleWiredSlpTransaction(txid: string): Promise<{ isSlp: boolean, added: boolean }> {
         // case whien SLP mempool already has txn
         if(this.slpMempool.has(txid))
-            return true;  
+            return { isSlp: true, added: false };  
         // try to add as SLP if not blacklisted
         else if(!this.slpMempoolIgnoreList.includes(txid)) {
             let txhex = await this.rpc.getRawTransaction(txid);
             if(this.slp_txn_filter(txhex)) {
                 this.slpMempool.set(txid, txhex);
-                return true;
+                return { isSlp: true, added: true };
             }
-            return false;
+            return { isSlp: false, added: false };
         }
         // otherwise, must be blacklisted (non-SL txn)
-        return false;
+        return { isSlp: false, added: false};
     }
 
-    removeCachedTransaction(txid: string) {
+    async removeCachedTransaction(txid: string) {
         try { 
             this.slpMempool.delete(txid);
+            await this.db.db.collection('unconfirmed').deleteOne({ "tx.h": txid });
         } catch(err){ 
             console.log(err);
         } 
@@ -192,7 +193,7 @@ export class Bit {
         console.log('[INFO] SLP mempool txs =', this.slpMempool.size);
     }
 
-    async crawl(block_index: number): Promise<CrawlResult|null> {
+    async crawl(block_index: number, listenMode: boolean): Promise<CrawlResult|null> {
         let result = new Map<txid, CrawlTxnInfo>();
         let block_content = await this.requestblock(block_index);
         let block_hash = block_content.hash;
@@ -210,8 +211,18 @@ export class Bit {
             // if(!re.test(blockHex.slice(0,162)))
             //     throw Error("RPC did not return valid block content, check your RPC connection with bitcoind.");
             let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
+            console.log("Mempool:", this.slpMempool);
             for(let i=0; i < block.txs.length; i++) {
                 let txnhex = block.txs[i].toRaw().toString('hex');
+
+                if(listenMode && this.slp_txn_filter(txnhex) && !this.slpMempool.has(block.txs[i].txid())) {
+                    while(!this.slpMempool.has(block.txs[i].txid())) {
+                        console.log("SLP transaction not in mempool:", block.txs[i].txid());
+                        let syncResult = await Bit.sync(this, 'mempool', block.txs[i].txid());
+                        await this._zmqSubscribers[0].onTransactionHash!(syncResult!);
+                    }
+                }
+                
                 if(this.slp_txn_filter(txnhex) && !this.slpMempool.has(block.txs[i].txid())) {
                     tasks.push(limit(async function() {
                         try {
@@ -231,6 +242,7 @@ export class Bit {
                     }))
                 }
                 else if(this.slpMempool.has(block.txs[i].txid())) {
+                    console.log("Mempool has txid", block.txs[i].txid());
                     tasks.push(limit(async function() {
                         let t: TNATxn|undefined, tries=0;
                         while(!t) {
@@ -246,6 +258,10 @@ export class Bit {
                             i: block_index,
                             t: block_time
                         };
+                        if(!t.slp) {
+                            console.log("[ERROR] Missing SLP in", block.txs[i].txid());
+                            throw Error("SLP object is null.")
+                        }
                         result.set(block.txs[i].txid(), { txHex: txnhex, tnaTxn: t });
                         return t;
                     }))
@@ -303,18 +319,44 @@ export class Bit {
         
         // Don't trust ZMQ. Try synchronizing every 10 minutes in case ZMQ didn't fire
         setInterval(async function() {
-            console.log('[INFO] ##### Re-checking mempool #####');
-            await Bit.sync(self, 'mempool');
-            console.log('[INFO] ##### Re-checking complete #####');
+            await self.checkForMissingMempoolTxns();
+            Array.from(self.slpMempool.keys()).forEach(i => console.log("[INFO] mempool txid:", i));
         }, 60000)
     }
+
+    async checkForMissingMempoolTxns() {
+        let currentBchMempoolList = await this.rpc.getRawMempool();
+        console.log('[INFO] BCH mempool txn count:', currentBchMempoolList.length);
+        let cachedSlpMempoolTxs = Array.from(this.slpMempool.keys());
+
+        // add missing SLP transactions and process
+        await this.asyncForEach(currentBchMempoolList, async (txid: string) => {
+            if(!cachedSlpMempoolTxs.includes(txid)) {
+                let syncResult = await Bit.sync(this, 'mempool', txid);
+                await this._zmqSubscribers[0].onTransactionHash!(syncResult!);
+            }
+        });
         
+        // remove extraneous SLP transactions no longer in the mempool
+        let cacheCopyForRemovals = new Map(this.slpMempool);
+        cacheCopyForRemovals.forEach((txhex, txid) => currentBchMempoolList.includes(txid) ? null : this.removeCachedTransaction(txid) );
+        
+        console.log("[INFO] SLP mempool txn count:", this.slpMempool.size);
+    }
+
     static async sync(self: Bit, type: string, hash?: string): Promise<SyncCompletionInfo|null> {
         let result: SyncCompletionInfo;
         if (type === 'block') {
             // TODO: Handle case where block sync is already underway (e.g., situation where 2 blocks mined together)
-            if(hash)
+            if(hash) {
                 console.log("[INFO] Sync started at block", hash);
+                console.log("Queue size", self.queue.size)
+                while(self.queue.size > 0) {
+                    await sleep(1000);
+                    console.log("[DEBUG]", self.queue.size);
+                    console.log("[INFO] Waiting for mempool processing queue to complete before processing block.");
+                }
+            }
             result = { syncType: SyncType.Block, filteredContent: new Map<SyncFilterTypes, TransactionPool>() }
             try {
                 let lastCheckpoint: ChainSyncCheckpoint = await Info.checkpoint();
@@ -324,15 +366,15 @@ export class Bit {
 
                 let currentHeight: number = await self.requestheight();
             
-                for(let index: number = lastCheckpoint.height; index <= currentHeight; index++) {
+                for(let index: number = lastCheckpoint.height + 1; index <= currentHeight; index++) {
                     console.time('[PERF] RPC END ' + index);
-                    let content = <CrawlResult>(await self.crawl(index));
+                    let content = <CrawlResult>(await self.crawl(index, hash ? true : false));
                     console.timeEnd('[PERF] RPC END ' + index);
                     console.time('[PERF] DB Insert ' + index);
             
                     if(content) {
                         let array = Array.from(content.values()).map(c => c.tnaTxn);
-                        await self.db.blockinsert(array, index);
+                        await self.db.blockinsert(array, index, hash ? true : false);
                     }
 
                     await Info.deleteOldTipHash(index - 1);
@@ -346,10 +388,8 @@ export class Bit {
                 }
 
                 // clear mempool and synchronize
-                if (lastCheckpoint.height < currentHeight) {
-                    console.log('[INFO] Re-sync SLP mempool');
-                    let items: TNATxn[] = await self.requestSlpMempool();
-                    await self.db.mempoolsync(items);
+                if (lastCheckpoint.height < currentHeight && hash) {
+                    await self.checkForMissingMempoolTxns();
                 }
             
                 if (lastCheckpoint.height === currentHeight) {
@@ -365,11 +405,9 @@ export class Bit {
             }
         } else if (type === 'mempool') {
             result = { syncType: SyncType.Mempool, filteredContent: new Map<SyncFilterTypes, TransactionPool>() }
-            if (!hash) {
-                await self.syncSlpMempool();
-            } else {
+            if (hash) {
                 let isInMempool = self.slpMempool.has(hash);
-                let isSLP = await self.handleWiredSlpTransaction(hash);
+                let isSLP = (await self.handleWiredSlpTransaction(hash)).isSlp;
                 let txn = await self.getSlpMempoolTransaction(hash);
                 if(isSLP && !isInMempool) {
                     self.queue.add(async function() {
@@ -419,8 +457,11 @@ export class Bit {
         return lastCheckpoint;
     }
 
-    async run() {
+    async processBlocksForTNA() {
         await Bit.sync(this, 'block');
+    }
+
+    async processCurrentMempoolForTNA() {
         let items = await this.requestSlpMempool();
         await this.db.mempoolsync(items);
     }

@@ -186,7 +186,15 @@ export class Db {
         }
     }
 
-    async blockinsert(items: TNATxn[], block_index: number) {
+    async blockinsert(items: TNATxn[], block_index: number, checkForSlp: boolean) {
+
+        if(checkForSlp) {
+            if(items.filter(i => !i.slp).length > 0) {
+                console.log(items);
+                throw Error("Items added without SLP data set.");
+            }
+        }
+
         let index = 0
         while (true) {
             let chunk = items.slice(index, index + 1000)

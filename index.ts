@@ -41,17 +41,18 @@ const daemon = {
 		}
 		console.timeEnd('[PERF] Indexing Keys');
 
-		console.log('[INFO] Synchronizing SLPDB with BCH blockchain...', new Date());
-		console.time('[PERF] Initial Sync');
-		await bit.run();
-		console.timeEnd('[PERF] Initial Sync');
-		console.log('[INFO] SLPDB Synchronization with BCH blockchain complete.', new Date());
+		console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
+		console.time('[PERF] Initial Block Sync');
+		await bit.processBlocksForTNA();
+		await bit.processCurrentMempoolForTNA();
+		console.timeEnd('[PERF] Initial Block Sync');
+		console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
 
+		console.log('[INFO] Starting to processing SLP Data.', new Date());
 		let tokenManager = new SlpGraphManager(db);
-		
-		await tokenManager.initAllTokens();
-
 		bit._zmqSubscribers.push(tokenManager);
+		await tokenManager.initAllTokens();
+		await bit.checkForMissingMempoolTxns();
 		bit.listenToZmq();
 	}
 }
@@ -85,7 +86,7 @@ const util = {
 		console.log('[INFO] Restarting sync from index ', height)
 		console.time('[PERF] replace')
 		await bit.init(db, rpc)
-		let content = await bit.crawl(height)
+		let content = await bit.crawl(height, false)
 		if(content) {
 			let array = Array.from(content.values()).map(c => c.tnaTxn)
 			await db.blockreplace(array, height)

@@ -1,8 +1,8 @@
 
 # SLPDB Readme
-**Last Updated:** 2019-03-19
+**Last Updated:** 2019-03-25
 
-**Current SLPDB Version:** 0.9.3 (beta)
+**Current SLPDB Version:** 0.9.5 (beta)
 
 
 
@@ -13,6 +13,8 @@ SLPDB is a node.js application that stores all token data for the Simple Ledger 
 SLPDB enables access to useful SLP data:
 
 * List all token details and usage information [example](https://slpdb.bitcoin.com/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjoKICAgICAgeyB9CiAgICB9LAogICAgInByb2plY3QiOiB7InRva2VuRGV0YWlscyI6IDEsICJ0b2tlblN0YXRzIjogMSwgIl9pZCI6IDAgfSwKICAgICJsaW1pdCI6IDEwMDAKICB9Cn0=)
+* List all tokens as a summary of token supply [example](http://slpdb.bitcoin.com/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOnsgICAKICAgICAgInRva2VuU3RhdHMubWludGluZ19iYXRvbl9zdGF0dXMiOiAiQUxJVkUiCiAgICB9LAogICAgInByb2plY3QiOiB7CiAgICAgICJ0b2tlbkRldGFpbHMudG9rZW5JZEhleCI6IDEsCiAgICAgICJ0b2tlblN0YXRzLnF0eV90b2tlbl9taW50ZWQiOiAxLAogICAgICAidG9rZW5TdGF0cy5xdHlfdG9rZW5fYnVybmVkIjogMSwKICAgICAgInRva2VuU3RhdHMucXR5X3Rva2VuX2NpcmN1bGF0aW5nX3N1cHBseSI6MQogICAgfSwKICAgICJzb3J0IjogeyAidG9rZW5TdGF0cy5xdHlfdG9rZW5fY2lyY3VsYXRpbmdfc3VwcGx5IjogLTEgfSwKICAgICJsaW1pdCI6IDEwMDAKICB9LAogICJyIjogewogICAgImYiOiAiWy5bXSB8IHt0b2tlbklkOiAudG9rZW5EZXRhaWxzLnRva2VuSWRIZXgsIG1pbnRlZDogLnRva2VuU3RhdHMucXR5X3Rva2VuX21pbnRlZCwgIGJ1cm5lZDogLnRva2VuU3RhdHMucXR5X3Rva2VuX2J1cm5lZCwgIGNpcmN1bGF0aW5nOiAudG9rZW5TdGF0cy5xdHlfdG9rZW5fY2lyY3VsYXRpbmdfc3VwcGx5fV0iCiAgfQp9)
+* List all tokens sorted by burn amount [example](http://slpdb.bitcoin.com/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgCiAgICAiZmluZCI6CiAgICB7CiAgICAgICIkcXVlcnkiOiB7CiAgICAgICAgIiRhbmQiOiBbewogICAgICAgICAgInRva2VuU3RhdHMubWludGluZ19iYXRvbl9zdGF0dXMiOiAiQUxJVkUiCiAgICAgICAgfSwKICAgICAgICB7CiAgICAgICAgICAidG9rZW5TdGF0cy5xdHlfdG9rZW5fYnVybmVkIjogeyAiJGd0ZSI6IDEgfQogICAgICAgIH1dCiAgICAgIH0KICAgIH0sCiAgICAicHJvamVjdCI6IHsKICAgICAgInRva2VuRGV0YWlscy50b2tlbklkSGV4IjogMSwgInRva2VuU3RhdHMucXR5X3Rva2VuX21pbnRlZCI6IDEsICJ0b2tlblN0YXRzLnF0eV90b2tlbl9idXJuZWQiOiAxLCAidG9rZW5TdGF0cy5xdHlfdG9rZW5fY2lyY3VsYXRpbmdfc3VwcGx5IjogMQogICAgfSwKICAgICJzb3J0IjogeyAidG9rZW5TdGF0cy5xdHlfdG9rZW5fYnVybmVkIjogLTEgfSwKICAgICJsaW1pdCI6IDEwMDAKICB9Cn0=)
 * Token details and usage information by token ID [example](https://slpdb.bitcoin.com/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjoKICAgICAgewogICAgICAgICJ0b2tlbkRldGFpbHMudG9rZW5JZEhleCI6ICI5NTlhNjgxOGNiYTVhZjhhYmEzOTFkM2Y3NjQ5ZjVmNmE1Y2ViNmNkY2QyYzJhM2RjYjVkMmZiZmM0YjA4ZTk4IgogICAgICB9CiAgICB9LAogICAgInByb2plY3QiOiB7InRva2VuRGV0YWlscyI6IDEsICJ0b2tlblN0YXRzIjogMSwgIl9pZCI6IDAgfSwKICAgICJsaW1pdCI6IDEwMDAKICB9Cn0=)
 * List all address balances by token ID [example](https://slpdb.bitcoin.com/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJmaW5kIjogewogICAgICAidG9rZW5EZXRhaWxzLnRva2VuSWRIZXgiOiAiOTU5YTY4MThjYmE1YWY4YWJhMzkxZDNmNzY0OWY1ZjZhNWNlYjZjZGNkMmMyYTNkY2I1ZDJmYmZjNGIwOGU5OCIsCiAgICAgICJ0b2tlbl9iYWxhbmNlIjogeyAiJGd0ZSI6IDAgIH0KICAgIH0sCiAgICAibGltaXQiOiAxMDAwMCwKICAgICJwcm9qZWN0IjogeyJhZGRyZXNzIjogMSwgInNhdG9zaGlzX2JhbGFuY2UiOiAxLCAidG9rZW5fYmFsYW5jZSI6IDEsICJfaWQiOiAwIH0KICB9Cn0=)
 * List all token balances by address [example](https://slpdb.bitcoin.com/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYSJdLCAKICAgICJmaW5kIjogewogICAgICAiYWRkcmVzcyI6ICJzaW1wbGVsZWRnZXI6cXJkbDBoZWswd3ltZHV4a3k0bHFxMzd1am1lODIyYWc5eTBoejJ3dnFxIiwKICAgICAgInRva2VuX2JhbGFuY2UiOiB7ICIkZ3RlIjogMCB9CiAgICB9LAogICAgImxpbWl0IjogMTAwMDAKICB9LCAKICAiciI6IHsKICAgICJmIjogIlsuW10gfCB7IHRva2VuSWQ6IC50b2tlbkRldGFpbHMudG9rZW5JZEhleCwgc2F0b3NoaXNfYmFsYW5jZTogLnNhdG9zaGlzX2JhbGFuY2UsIHRva2VuX2JhbGFuY2U6IC50b2tlbl9iYWxhbmNlIH1dIgogIH0KfQ==)
@@ -46,7 +48,7 @@ The following settings should be applied to your full node's configuration.  NOT
 * `rpcuser=bitcoin`
 * `rpcpassword=password`
 * `rpcport=8332`
-* `rpcworkqueue=1000`
+* `rpcworkqueue=10000`
 * `rpcthreads=8`
 * `zmqpubhashtx=tcp://127.0.0.1:28332`
 * `zmqpubrawtx=tcp://127.0.0.1:28332`
@@ -90,21 +92,26 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 The following properties are maintained and updated for each token in real-time to provide state and usage information:
 
 ### Supply Stats
-  * `qty_token_minted` = Total token quantity created in GENESIS and MINT transactions 
-  * `qty_token_burned` = Total token quantity burned in invalid SLP transactions or in transactions having lower token outputs than inputs.
-  * `qty_token_circulating_supply` = Total quantity of tokens circulating (i.e., Genesis + Minting - Burned = Circulating Supply).
-  * `minting_baton_status`  = State of the minting baton (possible baton status: `ALIVE`, `NEVER_CREATED`, `DEAD_BURNED`, or `DEAD_ENDED`).
-  * `mint_baton_address (NOT YET IMPLEMENTED)` = Address holding the minting baton or last address to hold.
-  * `mint_baton_txid (NOT YET IMPLEMENTED)` = TXID where the minting baton exists or existed before being destroyed.
+  * `qty_token_minted` - Total token quantity created in GENESIS and MINT transactions 
+  * `qty_token_burned` - Total token quantity burned in invalid SLP transactions or in transactions having lower token outputs than inputs.
+  * `qty_token_circulating_supply` - Total quantity of tokens circulating (i.e., Genesis + Minting - Burned = Circulating Supply).
+  * `minting_baton_status`  - State of the minting baton (possible baton status: `ALIVE`, `NEVER_CREATED`, `DEAD_BURNED`, or `DEAD_ENDED`).
+  * `mint_baton_address (NOT YET IMPLEMENTED)` - Address holding the minting baton or last address to hold.
+  * `mint_baton_txid (NOT YET IMPLEMENTED)` - TXID where the minting baton exists or existed before being destroyed.
 
-### Usage Stats
-  * `qty_valid_txns_since_genesis` = Number of valid SLP transactions made since Genesis (Includes GENESIS, SEND and MINT transactions)
-  * `qty_valid_token_utxos` = Number of current unspent & valid SLP UTXOs
-  * `qty_valid_token_addresses` = Number of unique address holders
-  * `qty_satoshis_locked_up` = Quantity of BCH that is locked up in SLP UTXOs
+### Summarized Usage Stats
+  * `qty_valid_txns_since_genesis` - Number of valid SLP transactions made since Genesis (Includes GENESIS, SEND and MINT transactions)
+  * `qty_valid_token_utxos` - Number of current unspent & valid SLP UTXOs
+  * `qty_valid_token_addresses` - Number of unique address holders
+  * `qty_satoshis_locked_up` - Quantity of BCH that is locked up in SLP UTXOs
   * `block_last_active_mint` - The block containing the token's MINT transaction
   * `block_last_active_send` - The block containing the token's SEND transaction
   * `block_created` - The block containing the token's GENESIS transaction
+  * `block_last_burn (NOT YET IMPLEMENTED)` - The block containing the last burn event
+
+### Supply Event Stats
+  * `events_mint (NOT YET IMPLEMENTED)` - Events when the minting baton was moved and new tokens were created
+  * `events_burn (NOT YET IMPLEMENTED)` - Events when tokens were burned (possible type of burn: `OUTS_LESS_THAN_INS` or `UTXO_DESTROYED`)
 
 
 
@@ -156,7 +163,7 @@ Three categories of information are stored in MongoDB:
 2. Statistical calculations about each token, and 
 3. Token graph state 
 
-Five MongoDB collections used to store these three categories of data, they are as follows:
+Six MongoDB collections used to store these three categories of data, they are as follows:
 
  * `confirmed = c`  and `unconfirmed = u` 
 
@@ -221,7 +228,7 @@ Five MongoDB collections used to store these three categories of data, they are 
 
       ```js
       {
-      	"tokenDetails": { tokenIdHex: string };
+        "tokenDetails": { tokenIdHex: string };
         "address": cashAddr;
         "satoshis_balance": number;
         "token_balance": Decimal128;
@@ -245,8 +252,12 @@ Five MongoDB collections used to store these three categories of data, they are 
 
       
 
-## Roadmap
+## Future Updates & Features
 
 ### TokenID Filtering
 
 SLPDB will soon include a filtering configuration so that only user specified tokens (or ranges of tokens) will be included or excluded in the SLPDB instance.
+
+### Make compatible with other Lokad IDs
+
+We want to make SLPDB more easily forkable for other OP_RETURN projects which may be unrelated to SLP tokens.

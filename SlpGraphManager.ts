@@ -99,17 +99,17 @@ export class SlpGraphManager implements IZmqSubscriber {
         let retries = 0;
         let count = 0;
         let blockTxns: { txns: { txid: string, slp: TNATxnSlpDetails }[], timestamp: string|null }|null; 
+        // TODO: Need to test if this while statement is needed.
         while(count === 0 && retries < 5) {
             await sleep(1000);
             blockTxns = await Query.getTransactionsForBlock(hash);
-            console.log("BLOCK TXNS", blockTxns);
             try {
                 count = blockTxns!.txns.length;
-                console.log("COUNT", count);
             } catch(_){ }
-            if(retries > 5)
+            if(retries > 5) {
                 console.log("No SLP transactions found in block " + hash + " .");
-                //throw Error("No SLP transactions found in block " + hash + " .");
+                return;
+            }
             retries++;
         }
 
@@ -232,12 +232,17 @@ export class SlpGraphManager implements IZmqSubscriber {
                         }
                     }
                     if(isValid === null)
-                        throw Error("Validitity of " + txid + " is null.")
-                    tna.slp!.valid = isValid
+                        throw Error("Validitity of " + txid + " is null.");
+                    tna.slp!.valid = isValid;
                     tna.slp!.detail = details!;
                     tna.slp!.invalidReason = invalidReason;
                     tna.slp!.schema_version = Config.db.schema_version;
                     await this.db.db.collection(collection).replaceOne({ "tx.h": txid }, tna);
+                    let test = await this.db.db.collection(collection).findOne({ "tx.h": txid }) as TNATxn;
+                    if(collection === 'confirmed')
+                        await this.db.db.collection('unconfirmed').deleteMany({ "tx.h": txid });
+                    if(!test.slp)
+                        throw Error("Did not update SLP object.");
                 }
             }
         });
@@ -357,6 +362,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                 await this.updateTxnCollections(tokenTxns[j], tokens[i].tokenIdHex);
             }
         }
+        console.log("[INFO] Init all tokens complete");
     }
 
     async asyncForEach(array: any[], callback: Function) {

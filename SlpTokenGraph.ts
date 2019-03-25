@@ -100,7 +100,6 @@ export class SlpTokenGraph implements TokenGraph {
             this._tokenUtxos.delete(txid + ":" + vout);
             try {
                 let spendTxnInfo = await Query.queryForTxoInputSlpSend(txid, vout);
-                console.log("spendTxnInfo", spendTxnInfo);
                 if(spendTxnInfo.txid === null) {
                     if(vout < slpOutputLength)
                         return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
@@ -270,7 +269,7 @@ export class SlpTokenGraph implements TokenGraph {
     async getTotalMintQuantity(): Promise<BigNumber> {
         let qty = this._tokenDetails.genesisOrMintQuantity;
         if(!qty)
-            throw Error("Cannot have token without Genesis quantity.");
+            throw Error("Cannot have Genesis without quantity.");
         let results = await Query.getMintTransactions(this._tokenDetails.tokenIdHex);
         if(results) {
             results.forEach(r => {
@@ -316,6 +315,9 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async getBatonStatus(): Promise<TokenBatonStatus> {
+        //console.log("DETAILS 2", this._tokenDetails);
+        //console.log("get baton", this._tokenDetails.tokenIdHex);
+        //console.log("baton", this._tokenDetails.batonVout);
         if(!this._tokenDetails.containsBaton)
             return TokenBatonStatus.NEVER_CREATED;
         else if(this._tokenDetails.containsBaton === true) {
@@ -326,6 +328,7 @@ export class SlpTokenGraph implements TokenGraph {
             let mints = mintTxids.map(i => this._slpValidator.cachedValidations[i])
             if(mints) {
                 for(let i = 0; i < mints!.length; i++) {
+                    console.log(mints[i])
                     let valid = mints[i].validity;
                     let vout = mints[i].details!.batonVout;
                     if(valid && vout && this._mintBatonUtxo.includes(mintTxids[i] + ":" + vout))
@@ -452,9 +455,9 @@ export class SlpTokenGraph implements TokenGraph {
             qty_valid_txns_since_genesis: stats.qty_valid_txns_since_genesis,
             qty_valid_token_utxos: stats.qty_valid_token_utxos,
             qty_valid_token_addresses: stats.qty_valid_token_addresses,
-            qty_token_minted: stats.qty_token_minted.dividedBy(10**this._tokenDetails.decimals).toFixed(),
-            qty_token_burned: stats.qty_token_burned.dividedBy(10**this._tokenDetails.decimals).toFixed(),
-            qty_token_circulating_supply: stats.qty_token_circulating_supply.dividedBy(10**this._tokenDetails.decimals).toFixed(),
+            qty_token_minted: Decimal128.fromString(stats.qty_token_minted.dividedBy(10**this._tokenDetails.decimals).toFixed()),
+            qty_token_burned: Decimal128.fromString(stats.qty_token_burned.dividedBy(10**this._tokenDetails.decimals).toFixed()),
+            qty_token_circulating_supply: Decimal128.fromString(stats.qty_token_circulating_supply.dividedBy(10**this._tokenDetails.decimals).toFixed()),
             qty_satoshis_locked_up: stats.qty_satoshis_locked_up,
             minting_baton_status: stats.minting_baton_status
         }
@@ -542,6 +545,10 @@ export class SlpTokenGraph implements TokenGraph {
             validation.details = tg._graphTxns.get(txid)!.details;
             if(!validation.details)
                 throw Error("No saved details about transaction" + txid);
+            //console.log("DETAILS", validation.details);
+            //try { tg._slpValidator.cachedValidations[txid].validity = validity } catch(err){ console.log(err.message); }
+            //if(validation.validity === true || validation.validity === false)
+                //console.log("Validation", validation.validity);
             tg._slpValidator.cachedValidations[txid] = validation;
         });
 
@@ -682,9 +689,9 @@ interface TokenStatsDbo {
     qty_valid_txns_since_genesis: number;
     qty_valid_token_utxos: number;
     qty_valid_token_addresses: number;
-    qty_token_minted: string;
-    qty_token_burned: string;
-    qty_token_circulating_supply: string;
+    qty_token_minted: Decimal128;
+    qty_token_burned: Decimal128;
+    qty_token_circulating_supply: Decimal128;
     qty_satoshis_locked_up: number;
     minting_baton_status: TokenBatonStatus;
 }
