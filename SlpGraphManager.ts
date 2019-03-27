@@ -30,46 +30,71 @@ export class SlpGraphManager implements IZmqSubscriber {
             await this.asyncForEach(txns, async (txPair: [string, string], index: number) =>
             {
                 console.log("PROCESSING SLP GRAPH UPDATE...");
-                let tokenId: string;
+                let tokenId: string|null;
                 let txn = new bitcore.Transaction(txPair[1]);
-                let tokenDetails = slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
-                tokenId = tokenDetails.tokenIdHex;
-                if(tokenDetails.transactionType === SlpTransactionType.GENESIS) {
-                    tokenId = txn.id;
-                    tokenDetails.tokenIdHex = tokenId;
+                let tokenDetails: SlpTransactionDetails|null;
+
+                try {
+                    tokenDetails = slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
+                    tokenId = tokenDetails.tokenIdHex;
+                } catch(err) {
+                    tokenDetails = null;
+                    tokenId = null;
                 }
 
-                if(!this._tokens.has(tokenId)) {
-                    console.log("ADDING NEW GRAPH FOR:", tokenId);
-                    if(tokenDetails) {
-                        let graph = new SlpTokenGraph();
-                        await graph.initFromScratch(tokenDetails);
-                        this._tokens.set(tokenId, graph);
-                        tokensUpdate.push(tokenId);
+                // Based on Txn output OP_RETURN data, update graph for the tokenId 
+                if(tokenDetails && tokenId) {
+                    if(tokenDetails.transactionType === SlpTransactionType.GENESIS) {
+                        tokenId = txn.id;
+                        tokenDetails.tokenIdHex = tokenId;
+                    }
+    
+                    if(!this._tokens.has(tokenId)) {
+                        console.log("ADDING NEW GRAPH FOR:", tokenId);
+                        if(tokenDetails) {
+                            let graph = new SlpTokenGraph();
+                            await graph.initFromScratch(tokenDetails);
+                            this._tokens.set(tokenId, graph);
+                            tokensUpdate.push(tokenId);
+                        }
+                        else {
+                            console.log("Skipping: No token details are available for this token")
+                        }
                     }
                     else {
-                        console.log("Skipping: No token details are available for this token")
+                        console.log("UPDATING GRAPH FOR:", tokenId);
+                        await this._tokens.get(tokenId)!.updateTokenGraphFrom(txPair[0]);
+                        tokensUpdate.push(tokenId);
+                    }   
+                    
+                    // Update the confirmed/unconfirmed collections with token details
+                    await this.updateTxnCollections(txn.id, tokenId);
+    
+                    // zmq publish mempool notifications
+                    if(this.zmqPubSocket) {
+                        let tna: TNATxn | null = await this.db.db.collection('unconfirmed').findOne({ "tx.h": txn.id });
+                        console.log("[ZMQ-PUB] SLP mempool notification", { txid: txn.id, slp: tna!.slp });
+                        if(tokenDetails.transactionType === SlpTransactionType.GENESIS)
+                            this.zmqPubSocket.send(['mempool-slp-genesis', JSON.stringify({ txid: txn.id, slp: tna!.slp })]);
+                        else if(tokenDetails.transactionType === SlpTransactionType.SEND) 
+                            this.zmqPubSocket.send(['mempool-slp-send', JSON.stringify({ txid: txn.id, slp: tna!.slp })]);
+                        else if(tokenDetails.transactionType === SlpTransactionType.MINT)
+                            this.zmqPubSocket.send(['mempool-slp-mint', JSON.stringify({ txid: txn.id, slp: tna!.slp })]);
                     }
                 }
-                else {
-                    console.log("UPDATING GRAPH FOR:", tokenId);
-                    await this._tokens.get(tokenId)!.updateTokenGraphFrom(txPair[0]);
-                    tokensUpdate.push(tokenId);
-                }   
-                
-                // Update the confirmed/unconfirmed collections with token details
-                await this.updateTxnCollections(txn.id, tokenId);
 
-                // zmq publish mempool notifications
-                if(this.zmqPubSocket) {
-                    let tna: TNATxn | null = await this.db.db.collection('unconfirmed').findOne({ "tx.h": txn.id });
-                    console.log("[ZMQ-PUB] SLP mempool notification", { txid: txn.id, slp: tna!.slp });
-                    if(tokenDetails.transactionType === SlpTransactionType.GENESIS)
-                        this.zmqPubSocket.send(['mempool-slp-genesis', JSON.stringify({ txid: txn.id, slp: tna!.slp })]);
-                    else if(tokenDetails.transactionType === SlpTransactionType.SEND) 
-                        this.zmqPubSocket.send(['mempool-slp-send', JSON.stringify({ txid: txn.id, slp: tna!.slp })]);
-                    else if(tokenDetails.transactionType === SlpTransactionType.MINT)
-                        this.zmqPubSocket.send(['mempool-slp-mint', JSON.stringify({ txid: txn.id, slp: tna!.slp })]);
+                // Based on the inputs, look for associated tokenIDs and update those token graphs from input txid.
+                let inputTokenIds: string[] = [];
+                for(let i = 0; i < txn.inputs.length; i++) {
+                    let inputTokenID = await Query.queryForTxoInputSourceTokenID(txn.hash, i);
+                    if(inputTokenID && inputTokenID !== tokenId && !inputTokenIds.includes(inputTokenID)) {
+                        inputTokenIds.push(inputTokenID);
+                        await this._tokens.get(inputTokenID)!.updateTokenGraphFrom(txPair[0]);
+                        if(!tokensUpdate.includes(inputTokenID)) {
+                            console.log("[INFO] Adding token ID to be updated:", inputTokenID);
+                            tokensUpdate.push(inputTokenID);
+                        }
+                    }
                 }
             })
 

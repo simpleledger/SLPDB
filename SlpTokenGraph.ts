@@ -67,7 +67,7 @@ export class SlpTokenGraph implements TokenGraph {
         if(txOut === null) {
             this._mintBatonUtxo = "";
             try {
-                let spendTxnInfo = await Query.queryForTxoInputSlpMint(txid, vout);
+                let spendTxnInfo = await Query.queryForTxoInputAsSlpMint(txid, vout);
 
                 if(spendTxnInfo.txid === null) {
                     if(vout < slpOutputLength)
@@ -99,7 +99,7 @@ export class SlpTokenGraph implements TokenGraph {
         if(txOut === null) {
             this._tokenUtxos.delete(txid + ":" + vout);
             try {
-                let spendTxnInfo = await Query.queryForTxoInputSlpSend(txid, vout);
+                let spendTxnInfo = await Query.queryForTxoInputAsSlpSend(txid, vout);
                 if(spendTxnInfo.txid === null) {
                     if(vout < slpOutputLength)
                         return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };

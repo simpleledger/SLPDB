@@ -188,14 +188,43 @@ export class Query {
         }
     }
 
-    static async queryForTxoInputSlpMint(txid: string, vout: number): Promise<MintTxnQueryResult> {
+    static async queryForTxoInputSourceTokenID(txid: string, vout: number): Promise<string|null> {
+        console.log("[Query] queryForTxoInputSourceTokenID(" + txid + "," + vout + ")");
+        let q = {
+            "v": 3,
+            "q": {
+                "find": {
+                    "in": {
+                        "$elemMatch": { "e.h": txid, "e.i": vout }
+                    }
+                }
+            },
+            "r": { "f": "[.[] | { tokenId: .tx.h } ]" }
+        }
+
+        let response: { c: any, u: any, errors?: any } = await this.dbQuery.read(q);
+        
+        if(!response.errors) {
+            let results: { tokenId: string }[] = ([].concat(<any>response.c).concat(<any>response.u));
+            if(results.length === 1) {
+                return results[0].tokenId;
+            }
+            else {
+                console.log("Assumed Token Burn: Could not find the spend transaction: " + txid + ":" + vout);
+                return null;
+            }
+        }
+        throw Error("Mongo DB ERROR.");
+    }
+
+    static async queryForTxoInputAsSlpMint(txid: string, vout: number): Promise<MintTxnQueryResult> {
         console.log("[Query] queryForTxoInputSlpMint(" + txid + "," + vout + ")");
         let q = {
             "v": 3,
             "q": {
                 "find": { 
                     "in": {
-                        "$elemMatch": { "e.h": txid, "e.i": vout }
+                        "$elemMatch": { "e.h": txid, "e.i": vout } // DO NOT INCLUDE! --> , "out.s3": "MINT" }
                     }
                 }   
             },
@@ -224,14 +253,14 @@ export class Query {
         throw Error("Mongo DB ERROR.")
     }
 
-    static async queryForTxoInputSlpSend(txid: string, vout: number): Promise<SendTxnQueryResult> {
+    static async queryForTxoInputAsSlpSend(txid: string, vout: number): Promise<SendTxnQueryResult> {
         console.log("[Query] queryForTxoInputSlpSend(" + txid + "," + vout + ")");
         let q = {
             "v": 3,
             "q": {
                 "find": { 
                     "in": {
-                        "$elemMatch": { "e.h": txid, "e.i": vout }
+                        "$elemMatch": { "e.h": txid, "e.i": vout } // DO NOT INCLUDE! --> , "out.s3": "SEND" }
                     }
                 }   
             },
