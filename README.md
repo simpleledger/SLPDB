@@ -1,6 +1,7 @@
+![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-03-25
+**Last Updated:** 2019-03-29
 
 **Current SLPDB Version:** 0.9.5 (beta)
 
@@ -38,7 +39,7 @@ You only need to install SLPDB, slpserve, and/or slpsocket if any of the followi
 ### Prerequisites
 * Node.js 8.15+
 * MongoDB 4.0+
-* BitcoinBU, BitcoinABC or other Bitcoin Cash full node with:
+* BCHD (recommended with "fastsync"), BitcoinABC, BitcoinUnlimited or other Bitcoin Cash full node with:
   * RPC-JSON and 
   * ZeroMQ event notifications
 
@@ -72,7 +73,7 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 **1)** Run MongoDB (`config.ts` default port is 27017)
 
 **2)** Run Bitcoin Cash full node using `bitcoin.conf` settings from above.
-
+* [BCHD](https://github.com/gcash/bchd) (recommended with `--fastsync`)
 * [BitcoinABC](https://www.bitcoinabc.org)
 * [BitcoinBU](https://www.bitcoinunlimited.info)
 
