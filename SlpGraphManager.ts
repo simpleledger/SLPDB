@@ -36,39 +36,39 @@ export class SlpGraphManager implements IZmqSubscriber {
 
                 try {
                     tokenDetails = slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
-                    tokenId = tokenDetails.tokenIdHex;
                 } catch(err) {
                     tokenDetails = null;
-                    tokenId = null;
+                }
+
+                if(tokenDetails && tokenDetails.transactionType === SlpTransactionType.GENESIS) {
+                    tokenId = txn.id;
+                    tokenDetails.tokenIdHex = tokenId;
+                } else if(tokenDetails) {
+                    tokenId = tokenDetails.tokenIdHex;
                 }
 
                 // Based on Txn output OP_RETURN data, update graph for the tokenId 
-                if(tokenDetails && tokenId) {
-                    if(tokenDetails.transactionType === SlpTransactionType.GENESIS) {
-                        tokenId = txn.id;
-                        tokenDetails.tokenIdHex = tokenId;
-                    }
-    
-                    if(!this._tokens.has(tokenId)) {
-                        console.log("ADDING NEW GRAPH FOR:", tokenId);
+                if(tokenDetails && tokenId!) {
+                    if(!this._tokens.has(tokenId!)) {
+                        console.log("ADDING NEW GRAPH FOR:", tokenId!);
                         if(tokenDetails) {
                             let graph = new SlpTokenGraph();
                             await graph.initFromScratch(tokenDetails);
-                            this._tokens.set(tokenId, graph);
-                            tokensUpdate.push(tokenId);
+                            this._tokens.set(tokenId!, graph);
+                            tokensUpdate.push(tokenId!);
                         }
                         else {
                             console.log("Skipping: No token details are available for this token")
                         }
                     }
                     else {
-                        console.log("UPDATING GRAPH FOR:", tokenId);
-                        await this._tokens.get(tokenId)!.updateTokenGraphFrom(txPair[0]);
-                        tokensUpdate.push(tokenId);
+                        console.log("UPDATING GRAPH FOR:", tokenId!);
+                        await this._tokens.get(tokenId!)!.updateTokenGraphFrom(txPair[0]);
+                        tokensUpdate.push(tokenId!);
                     }   
                     
                     // Update the confirmed/unconfirmed collections with token details
-                    await this.updateTxnCollections(txn.id, tokenId);
+                    await this.updateTxnCollections(txn.id, tokenId!);
     
                     // zmq publish mempool notifications
                     if(this.zmqPubSocket) {
@@ -87,7 +87,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                 let inputTokenIds: string[] = [];
                 for(let i = 0; i < txn.inputs.length; i++) {
                     let inputTokenID = await Query.queryForTxoInputSourceTokenID(txn.hash, i);
-                    if(inputTokenID && inputTokenID !== tokenId && !inputTokenIds.includes(inputTokenID)) {
+                    if(inputTokenID && inputTokenID !== tokenId! && !inputTokenIds.includes(inputTokenID)) {
                         inputTokenIds.push(inputTokenID);
                         await this._tokens.get(inputTokenID)!.updateTokenGraphFrom(txPair[0]);
                         if(!tokensUpdate.includes(inputTokenID)) {
@@ -143,11 +143,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             let genesisBlockTxns = await Query.getGenesisTransactionsForBlock(hash);
             if(genesisBlockTxns) {
                 for(let i = 0; i < genesisBlockTxns.txns.length; i++) {
-                    let t = await this.db.tokenfetch(genesisBlockTxns.txns[i]);
-                    if(t) {
-                        t.tokenDetails!.timestamp = genesisBlockTxns.timestamp!;
-                        await this.db.tokeninsertreplace(t);
-                    }
+                    this._tokens.get(genesisBlockTxns.txns[i])!._tokenDetails.timestamp = genesisBlockTxns.timestamp!;
                 }
             }
 

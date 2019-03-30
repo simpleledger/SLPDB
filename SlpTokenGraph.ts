@@ -8,8 +8,6 @@ import { SendTxnQueryResult, MintQueryResult, Query, MintTxnQueryResult } from '
 import { TxOut } from 'bitbox-sdk/lib/Blockchain';
 import { Decimal128 } from 'mongodb';
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 const RpcClient = require('bitcoin-rpc-promise')
 const BITBOX = new BITBOXSDK();
 
@@ -475,7 +473,7 @@ export class SlpTokenGraph implements TokenGraph {
             symbol: details.symbol,
             name: details.name,
             batonVout: details.batonVout,
-            containsBaton: details.containsBaton,
+            containsBaton: details.containsBaton ? true : false,
             genesisOrMintQuantity: details.genesisOrMintQuantity ? Decimal128.fromString(details.genesisOrMintQuantity!.dividedBy(10**decimals).toFixed()) : null,
             sendOutputs: details.sendOutputs ? details.sendOutputs.map(o => Decimal128.fromString(o.dividedBy(10**decimals).toFixed())) : null
         }

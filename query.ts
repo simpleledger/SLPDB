@@ -24,6 +24,7 @@ export class Query {
         let limit = 1000000;
         let q = {
             "v": 3,
+            "db": [ "c" ],
             "q": {
                 "find": { "blk.h": blockHash, "out.s3": "GENESIS" },
                 "limit": limit
@@ -34,11 +35,11 @@ export class Query {
         let res: SendTxnQueryResponse = await this.dbQuery.read(q);
         if(res.c.length === 0)
             return null;
-        let response = new Set<any>([].concat(<any>res.c).map((r: any) => { return r.txid }));
-        let a = Array.from(response);
+        let response: SendTxnQueryResult[] = [].concat(<any>res.c);
+        let a = Array.from(new Set<string>(response.map((r: any) => { return r.txid })));
         if(a.length === limit)
             throw Error("Query limit is reached, implementation error");
-        return { txns: a, timestamp: a[0] ? a[0].timestamp: null };
+        return { txns: a, timestamp: response[0] ? response[0].timestamp: null };
     }
 
     static async getTransactionsForBlock(blockHash: string): Promise<{ txns: {txid: string, slp: TNATxnSlpDetails }[], timestamp: string|null }|null> {
@@ -46,6 +47,7 @@ export class Query {
         let limit = 1000000;
         let q = {
             "v": 3,
+            "db": ["c"],
             "q": {
                 "find": { "blk.h": blockHash },
                 "limit": limit
@@ -68,6 +70,7 @@ export class Query {
         let limit = 100000;
         let q = {
             "v": 3,
+            "db": ["c", "u" ],
             "q": {
                 "find": { "out.h1": "534c5000", "out.h4": tokenId, "$or": [{ "blk.i": { "$gte": block } }, { "blk.i": null } ]  },
                 "limit": limit
@@ -88,6 +91,7 @@ export class Query {
         let limit = 100000;
         let q = {
             "v": 3,
+            "db": ["c","u"],
             "q": {
               "find": { "out.h1": "534c5000", "out.s3": "GENESIS" },
               "limit": limit,
@@ -106,6 +110,7 @@ export class Query {
         console.log("[Query] blockLastMinted(" + tokenIdHex + ")");
         let q = {
             "v": 3,
+            "db": ["c"],
             "q": {
                 "find": { "out.h4": tokenIdHex, "out.h1": "534c5000", "out.s3": "MINT" },
                 "sort": { "blk.i": -1 }
@@ -114,7 +119,7 @@ export class Query {
         }
 
         let response: any = await this.dbQuery.read(q);
-        let tokens: any[] = response.c; //[].concat(response.u).concat(response.c);
+        let tokens: any[] = response.c;
         return tokens.length > 0 ? tokens[0].block : null;
     }
 
@@ -122,6 +127,7 @@ export class Query {
         console.log("[Query] blockLastSent(" + tokenIdHex + ")");
         let q = {
             "v": 3,
+            "db": ["c"],
             "q": {
                 "find": { "out.h4": tokenIdHex, "out.h1": "534c5000", "out.s3": "SEND" },
                 "sort": { "blk.i": -1 }
@@ -130,7 +136,7 @@ export class Query {
         }
 
         let response: any = await this.dbQuery.read(q);
-        let tokens: any[] = response.c; //[].concat(response.u).concat(response.c);
+        let tokens: any[] = response.c;
         return tokens.length > 0 ? tokens[0].block : null;
     }
 
@@ -138,6 +144,7 @@ export class Query {
         console.log("[Query] queryTokenGenesisBlock(" + tokenIdHex + ")");
         let q = {
             "v": 3,
+            "db": ["c","u"],
             "q": {
                 "find": { "tx.h": tokenIdHex, "out.h1": "534c5000", "out.s3": "GENESIS" }
             },
@@ -153,6 +160,7 @@ export class Query {
         console.log("[Query] queryTokenDetails(" + tokenIdHex + ")");
         let q = {
             "v": 3,
+            "db": ["c","u"],
             "q": {
                 "find": { "tx.h": tokenIdHex, "out.h1": "534c5000", "out.s3": "GENESIS" }
             },
@@ -192,6 +200,7 @@ export class Query {
         console.log("[Query] queryForTxoInputSourceTokenID(" + txid + "," + vout + ")");
         let q = {
             "v": 3,
+            "db": ["c","u"],
             "q": {
                 "find": {
                     "in": {
@@ -221,6 +230,7 @@ export class Query {
         console.log("[Query] queryForTxoInputSlpMint(" + txid + "," + vout + ")");
         let q = {
             "v": 3,
+            "db": ["c","u"],
             "q": {
                 "find": { 
                     "in": {
@@ -257,6 +267,7 @@ export class Query {
         console.log("[Query] queryForTxoInputSlpSend(" + txid + "," + vout + ")");
         let q = {
             "v": 3,
+            "db": ["c","u"],
             "q": {
                 "find": { 
                     "in": {
@@ -301,6 +312,7 @@ export class Query {
         console.log("[Query] getSendTransactionDetails(" + txid + ")");
         let q = {
             "v": 3,
+            "db": ["c","u"],
             "q": {
                 "find": { "tx.h": txid }
             },
@@ -324,6 +336,7 @@ export class Query {
         let limit = 100000;
         let q = {
             "v": 3,
+            "db": ["c","u"],
             "q": {
                 "find": { "out.h1": "534c5000", "out.s3": "MINT", "out.h4": tokenId }, 
                 "limit": limit
