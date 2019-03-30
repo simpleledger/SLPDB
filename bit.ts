@@ -381,8 +381,6 @@ export class Bit {
                     await Info.updateTip(index, await self.rpc.getBlockHash(index));
                     console.timeEnd('[PERF] DB Insert ' + index);
 
-                    self.outsock.send(['block', JSON.stringify({ i: index, txs: content })]);
-
                     // re-check current height in case it was updated during crawl()
                     currentHeight = await self.requestheight();
                 }
@@ -416,7 +414,6 @@ export class Bit {
                             try {
                                 await self.db.mempoolinsert(content);
                                 console.log("[INFO] SLP mempool transaction added: ", hash);
-                                self.outsock.send(['mempool', JSON.stringify(content)]);
                             } catch (e) {
                                 if (e.code == 11000) {
                                     console.log('[ERROR] Duplicate mempool item:', content);

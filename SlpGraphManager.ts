@@ -73,13 +73,8 @@ export class SlpGraphManager implements IZmqSubscriber {
                     // zmq publish mempool notifications
                     if(this.zmqPubSocket) {
                         let tna: TNATxn | null = await this.db.db.collection('unconfirmed').findOne({ "tx.h": txn.id });
-                        console.log("[ZMQ-PUB] SLP mempool notification", { txid: txn.id, slp: tna!.slp });
-                        if(tokenDetails.transactionType === SlpTransactionType.GENESIS)
-                            this.zmqPubSocket.send(['mempool-slp-genesis', JSON.stringify({ txid: txn.id, slp: tna!.slp })]);
-                        else if(tokenDetails.transactionType === SlpTransactionType.SEND) 
-                            this.zmqPubSocket.send(['mempool-slp-send', JSON.stringify({ txid: txn.id, slp: tna!.slp })]);
-                        else if(tokenDetails.transactionType === SlpTransactionType.MINT)
-                            this.zmqPubSocket.send(['mempool-slp-mint', JSON.stringify({ txid: txn.id, slp: tna!.slp })]);
+                        console.log("[ZMQ-PUB] SLP mempool notification", { tna });
+                        this.zmqPubSocket.send(['mempool', JSON.stringify(tna)]);
                     }
                 }
 
@@ -167,17 +162,9 @@ export class SlpGraphManager implements IZmqSubscriber {
             }
 
             // zmq publish block events
-            for(let i = 0; i < blockTxns!.txns.length; i++) {
-                //let tna: TNATxn | null = await this.db.db.collection('confirmed').findOne({ "tx.h": blockTxns.txns[i] });
-                if(this.zmqPubSocket) {
-                    console.log("[ZMQ-PUB] SLP block txn notification", blockTxns!.txns[i]);
-                    if(blockTxns!.txns[i].slp!.detail!.transactionType === SlpTransactionType.GENESIS)
-                        this.zmqPubSocket.send([ 'block-slp-genesis', JSON.stringify(blockTxns!.txns[i]) ]);
-                    else if(blockTxns!.txns[i].slp!.detail!.transactionType === SlpTransactionType.SEND)
-                        this.zmqPubSocket.send([ 'block-slp-send', JSON.stringify(blockTxns!.txns[i]) ]);
-                    else if(blockTxns!.txns[i].slp!.detail!.transactionType === SlpTransactionType.MINT)
-                        this.zmqPubSocket.send([ 'block-slp-mint', JSON.stringify(blockTxns!.txns[i]) ]);
-                }
+            if(this.zmqPubSocket) {
+                console.log("[ZMQ-PUB] SLP block txn notification", hash);
+                this.zmqPubSocket.send([ 'block', JSON.stringify(blockTxns) ]);
             }
         }
     }
