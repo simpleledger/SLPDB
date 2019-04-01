@@ -1,15 +1,15 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-03-30
+**Last Updated:** 2019-04-01
 
-**Current SLPDB Version:** 0.9.6 (beta)
+**Current SLPDB Version:** 0.9.7 (beta)
 
 
 
 ## Introduction
 
-SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store SLP data.  The application allows other processes to subscribe to real-time SLP events via ZeroMQ.  However, it is recommended that end users utilize the [slpserve](https://github.com/fountainhead-cash/slpserve) and [slpsocket](https://github.com/simpleledger/sockserve) projects in order to conveniently access the SLP data produced by SLPDB.
+SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store SLP data.  The application allows other processes to subscribe to real-time SLP events via ZeroMQ.  However, it is recommended that end users utilize the [SlpServe](https://github.com/fountainhead-cash/slpserve) and [SlpSockServer](https://github.com/fountainhead-cash/slpsockserve) projects in order to conveniently access the SLP data produced by SLPDB.
 
 SLPDB enables access to useful SLP data:
 
@@ -27,10 +27,10 @@ SLPDB enables access to useful SLP data:
 * List transaction counts for each token [example](https://slpdb.bitcoin.com/explorer2/ewogICJ2IjogMywKICAicSI6IAogIHsiYWdncmVnYXRlIjoKICBbeyIkbWF0Y2giOnsiYmxrLnQiOnsgIiRndGUiOiAxNTUyODY3MjAwLCAiJGx0ZSI6IDE1NTI5NTM2MDB9fX0sCiAgeyIkZ3JvdXAiOnsiX2lkIjogIiRzbHAuZGV0YWlsLm5hbWUiLCAiY291bnQiOiB7IiRzdW0iOiAxfX19XSwibGltaXQiOjEwMH19)
 * List SLP usage per day [example](https://slpdb.bitcoin.com/explorer2/eyJ2IjozLCJxIjp7ImRiIjpbImMiXSwiYWdncmVnYXRlIjpbeyIkbWF0Y2giOnsic2xwLnZhbGlkIjp0cnVlLCJibGsudCI6eyIkZ3RlIjoxNTQzMTcyNTY4LjIwOCwiJGx0ZSI6MTU1MzU0MDU2OC4yMDh9fX0seyIkZ3JvdXAiOnsiX2lkIjoiJGJsay50IiwiY291bnQiOnsiJHN1bSI6MX19fV0sImxpbWl0IjoxMDAwMH0sInIiOnsiZiI6IlsgLltdIHwge2Jsb2NrX2Vwb2NoOiAuX2lkLCB0eHM6IC5jb3VudH0gXSJ9fQ==)
 
-You only need to install SLPDB, slpserve, and/or slpsocket if any of the following is true:
+You only need to install SLPDB, SlpServe, and/or SlpSockServe projects if any of the following is true:
 * You cannot rely on a third-party for your SLP data.
 * SLP data query API offered at `slpdb.bitcoin.com` does not meet your needs.
-* Realtime SLP data event notifications available at `___.___.___` does not meet your needs.
+* Realtime SLP data event notifications available at `slpsocket.fountainhead.cash` does not meet your needs.
 
 
 
@@ -122,36 +122,23 @@ The following properties are maintained and updated for each token in real-time 
 ### ZeroMQ (ZMQ)
 
 SLPDB publishes the following notifications via [ZMQ](http://zeromq.org/intro:read-the-manual) and can be subscribed to by binding to http://0.0.0.0:28339.  The following events can be subscribed to:
-* `mempool-slp-genesis`
-* `mempool-slp-mint`
-* `mempool-slp-send`
-* `block-slp-genesis`
-* `block-slp-mint`
-* `block-slp-send`
+* `mempool`
+* `block`
 
 Each notification is published in the following data format:
 
-```ts
+```js
 {
-  txid: string,
-  slp: {
-     valid: boolean,
-     detail: { 	
-       	decimals: number;
-      	tokenIdHex: string;
-        transactionType: string;
-        versionType: number;
-        documentUri: string|null;
-        documentSha256Hex: string|null;
-        symbol: string|null;
-        name: string|null;
-        txnBatonVout: number|null;
-        txnContainsBaton: boolean;
-        outputs: string[];
-  	},
-    invalidReason: string|null;
-  	schema_version: number;
-  }
+	"tx": {"h": string; }
+	"in": Xput[];
+	"out": Xput[];
+	"blk": { "h": string; "i": number; "t": number; };
+	"slp": {
+		"valid": boolean|null;
+		"detail": SlpTransactionDetailsTnaDbo|null;
+		"invalidReason": string|null;
+		"schema_version": number;
+	}
 }
 ```
 
@@ -173,20 +160,20 @@ Six MongoDB collections used to store these three categories of data, they are a
 
     * **Schema**:
 
-      ```js
-      {
-        "tx": {"h": string; }
-        "in": Xput[];
-        "out": Xput[];
-        "blk": { "h": string; "i": number; "t": number; };
-        "slp": {
-          "valid": boolean|null;
-          "detail": SlpTransactionDetailsTnaDbo|null;
-          "invalidReason": string|null;
-          "schema_version": number;
-        }
-      }
-      ```
+    ```js
+	{
+		"tx": {"h": string; }
+		"in": Xput[];
+		"out": Xput[];
+		"blk": { "h": string; "i": number; "t": number; };
+		"slp": {
+			"valid": boolean|null;
+			"detail": SlpTransactionDetailsTnaDbo|null;
+			"invalidReason": string|null;
+			"schema_version": number;
+		}
+	}
+    ```
 
       
 
@@ -196,14 +183,14 @@ Six MongoDB collections used to store these three categories of data, they are a
 
     * **Schema**:
 
-      ```js
-      {
-        "tokenDetails": SlpTransactionDetailsDbo;
-        "tokenStats": TokenStats | TokenStatsDb;
-        "lastUpdatedBlock": number;
-        "schema_version": number;
-      }
-      ```
+	```js
+	{
+		"tokenDetails": SlpTransactionDetailsDbo;
+		"tokenStats": TokenStats | TokenStatsDb;
+		"lastUpdatedBlock": number;
+		"schema_version": number;
+	}
+	```
 
       
 
@@ -213,12 +200,12 @@ Six MongoDB collections used to store these three categories of data, they are a
 
     * **Schema**:
 
-      ```js
-      {
-        "tokenDetails": { tokenIdHex: string };
-        "utxo": string; // formatted "<txid>:<vout>"
-      }
-      ```
+	```js
+	{
+		"tokenDetails": { tokenIdHex: string };
+		"utxo": string; // formatted "<txid>:<vout>"
+	}
+	```
 
       
 
@@ -228,14 +215,14 @@ Six MongoDB collections used to store these three categories of data, they are a
 
     * **Schema**:
 
-      ```js
-      {
-        "tokenDetails": { tokenIdHex: string };
-        "address": cashAddr;
-        "satoshis_balance": number;
-        "token_balance": Decimal128;
-      }
-      ```
+	```js
+	{
+		"tokenDetails": { tokenIdHex: string };
+		"address": cashAddr;
+		"satoshis_balance": number;
+		"token_balance": Decimal128;
+	}
+	```
 
       
 
@@ -245,12 +232,12 @@ Six MongoDB collections used to store these three categories of data, they are a
 
     * **Schema**:
 
-      ```js
-      {
-        "tokenDetails": { tokenIdHex: string };
-        "graphTxn": GraphTxnDetailsDbo;
-      }
-      ```
+	```js
+	{
+		"tokenDetails": { tokenIdHex: string };
+		"graphTxn": GraphTxnDetailsDbo;
+	}
+	```
 
       
 
