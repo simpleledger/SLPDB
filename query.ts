@@ -196,30 +196,32 @@ export class Query {
         }
     }
 
-    static async queryForTxoInputSourceTokenID(txid: string, vout: number): Promise<string|null> {
-        console.log("[Query] queryForTxoInputSourceTokenID(" + txid + "," + vout + ")");
+    static async queryForTxnTokenId(txid: string): Promise<string|null> {
+        console.log("[Query] queryForTxoInputSourceTokenID(" + txid + ")");
         let q = {
             "v": 3,
             "db": ["c","u"],
             "q": {
-                "find": {
-                    "in": {
-                        "$elemMatch": { "e.h": txid, "e.i": vout }
-                    }
-                }
+                "find": { "tx.h": txid }
             },
-            "r": { "f": "[.[] | { tokenId: .tx.h } ]" }
+            "r": { "f": "[.[] | { type: .out[0].s3, sendOrMintTokenId: .out[0].h4 } ]" }
         }
 
         let response: { c: any, u: any, errors?: any } = await this.dbQuery.read(q);
         
         if(!response.errors) {
-            let results: { tokenId: string }[] = ([].concat(<any>response.c).concat(<any>response.u));
+            let results: { type: string, sendTokenId: string }[] = ([].concat(<any>response.c).concat(<any>response.u));
             if(results.length === 1) {
-                return results[0].tokenId;
+                if((results[0].type === "SEND" || results[0].type === "MINT") && results[0].sendTokenId) {
+                    return results[0].sendTokenId;
+                }
+                else if(results[0].type === "GENESIS") {
+                    return txid;
+                }
+                return null;
             }
             else {
-                console.log("Assumed Token Burn: Could not find the spend transaction: " + txid + ":" + vout);
+                console.log("Assumed Token Burn: Could not find the spend transaction: " + txid);
                 return null;
             }
         }

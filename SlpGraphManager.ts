@@ -78,17 +78,20 @@ export class SlpGraphManager implements IZmqSubscriber {
                     }
                 }
 
-                // Based on the inputs, look for associated tokenIDs and update those token graphs from input txid.
+                // Based on the spent inputs, look for associated tokenIDs of those inputs and update those token graphs also
                 let inputTokenIds: string[] = [];
                 for(let i = 0; i < txn.inputs.length; i++) {
-                    let inputTokenID = await Query.queryForTxoInputSourceTokenID(txn.hash, i);
-                    if(inputTokenID && inputTokenID !== tokenId! && !inputTokenIds.includes(inputTokenID)) {
-                        inputTokenIds.push(inputTokenID);
-                        await this._tokens.get(inputTokenID)!.updateTokenGraphFrom(txPair[0]);
-                        if(!tokensUpdate.includes(inputTokenID)) {
-                            console.log("[INFO] Adding token ID to be updated:", inputTokenID);
-                            tokensUpdate.push(inputTokenID);
+                    let inputTokenId = await Query.queryForTxnTokenId(txn.inputs[i].prevTxId.toString('hex'));
+                    if(inputTokenId && inputTokenId !== tokenId! && this._tokens.has(inputTokenId) && !inputTokenIds.includes(inputTokenId)) {
+                        inputTokenIds.push(inputTokenId);
+                        await this._tokens.get(inputTokenId)!.updateTokenGraphFrom(txPair[0]);
+                        if(!tokensUpdate.includes(inputTokenId)) {
+                            console.log("[INFO] Adding token ID to be updated:", inputTokenId);
+                            tokensUpdate.push(inputTokenId);
                         }
+                    }
+                    else {
+                        console.log("[INFO] Input not updated:", i);
                     }
                 }
             })
