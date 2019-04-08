@@ -4,7 +4,7 @@ import { SlpTransactionDetails, SlpTransactionType, Utils } from "slpjs";
 import BigNumber from "bignumber.js";
 import { TNATxnSlpDetails } from "./tna";
 
-const bitqueryd = require('fountainhead-bitqueryd')
+const bitqueryd = require('fountainhead-core').bitqueryd
 
 export class Query {
 
