@@ -52,7 +52,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                     if(!this._tokens.has(tokenId!)) {
                         console.log("ADDING NEW GRAPH FOR:", tokenId!);
                         if(tokenDetails) {
-                            let graph = new SlpTokenGraph();
+                            let graph = new SlpTokenGraph(this.db);
                             await graph.initFromScratch(tokenDetails);
                             this._tokens.set(tokenId!, graph);
                             tokensUpdate.push(tokenId!);
@@ -96,22 +96,9 @@ export class SlpGraphManager implements IZmqSubscriber {
                 }
             })
 
-            // TODO: put the following code in its own processing queue?
             await this.asyncForEach(tokensUpdate, async (tokenId: string) => {
                 const token = this._tokens.get(tokenId)!;
-
-                // Update the tokens collection in db
                 await token.updateStatistics();
-                await this.db.tokeninsertreplace(token.toTokenDbObject());
-                await this.db.addressinsertreplace(token.toAddressesDbObject());
-                await this.db.graphinsertreplace(token.toGraphDbObject());
-                await this.db.utxoinsertreplace(token.toUtxosDbObject());
-
-                console.log("########################################################################################################")
-                console.log("TOKEN STATS/ADDRESSES FOR", token._tokenDetails.name, token._tokenDetails.tokenIdHex)
-                console.log("########################################################################################################")
-                token.logTokenStats();
-                token.logAddressBalances();
             });
         }
     }
@@ -314,7 +301,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                 let utxos: UtxoDbo[] = await this.db.utxofetch(tokens[i].tokenIdHex);
                 let addresses: AddressBalancesDbo[] = await this.db.addressfetch(tokens[i].tokenIdHex);
                 let dag: GraphTxnDbo[] = await this.db.graphfetch(tokens[i].tokenIdHex);
-                graph = await SlpTokenGraph.FromDbObjects(tokenState, dag, utxos, addresses);
+                graph = await SlpTokenGraph.FromDbObjects(tokenState, dag, utxos, addresses, this.db);
                 console.log("########################################################################################################")
                 console.log("LOAD FROM DB:", graph._tokenDetails.tokenIdHex);
                 console.log("########################################################################################################")
@@ -336,7 +323,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                 
             } catch(err) {
                 if(err.message.includes(throwMsg1) || err.message.includes(throwMsg2)) {
-                    graph = new SlpTokenGraph();
+                    graph = new SlpTokenGraph(this.db);
                     console.log("########################################################################################################")
                     console.log("NEW GRAPH FOR", tokens[i].tokenIdHex)
                     console.log("########################################################################################################")
