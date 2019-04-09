@@ -1,6 +1,6 @@
 {
   "name": "slpdb",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "Data storage layer for Simple Ledger Protocol",
   "main": "index.js",
   "scripts": {
@@ -37,7 +37,7 @@
     "bufio": "^1.0.4",
     "cashaddrjs-slp": "^0.2.11",
     "dotenv": "^6.0.0",
-    "fountainhead-bitqueryd": "^0.1.9",
+    "fountainhead-core": "0.0.2",
     "iconv-lite": "^0.4.24",
     "ip": "^1.1.5",
     "level": "^4.0.0",
