@@ -37,7 +37,7 @@
     "bufio": "^1.0.4",
     "cashaddrjs-slp": "^0.2.11",
     "dotenv": "^6.0.0",
-    "fountainhead-core": "0.0.2",
+    "fountainhead-core": "0.0.3",
     "iconv-lite": "^0.4.24",
     "ip": "^1.1.5",
     "level": "^4.0.0",
