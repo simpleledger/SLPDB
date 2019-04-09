@@ -13,6 +13,7 @@ export module BitcoinRpc {
         getRawTransaction(hash: string): Promise<string>;
         getRawTransaction(hash: string, verbose: number): Promise<VerboseRawTransaction>;
         getRawMempool(): Promise<string[]>;
+        getRawOrphanPool(): Promise<string[]>;
         getTxOut(hash: string, vout: number, includemempool: boolean): Promise<TxOut|null>;
         getInfo(): Promise<NodeInfo>;
         getBlockchainInfo(): Promise<BlockchainInfo>;
