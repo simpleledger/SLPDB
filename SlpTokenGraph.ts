@@ -268,17 +268,10 @@ export class SlpTokenGraph implements TokenGraph {
         let qty = this._tokenDetails.genesisOrMintQuantity;
         if(!qty)
             throw Error("Cannot have Genesis without quantity.");
-        let results = await Query.getMintTransactions(this._tokenDetails.tokenIdHex);
-        if(results) {
-            results.forEach(r => {
-                if(r.quantityHex) {
-                    let qtyBuf = new Buffer(r.quantityHex, 'hex');
-                    let mint = new BigNumber(0);
-                    mint = Utils.buffer2BigNumber(qtyBuf);
-                    qty = qty!.plus(mint);
-                }
+        this._graphTxns.forEach(t => {
+            if(t.details.transactionType === SlpTransactionType.MINT)
+                qty = qty!.plus(t.details.genesisOrMintQuantity!)
             })
-        }
         return qty;
     }
 
