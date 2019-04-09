@@ -54,13 +54,13 @@ export class Bit {
     slpMempoolIgnoreList: string[]; 
     _zmqSubscribers: IZmqSubscriber[];
     network!: string;
-    slpOrphanPool: Set<string>;
+    slpOrphanPool: Map<string, number>;
 
     constructor() {
         this.outsock = zmq.socket('pub');
         this.queue = new pQueue({ concurrency: Config.rpc.limit });
         this.slpMempool = new Map<txid, txhex>();
-        this.slpOrphanPool = new Set<txid>();
+        this.slpOrphanPool = new Map<txid, number>();
         this._zmqSubscribers = [];
         this.slpMempoolIgnoreList = [];
     }
@@ -292,7 +292,7 @@ export class Bit {
                 if (topic.toString() === 'hashtx') {
                     let hash = message.toString('hex');
                     if((await self.rpc.getRawMempool()).includes(hash)) {
-                        console.log('[ZMQ-SUB] New Transaction:', hash);
+                        console.log('[ZMQ-SUB] New ZMQ transaction:', hash);
                         let syncResult = await sync(self, 'mempool', hash);
                         for (let i = 0; i < self._zmqSubscribers.length; i++) {
                             if(!self._zmqSubscribers[i].zmqPubSocket)
@@ -302,9 +302,11 @@ export class Bit {
                             }
                         }
                     }
-                    else {
-                        console.log('[INFO] Block or Orphan Transaction Received:', hash);
-                        self.slpOrphanPool.add(hash);
+                    else if(!self.slpOrphanPool.has(hash) && !self.slpMempoolIgnoreList.includes(hash)) {
+                        console.log('[INFO] Orphan ZMQ transaction (now tracking):', hash);
+                        self.slpOrphanPool.set(hash, (await Info.checkpoint()).height);
+                    } else {
+                        console.log('[INFO] Block ZMQ transaction (ignored):', hash);
                     }
                 } else if (topic.toString() === 'hashblock') {
                     let hash = message.toString('hex');
@@ -336,14 +338,15 @@ export class Bit {
     }
 
     async checkForOrphanPoolUpdates() {
-        let mempool = await this.rpc.getRawMempool();
-        let orphanpool = await this.rpc.getRawOrphanPool();
         let cachedOrphanPool = Array.from(this.slpOrphanPool.keys());
         this.asyncForEach(cachedOrphanPool, async (txid: string) => {
-            if(!orphanpool.includes(txid)) {
+            // delete old orphans from orphan pool (i.e., orphans older than 10 blocks will be deleted)
+            if((await Info.checkpoint()).height && (await Info.checkpoint()).height - 10 > this.slpOrphanPool.get(txid)!) {
                 this.slpOrphanPool.delete(txid);
             }
-            if(mempool.includes(txid)) {
+            // if orphan is found in mempool then update the token graph
+            if((await this.rpc.getRawMempool()).includes(txid)) {
+                this.slpOrphanPool.delete(txid);
                 let syncResult = await Bit.sync(this, 'mempool', txid);
                 await this._zmqSubscribers[0].onTransactionHash!(syncResult!);
             }
