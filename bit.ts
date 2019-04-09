@@ -54,11 +54,13 @@ export class Bit {
     slpMempoolIgnoreList: string[]; 
     _zmqSubscribers: IZmqSubscriber[];
     network!: string;
+    slpOrphanPool: Set<string>;
 
     constructor() {
         this.outsock = zmq.socket('pub');
         this.queue = new pQueue({ concurrency: Config.rpc.limit });
         this.slpMempool = new Map<txid, txhex>();
+        this.slpOrphanPool = new Set<txid>();
         this._zmqSubscribers = [];
         this.slpMempoolIgnoreList = [];
     }
@@ -211,7 +213,6 @@ export class Bit {
             // if(!re.test(blockHex.slice(0,162)))
             //     throw Error("RPC did not return valid block content, check your RPC connection with bitcoind.");
             let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
-            console.log("Mempool:", this.slpMempool);
             for(let i=0; i < block.txs.length; i++) {
                 let txnhex = block.txs[i].toRaw().toString('hex');
 
@@ -290,14 +291,20 @@ export class Bit {
             try {
                 if (topic.toString() === 'hashtx') {
                     let hash = message.toString('hex');
-                    console.log('[ZMQ-SUB] Txn hash:', hash);
-                    let syncResult = await sync(self, 'mempool', hash);
-                    for (let i = 0; i < self._zmqSubscribers.length; i++) {
-                        if(!self._zmqSubscribers[i].zmqPubSocket)
-                            self._zmqSubscribers[i].zmqPubSocket = self.outsock;
-                        if(syncResult && self._zmqSubscribers[i].onTransactionHash) {
-                            await self._zmqSubscribers[i].onTransactionHash!(syncResult);
+                    if((await self.rpc.getRawMempool()).includes(hash)) {
+                        console.log('[ZMQ-SUB] New Transaction:', hash);
+                        let syncResult = await sync(self, 'mempool', hash);
+                        for (let i = 0; i < self._zmqSubscribers.length; i++) {
+                            if(!self._zmqSubscribers[i].zmqPubSocket)
+                                self._zmqSubscribers[i].zmqPubSocket = self.outsock;
+                            if(syncResult && self._zmqSubscribers[i].onTransactionHash) {
+                                await self._zmqSubscribers[i].onTransactionHash!(syncResult);
+                            }
                         }
+                    }
+                    else {
+                        console.log('[INFO] Block or Orphan Transaction Received:', hash);
+                        self.slpOrphanPool.add(hash);
                     }
                 } else if (topic.toString() === 'hashblock') {
                     let hash = message.toString('hex');
@@ -317,11 +324,31 @@ export class Bit {
         })
         console.log('[INFO] Listening for blockchain events...');
         
+        // Continuously check for orphan pool updates to initiate processing of child
+        setInterval(async function() {
+            await self.checkForOrphanPoolUpdates();
+        }, 1000);
+
         // Don't trust ZMQ. Try synchronizing every 10 minutes in case ZMQ didn't fire
         setInterval(async function() {
             await self.checkForMissingMempoolTxns();
             Array.from(self.slpMempool.keys()).forEach(i => console.log("[INFO] mempool txid:", i));
         }, 60000)
+    }
+
+    async checkForOrphanPoolUpdates() {
+        let mempool = await this.rpc.getRawMempool();
+        let orphanpool = await this.rpc.getRawOrphanPool();
+        let cachedOrphanPool = Array.from(this.slpOrphanPool.keys());
+        this.asyncForEach(cachedOrphanPool, async (txid: string) => {
+            if(!orphanpool.includes(txid)) {
+                this.slpOrphanPool.delete(txid);
+            }
+            if(mempool.includes(txid)) {
+                let syncResult = await Bit.sync(this, 'mempool', txid);
+                await this._zmqSubscribers[0].onTransactionHash!(syncResult!);
+            }
+        });
     }
 
     async checkForMissingMempoolTxns() {
