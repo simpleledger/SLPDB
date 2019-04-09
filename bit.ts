@@ -332,7 +332,6 @@ export class Bit {
         // Don't trust ZMQ. Try synchronizing every 10 minutes in case ZMQ didn't fire
         setInterval(async function() {
             await self.checkForMissingMempoolTxns();
-            Array.from(self.slpMempool.keys()).forEach(i => console.log("[INFO] mempool txid:", i));
         }, 60000)
     }
 

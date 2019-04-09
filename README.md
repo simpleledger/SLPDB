@@ -1,9 +1,9 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-04-01
+**Last Updated:** 2019-04-09
 
-**Current SLPDB Version:** 0.9.7 (beta)
+**Current SLPDB Version:** 0.9.8 (beta)
 
 
 

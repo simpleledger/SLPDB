@@ -12,9 +12,9 @@ export class Query {
     static async init(): Promise<void> {
         if(!Query.dbQuery) { 
             if((await Info.getNetwork()) === 'mainnet')
-                Query.dbQuery = await bitqueryd.init({ url: Config.db.url, name: Config.db.name });
+                Query.dbQuery = await bitqueryd.init({ url: Config.db.url, name: Config.db.name, log_result: false });
             else
-                Query.dbQuery = await bitqueryd.init({ url: Config.db.url, name: Config.db.name_testnet });
+                Query.dbQuery = await bitqueryd.init({ url: Config.db.url, name: Config.db.name_testnet, log_result: false });
         }
         return Query.dbQuery;
     }
@@ -113,7 +113,8 @@ export class Query {
             "db": ["c"],
             "q": {
                 "find": { "out.h4": tokenIdHex, "out.h1": "534c5000", "out.s3": "MINT" },
-                "sort": { "blk.i": -1 }
+                "sort": { "blk.i": -1 }, 
+                "limit": 1
             },
             "r": { "f": "[ .[] | { block: (if .blk? then .blk.i else null end)} ]" }
         }
@@ -130,7 +131,8 @@ export class Query {
             "db": ["c"],
             "q": {
                 "find": { "out.h4": tokenIdHex, "out.h1": "534c5000", "out.s3": "SEND" },
-                "sort": { "blk.i": -1 }
+                "sort": { "blk.i": -1 }, 
+                "limit": 1
             },
             "r": { "f": "[ .[] | { block: (if .blk? then .blk.i else null end)} ]" }
         }
