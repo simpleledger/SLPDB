@@ -129,16 +129,16 @@ Each notification is published in the following data format:
 
 ```js
 {
-	"tx": {"h": string; }
-	"in": Xput[];
-	"out": Xput[];
-	"blk": { "h": string; "i": number; "t": number; };
-	"slp": {
-		"valid": boolean|null;
-		"detail": SlpTransactionDetailsTnaDbo|null;
-		"invalidReason": string|null;
-		"schema_version": number;
-	}
+    "tx": {"h": string; }
+    "in": Xput[];
+    "out": Xput[];
+    "blk": { "h": string; "i": number; "t": number; };
+    "slp": {
+        "valid": boolean|null;
+        "detail": SlpTransactionDetailsTnaDbo|null;
+        "invalidReason": string|null;
+        "schema_version": number;
+    }
 }
 ```
 
@@ -152,6 +152,15 @@ Three categories of information are stored in MongoDB:
 2. Statistical calculations about each token, and 
 3. Token graph state 
 
+
+### Use of Decimal128 and Large Numbers
+
+Some of the values used in SLP require 64 or more bits of precision, which is more precision than `number` type can provide. To ensure value precision is maintained values are stored in collections using the `Decimal128` type.  `Decimal128` allows users to make database queries using query comparison operators like `$gte`.  
+
+However, when using `SlpServe` to return query results as a JSON object these `Decimal128` values are converted into `string` type to improve readability of the value by the consumer, as opposed to being returned as a special `$DecimalNumber` JSON object.  The `string` type also maintains the original value precision, but this means that if a query consumer using `SlpServe` wanting to perform math operations on these values will need to convert them to a big number type like `BigNumber` or `Decimal128` (e.g., `Decimal128.fromString("1000.123124")` or using "bignumber.js" npm library via `new BigNumber("1000.00000001")`).
+
+### DB Collections
+
 Six MongoDB collections used to store these three categories of data, they are as follows:
 
  * `confirmed = c`  and `unconfirmed = u` 
@@ -162,16 +171,16 @@ Six MongoDB collections used to store these three categories of data, they are a
 
     ```js
 	{
-		"tx": {"h": string; }
-		"in": Xput[];
-		"out": Xput[];
-		"blk": { "h": string; "i": number; "t": number; };
-		"slp": {
-			"valid": boolean|null;
-			"detail": SlpTransactionDetailsTnaDbo|null;
-			"invalidReason": string|null;
-			"schema_version": number;
-		}
+	    "tx": {"h": string; }
+	    "in": Xput[];
+	    "out": Xput[];
+	    "blk": { "h": string; "i": number; "t": number; };
+	    "slp": {
+	        "valid": boolean|null;
+	        "detail": SlpTransactionDetailsTnaDbo|null;
+	        "invalidReason": string|null;
+	        "schema_version": number;
+	    }
 	}
     ```
 
@@ -185,10 +194,21 @@ Six MongoDB collections used to store these three categories of data, they are a
 
 	```js
 	{
-		"tokenDetails": SlpTransactionDetailsDbo;
-		"tokenStats": TokenStats | TokenStatsDb;
-		"lastUpdatedBlock": number;
-		"schema_version": number;
+	    "tokenDetails": SlpTransactionDetailsDbo;
+	    "tokenStats":     
+	        "block_created": number|null;
+	        "block_last_active_send": number|null;
+	        "block_last_active_mint": number|null;
+	        "qty_valid_txns_since_genesis": number;
+	        "qty_valid_token_utxos": number;
+	        "qty_valid_token_addresses": number;
+	        "qty_token_minted": Decimal128;
+	        "qty_token_burned": Decimal128;
+	        "qty_token_circulating_supply": Decimal128;
+	        "qty_satoshis_locked_up": number;
+	        "minting_baton_status": TokenBatonStatus;
+	    "lastUpdatedBlock": number;
+	    "schema_version": number;
 	}
 	```
 
@@ -202,8 +222,8 @@ Six MongoDB collections used to store these three categories of data, they are a
 
 	```js
 	{
-		"tokenDetails": { tokenIdHex: string };
-		"utxo": string; // formatted "<txid>:<vout>"
+	    "tokenDetails": { tokenIdHex: string };
+	    "utxo": string; // formatted "<txid>:<vout>"
 	}
 	```
 
@@ -217,10 +237,10 @@ Six MongoDB collections used to store these three categories of data, they are a
 
 	```js
 	{
-		"tokenDetails": { tokenIdHex: string };
-		"address": cashAddr;
-		"satoshis_balance": number;
-		"token_balance": Decimal128;
+	    "tokenDetails": { tokenIdHex: string };
+	    "address": cashAddr;
+	    "satoshis_balance": number;
+	    "token_balance": Decimal128;
 	}
 	```
 
@@ -234,8 +254,8 @@ Six MongoDB collections used to store these three categories of data, they are a
 
 	```js
 	{
-		"tokenDetails": { tokenIdHex: string };
-		"graphTxn": GraphTxnDetailsDbo;
+	    "tokenDetails": { tokenIdHex: string };
+	    "graphTxn": GraphTxnDetailsDbo;
 	}
 	```
 
