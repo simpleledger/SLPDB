@@ -9,6 +9,7 @@ import pQueue, { DefaultAddOptions } from 'p-queue';
 import zmq from 'zeromq';
 import { BlockDetails } from 'bitbox-sdk/lib/Block';
 import BITBOXSDK from 'bitbox-sdk';
+import { Query } from './query';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -326,15 +327,20 @@ export class Bit {
         })
         console.log('[INFO] Listening for blockchain events...');
         
-        // Continuously check for orphan pool updates to initiate processing of child
+        // Every second - Continuously check for orphan pool updates to initiate processing of child
         setInterval(async function() {
             await self.checkForOrphanPoolUpdates();
         }, 1000);
 
-        // Don't trust ZMQ. Try synchronizing every 10 minutes in case ZMQ didn't fire
+        // Every minute - Don't trust ZMQ. Try synchronizing every 10 minutes in case ZMQ didn't fire
         setInterval(async function() {
             await self.checkForMissingMempoolTxns();
-        }, 60000)
+        }, 60000);
+
+        // Every 10 minutes - Clean up local mempool
+        // setInterval(async function() {
+        //     await self.removeExtraneousMempoolTxns();
+        // }, 600000);
     }
 
     async checkForOrphanPoolUpdates() {
@@ -374,6 +380,10 @@ export class Bit {
                 await this._zmqSubscribers[0].onTransactionHash!(syncResult!);
             }
         });
+    }
+
+    async removeExtraneousMempoolTxns() {
+        let currentBchMempoolList = await this.rpc.getRawMempool();
         
         // remove extraneous SLP transactions no longer in the mempool
         let cacheCopyForRemovals = new Map(this.slpMempool);
@@ -426,6 +436,7 @@ export class Bit {
                 // clear mempool and synchronize
                 if (lastCheckpoint.height < currentHeight && hash) {
                     await self.checkForMissingMempoolTxns();
+                    await self.removeExtraneousMempoolTxns();
                 }
             
                 if (lastCheckpoint.height === currentHeight) {
