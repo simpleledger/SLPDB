@@ -2,7 +2,7 @@ import * as dotenv from 'dotenv';
 dotenv.config()
 
 import { Config } from './config';
-import { Info } from './info';
+import { Info, ChainSyncCheckpoint } from './info';
 import { Bit } from './bit';
 import { Db } from './db';
 import { SlpGraphManager } from './SlpGraphManager';
@@ -28,7 +28,7 @@ const daemon = {
 		await db.init(rpc);
 		await bit.init(db, rpc);
 
-		const lastSynchronized = await Info.checkpoint();
+		const lastSynchronized = <ChainSyncCheckpoint>await Info.checkpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
 		if(lastSynchronized.height > await bit.requestheight()) {
 			throw Error("Config.core.from or Config.core.from_testnet cannot be larger than the current blockchain height (check the config.ts file)");
 		}
@@ -67,7 +67,7 @@ const util = {
 			if (process.argv.length > 3) {
 				fromHeight = parseInt(process.argv[3])
 			} else {
-				fromHeight = (await Info.checkpoint()).height;
+				fromHeight = (<ChainSyncCheckpoint>await Info.checkpoint()).height;
 			}
 			await util.fix(fromHeight)
 			process.exit()

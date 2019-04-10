@@ -175,7 +175,6 @@ export class Query {
     }
 
     static mapSlpTokenDetailsFromQuery(res: GenesisQueryResult): SlpTransactionDetails {
-        console.log("mapSlpTokenDetailsFromQuery", res);
         let baton: number|null = res.batonHex ? parseInt(res.batonHex, 16) : null;
         let qtyBuf = Buffer.from(res.quantityHex, 'hex');
         let qty: BigNumber|null;

@@ -27,7 +27,7 @@ export module Info {
 			throw Error("Cannot get network");
 		}
 	}
-	export const checkpoint = async function(): Promise<ChainSyncCheckpoint> {
+	export const checkpoint = async function(fallback_index?: number): Promise<ChainSyncCheckpoint|void> {
 		try {
 			let value = await kv.get('tip');
 			let cp = parseInt(value)
@@ -36,10 +36,13 @@ export module Info {
 				//console.log('Checkpoint found,', cp)
 				return { height: cp, hash: hash }
 			}
-		} catch(_) { } 
-		let from = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
-		console.log("[INFO] Checkpoint not found, starting sync at 'Config.core.from' block index", from)
-		return { height: from, hash: null }
+		} catch(_) { 
+			if(fallback_index) {
+				console.log("[INFO] Checkpoint not found, starting sync at", fallback_index)
+				return { height: fallback_index, hash: null }
+			}
+			throw Error("Could not get checkpoint from storage.")
+		}
 	}
 	export const updateTip = async function(index: number, hash: string|null): Promise<void> {
 		try {

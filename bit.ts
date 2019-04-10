@@ -304,7 +304,7 @@ export class Bit {
                     }
                     else if(!self.slpOrphanPool.has(hash) && !self.slpMempoolIgnoreList.includes(hash)) {
                         console.log('[INFO] Orphan ZMQ transaction (now tracking):', hash);
-                        self.slpOrphanPool.set(hash, (await Info.checkpoint()).height);
+                        self.slpOrphanPool.set(hash, (<ChainSyncCheckpoint>await Info.checkpoint()).height);
                     } else {
                         console.log('[INFO] Block ZMQ transaction (ignored):', hash);
                     }
@@ -341,7 +341,7 @@ export class Bit {
         let cachedOrphanPool = Array.from(this.slpOrphanPool.keys());
         this.asyncForEach(cachedOrphanPool, async (txid: string) => {
             // delete old orphans from orphan pool (i.e., orphans older than 10 blocks will be deleted)
-            if((await Info.checkpoint()).height && (await Info.checkpoint()).height - 10 > this.slpOrphanPool.get(txid)!) {
+            if((<ChainSyncCheckpoint>await Info.checkpoint()).height && (<ChainSyncCheckpoint>await Info.checkpoint()).height - 10 > this.slpOrphanPool.get(txid)!) {
                 this.slpOrphanPool.delete(txid);
             }
             // if orphan is found in mempool then update the token graph
@@ -388,7 +388,7 @@ export class Bit {
             }
             result = { syncType: SyncType.Block, filteredContent: new Map<SyncFilterTypes, TransactionPool>() }
             try {
-                let lastCheckpoint: ChainSyncCheckpoint = await Info.checkpoint();
+                let lastCheckpoint = <ChainSyncCheckpoint>await Info.checkpoint();
                 
                 // Handle block reorg
                 lastCheckpoint = await Bit.checkForReorg(self, lastCheckpoint);
@@ -478,7 +478,7 @@ export class Bit {
                 await Info.updateTip(lastCheckedHeight, null);
                 actualHash = (await self.rpc.getBlock(actualHash)).previousblockhash;
             }
-            lastCheckpoint = await Info.checkpoint();
+            lastCheckpoint = <ChainSyncCheckpoint>await Info.checkpoint();
         }
         return lastCheckpoint;
     }
