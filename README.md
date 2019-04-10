@@ -32,7 +32,7 @@ You only need to install SLPDB, SlpServe, and/or SlpSockServe projects if any of
 * SLP data query API offered at `slpdb.bitcoin.com` does not meet your needs.
 * Realtime SLP data event notifications available at `slpsocket.fountainhead.cash` does not meet your needs.
 
-
+NOTE: If you are going to operate a SLPDB instance you should join the telegram group for help and updates: https://t.me/slpdb
 
 ## Installation
 
