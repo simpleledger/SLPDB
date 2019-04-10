@@ -339,13 +339,22 @@ export class Bit {
 
     async checkForOrphanPoolUpdates() {
         let cachedOrphanPool = Array.from(this.slpOrphanPool.keys());
+        let mempool: string[];
+
+        try {
+            mempool = await this.rpc.getRawMempool();
+        } catch(err) {
+            console.log(err);
+            process.exit();
+        }
+
         this.asyncForEach(cachedOrphanPool, async (txid: string) => {
-            // delete old orphans from orphan pool (i.e., orphans older than 10 blocks will be deleted)
-            if((<ChainSyncCheckpoint>await Info.checkpoint()).height && (<ChainSyncCheckpoint>await Info.checkpoint()).height - 10 > this.slpOrphanPool.get(txid)!) {
+            // delete old orphans from orphan pool (i.e., orphans older than 3 blocks will be deleted)
+            if((<ChainSyncCheckpoint>await Info.checkpoint()).height && (<ChainSyncCheckpoint>await Info.checkpoint()).height - 3 > this.slpOrphanPool.get(txid)!) {
                 this.slpOrphanPool.delete(txid);
             }
             // if orphan is found in mempool then update the token graph
-            if((await this.rpc.getRawMempool()).includes(txid)) {
+            if(mempool.includes(txid)) {
                 this.slpOrphanPool.delete(txid);
                 let syncResult = await Bit.sync(this, 'mempool', txid);
                 await this._zmqSubscribers[0].onTransactionHash!(syncResult!);
