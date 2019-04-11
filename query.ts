@@ -142,6 +142,27 @@ export class Query {
         return tokens.length > 0 ? tokens[0].block : null;
     }
 
+    static async queryForConfirmedMissingSlpMetadata(): Promise<any[]|null> {
+        console.log("[Query] ")
+        let q = {
+            "v": 3,
+            "q": {
+                "db": ["c"],
+                "find": {
+                    "slp": { "$exists": false }
+                },
+                "project": {
+                    "tx.h": 1
+                },
+                "limit": 10000
+            }
+        }
+
+        let response: any = await this.dbQuery.read(q);
+        let tokens: any[] = [].concat(response.c).map((i: any) => i.tx.h);
+        return tokens.length > 0 ? tokens : null;
+    }
+
     static async queryTokenGenesisBlock(tokenIdHex: string): Promise<number|null> {
         console.log("[Query] queryTokenGenesisBlock(" + tokenIdHex + ")");
         let q = {
@@ -222,7 +243,7 @@ export class Query {
                 return null;
             }
             else {
-                console.log("Assumed Token Burn: Could not find the spend transaction: " + txid);
+                console.log("Could not find token ID for this transaction: " + txid);
                 return null;
             }
         }
@@ -267,7 +288,7 @@ export class Query {
     }
 
     static async queryForTxoInputAsSlpSend(txid: string, vout: number): Promise<SendTxnQueryResult> {
-        console.log("[Query] queryForTxoInputSlpSend(" + txid + "," + vout + ")");
+        console.log("[Query] queryForTxoInputAsSlpSend(" + txid + "," + vout + ")");
         let q = {
             "v": 3,
             "db": ["c","u"],
@@ -296,7 +317,7 @@ export class Query {
                         try {
                             let qtyBuf = Buffer.from(res[key], 'hex');
                             res.sendOutputs.push({ tokenQty: Utils.buffer2BigNumber(qtyBuf), satoshis: res["bch" + key.replace('slp', '')] });
-                        } catch(err) { 
+                        } catch(err) {
                             throw err;
                         }
                     }

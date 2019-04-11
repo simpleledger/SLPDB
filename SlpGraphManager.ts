@@ -29,7 +29,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             let txns = Array.from(syncResult.filteredContent.get(SyncFilterTypes.SLP)!)
             await this.asyncForEach(txns, async (txPair: [string, string], index: number) =>
             {
-                console.log("PROCESSING SLP GRAPH UPDATE...");
+                console.log("PROCESSING SLP GRAPH UPDATE FOR:", txPair[0]);
                 let tokenId: string|null;
                 let txn = new bitcore.Transaction(txPair[1]);
                 let tokenDetails: SlpTransactionDetails|null;

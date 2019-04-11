@@ -3,19 +3,23 @@ import { Bitcore, BitcoinRpc } from './vendor';
 import { TNA, TNATxn } from './tna';
 import { Config } from './config';
 import { Db } from './db';
+import { Query } from './query';
 
 import pLimit from 'p-limit';
 import pQueue, { DefaultAddOptions } from 'p-queue';
 import zmq from 'zeromq';
 import { BlockDetails } from 'bitbox-sdk/lib/Block';
 import BITBOXSDK from 'bitbox-sdk';
-import { Query } from './query';
+import * as bitcore from 'bitcore-lib-cash';
+import { Slp, SlpTransactionType } from 'slpjs';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const Block = require('bcash/lib/primitives/block');
 const BufferReader = require('bufio/lib/reader');
-const bitcore = require('bitcore-lib-cash');
+
+const BITBOX = new BITBOXSDK();
+const slp = new Slp(BITBOX);
 
 export enum SyncType {
     "Mempool", "Block"
@@ -124,7 +128,7 @@ export class Bit {
 
     async getSlpMempoolTransaction(txid: string): Promise<Bitcore.Transaction|null> {
         if(this.slpMempool.has(txid)){
-            return new bitcore.Transaction(this.slpMempool.get(txid));
+            return new bitcore.Transaction(this.slpMempool.get(txid)!);
         }
         return null;
     }
@@ -302,12 +306,12 @@ export class Bit {
                                 await self._zmqSubscribers[i].onTransactionHash!(syncResult);
                             }
                         }
-                    }
-                    else if(!self.slpOrphanPool.has(hash) && !self.slpMempoolIgnoreList.includes(hash)) {
-                        console.log('[INFO] Orphan ZMQ transaction (now tracking):', hash);
-                        self.slpOrphanPool.set(hash, (<ChainSyncCheckpoint>await Info.checkpoint()).height);
+                    // }
+                    // else if(!self.slpOrphanPool.has(hash) && !self.slpMempoolIgnoreList.includes(hash)) {
+                    //     console.log('[INFO] Orphan ZMQ transaction (now tracking):', hash);
+                    //     self.slpOrphanPool.set(hash, (<ChainSyncCheckpoint>await Info.checkpoint()).height);
                     } else {
-                        console.log('[INFO] Block ZMQ transaction (ignored):', hash);
+                        console.log('[INFO] Block (or possible orphan) ZMQ transaction (ignored):', hash);
                     }
                 } else if (topic.toString() === 'hashblock') {
                     let hash = message.toString('hex');
@@ -328,9 +332,9 @@ export class Bit {
         console.log('[INFO] Listening for blockchain events...');
         
         // Every second - Continuously check for orphan pool updates to initiate processing of child
-        setInterval(async function() {
-            await self.checkForOrphanPoolUpdates();
-        }, 1000);
+        // setInterval(async function() {
+        //     await self.checkForOrphanPoolUpdates();
+        // }, 1000);
 
         // Every minute - Don't trust ZMQ. Try synchronizing every 10 minutes in case ZMQ didn't fire
         setInterval(async function() {
@@ -368,9 +372,37 @@ export class Bit {
         });
     }
 
+    // This method should only be used after initial startup phase is done building Token Graphs, to clean up unused / invalid SLP txns
+    async handleConfirmedTxnsMissingSlpMetadata() {
+        let missing = await Query.queryForConfirmedMissingSlpMetadata();
+        if(missing) {
+            this.asyncForEach(missing, async (txid:string) => {
+                let tx: TNATxn = await this.db.db.collection('confirmed').findOne({ "tx.h": txid })!;
+                let txnhex = await this.rpc.getRawTransaction(txid);
+
+                let txn: bitcore.Transaction = new bitcore.Transaction(txnhex);
+                let slpParseError = "SLP transaction not in any graph; An unknown error has occurred.";
+                let details: any = null;
+                try {
+                    details = slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
+                } catch(error) {
+                    slpParseError = "SLP transaction not in any graph; " + error.message;
+                }
+
+                if(details && details.transactionType === SlpTransactionType.SEND) {
+                    if(!(await this.db.db.collection('confirmed').findOne({ "tx.h": details.tokenIdHex }))) {
+                        slpParseError = "SLP transaction not in any graph; Token ID does not exist: " + details.tokenIdHex; 
+                    }
+                }
+
+                tx.slp! = { valid: false, detail: details, invalidReason: slpParseError, "schema_version": Config.db.schema_version }
+                await this.db.db.collection('confirmed').replaceOne({ "tx.h": txid },  tx)
+            })
+        }
+    }
+
     async checkForMissingMempoolTxns() {
         let currentBchMempoolList = await this.rpc.getRawMempool();
-        console.log('[INFO] BCH mempool txn count:', currentBchMempoolList.length);
         let cachedSlpMempoolTxs = Array.from(this.slpMempool.keys());
 
         // add missing SLP transactions and process
@@ -380,6 +412,9 @@ export class Bit {
                 await this._zmqSubscribers[0].onTransactionHash!(syncResult!);
             }
         });
+
+        console.log('[INFO] BCH mempool txn count:', currentBchMempoolList.length);
+        console.log("[INFO] SLP mempool txn count:", this.slpMempool.size);
     }
 
     async removeExtraneousMempoolTxns() {

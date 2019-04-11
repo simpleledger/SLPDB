@@ -52,6 +52,7 @@ const daemon = {
 		let tokenManager = new SlpGraphManager(db);
 		bit._zmqSubscribers.push(tokenManager);
 		await tokenManager.initAllTokens();
+		await bit.handleConfirmedTxnsMissingSlpMetadata();
 		await bit.checkForMissingMempoolTxns();
 		bit.listenToZmq();
 	}

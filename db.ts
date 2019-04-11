@@ -186,12 +186,11 @@ export class Db {
         }
     }
 
-    async blockinsert(items: TNATxn[], block_index: number, checkForSlp: boolean) {
+    async blockinsert(items: TNATxn[], block_index: number, requireSlpMetadata: boolean) {
 
-        if(checkForSlp) {
+        if(requireSlpMetadata) {
             if(items.filter(i => !i.slp).length > 0) {
-                console.log(items);
-                throw Error("Items added without SLP data set.");
+                throw Error("Attempted to add items without SLP property.");
             }
         }
 
@@ -201,11 +200,10 @@ export class Db {
             if (chunk.length > 0) {
                 try {
                     await this.db.collection('confirmed').insertMany(chunk, { ordered: false })
-                    //console.log('..chunk ' + index + ' processed ...')
                 } catch (e) {
                 // duplicates are ok because they will be ignored
                     if (e.code !== 11000) {
-                        console.log('blockinsert ERR ', e, items, block_index)
+                        console.log('blockinsert error:', e, items, block_index)
                         process.exit()
                     }
                 }
@@ -214,7 +212,6 @@ export class Db {
                 break
             }
         }
-        //console.log('Block ' + block_index + ' inserted ')
     }
 
     async blockindex() {
