@@ -442,7 +442,7 @@ export class Bit {
             }
             result = { syncType: SyncType.Block, filteredContent: new Map<SyncFilterTypes, TransactionPool>() }
             try {
-                let lastCheckpoint = <ChainSyncCheckpoint>await Info.checkpoint();
+                let lastCheckpoint = hash ? <ChainSyncCheckpoint>await Info.checkpoint() : <ChainSyncCheckpoint>await Info.checkpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
                 
                 // Handle block reorg
                 lastCheckpoint = await Bit.checkForReorg(self, lastCheckpoint);
