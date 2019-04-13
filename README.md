@@ -1,17 +1,35 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-04-12
+**Last Updated:** 2019-04-13
 
 **Current SLPDB Version:** 0.9.11 (beta)
 
 
 
-## Introduction
+## What is SLPDB?
 
-SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store SLP data.  The application allows other processes to subscribe to real-time SLP events via ZeroMQ.  However, it is recommended that end users utilize the [SlpServe](https://github.com/fountainhead-cash/slpserve) and [SlpSockServer](https://github.com/fountainhead-cash/slpsockserve) projects in order to conveniently access the SLP data produced by SLPDB.
+SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol to MongoDB.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store SLP data.  The application allows other processes to subscribe to real-time SLP events via ZeroMQ.
 
-SLPDB enables access to useful SLP data:
+
+
+## Do you need to <u>install</u> SLPDB?
+
+Most likely you do <u>not</u> need to install SLPDB.  Most users will be better off using someone else's public SLPDB instance like https://slpdb.bitcoin.com or https://slpdb.fountainhead.cash.  You only need to install SLPDB, SlpServe, and/or SlpSockServe projects if any of the following is true:
+
+- You cannot rely on a third-party for your SLP data.
+- SLP data query API offered at `slpdb.bitcoin.com` does not meet your needs.
+- Realtime SLP data event notifications available at `slpsocket.fountainhead.cash` does not meet your needs.
+
+NOTE: If you are going to operate a SLPDB instance you should join the telegram group for help and updates: https://t.me/slpdb
+
+
+
+## How do I query for SLP data?
+
+Queries into SLP data use the jq query language.  If you are not familiar with jq we recommend that you examine some of the examples below to get started:
+
+Here are some example SLPDB queries:
 
 * List all token details and usage information [example](https://slpdb.bitcoin.com/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjoKICAgICAgeyB9CiAgICB9LAogICAgInByb2plY3QiOiB7InRva2VuRGV0YWlscyI6IDEsICJ0b2tlblN0YXRzIjogMSwgIl9pZCI6IDAgfSwKICAgICJsaW1pdCI6IDEwMDAKICB9Cn0=)
 * List all tokens as a summary of token supply [example](http://slpdb.bitcoin.com/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOnsgICAKICAgICAgInRva2VuU3RhdHMubWludGluZ19iYXRvbl9zdGF0dXMiOiAiQUxJVkUiCiAgICB9LAogICAgInByb2plY3QiOiB7CiAgICAgICJ0b2tlbkRldGFpbHMudG9rZW5JZEhleCI6IDEsCiAgICAgICJ0b2tlblN0YXRzLnF0eV90b2tlbl9taW50ZWQiOiAxLAogICAgICAidG9rZW5TdGF0cy5xdHlfdG9rZW5fYnVybmVkIjogMSwKICAgICAgInRva2VuU3RhdHMucXR5X3Rva2VuX2NpcmN1bGF0aW5nX3N1cHBseSI6MQogICAgfSwKICAgICJzb3J0IjogeyAidG9rZW5TdGF0cy5xdHlfdG9rZW5fY2lyY3VsYXRpbmdfc3VwcGx5IjogLTEgfSwKICAgICJsaW1pdCI6IDEwMDAKICB9LAogICJyIjogewogICAgImYiOiAiWy5bXSB8IHt0b2tlbklkOiAudG9rZW5EZXRhaWxzLnRva2VuSWRIZXgsIG1pbnRlZDogLnRva2VuU3RhdHMucXR5X3Rva2VuX21pbnRlZCwgIGJ1cm5lZDogLnRva2VuU3RhdHMucXR5X3Rva2VuX2J1cm5lZCwgIGNpcmN1bGF0aW5nOiAudG9rZW5TdGF0cy5xdHlfdG9rZW5fY2lyY3VsYXRpbmdfc3VwcGx5fV0iCiAgfQp9)
@@ -27,23 +45,28 @@ SLPDB enables access to useful SLP data:
 * List transaction counts for each token [example](https://slpdb.bitcoin.com/explorer2/ewogICJ2IjogMywKICAicSI6IAogIHsiYWdncmVnYXRlIjoKICBbeyIkbWF0Y2giOnsiYmxrLnQiOnsgIiRndGUiOiAxNTUyODY3MjAwLCAiJGx0ZSI6IDE1NTI5NTM2MDB9fX0sCiAgeyIkZ3JvdXAiOnsiX2lkIjogIiRzbHAuZGV0YWlsLm5hbWUiLCAiY291bnQiOiB7IiRzdW0iOiAxfX19XSwibGltaXQiOjEwMH19)
 * List SLP usage per day [example](https://slpdb.bitcoin.com/explorer2/eyJ2IjozLCJxIjp7ImRiIjpbImMiXSwiYWdncmVnYXRlIjpbeyIkbWF0Y2giOnsic2xwLnZhbGlkIjp0cnVlLCJibGsudCI6eyIkZ3RlIjoxNTQzMTcyNTY4LjIwOCwiJGx0ZSI6MTU1MzU0MDU2OC4yMDh9fX0seyIkZ3JvdXAiOnsiX2lkIjoiJGJsay50IiwiY291bnQiOnsiJHN1bSI6MX19fV0sImxpbWl0IjoxMDAwMH0sInIiOnsiZiI6IlsgLltdIHwge2Jsb2NrX2Vwb2NoOiAuX2lkLCB0eHM6IC5jb3VudH0gXSJ9fQ==)
 
-You only need to install SLPDB, SlpServe, and/or SlpSockServe projects if any of the following is true:
-* You cannot rely on a third-party for your SLP data.
-* SLP data query API offered at `slpdb.bitcoin.com` does not meet your needs.
-* Realtime SLP data event notifications available at `slpsocket.fountainhead.cash` does not meet your needs.
+Users should utilize the [SlpServe](https://github.com/fountainhead-cash/slpserve) and [SlpSockServer](https://github.com/fountainhead-cash/slpsockserve) projects in order to conveniently query for the SLP data produced by SLPDB.
 
-NOTE: If you are going to operate a SLPDB instance you should join the telegram group for help and updates: https://t.me/slpdb
 
-## Installation
+### WARNING: Working with Large Numbers (`Decimal128` and `BigNumber`)
+
+Some of the values used in SLP require 64 or more bits of precision, which is more precision than `number` type can provide. To ensure value precision is maintained values are stored in collections using the `Decimal128` type.  `Decimal128` allows users to make database queries using query comparison operators like `$gte`.  
+
+However, when  `SlpServe` or `SlpSockServer` query results are returned as a JSON object these `Decimal128` values are converted into `string` type to improve readability of the value for the query consumer, as opposed to being returned as a special (and odd looking)  `$DecimalNumber` JSON object.  The `string` type also maintains the original value precision.  If a user wants to perform math operations on these `string`  values the user will need to first convert them to a large number type like `BigNumber` or `Decimal128` (e.g., `Decimal128.fromString("1000.123124")` or using [bignumber.js](https://github.com/MikeMcl/bignumber.js/) npm library via `new BigNumber("1000.00000001")`).
+
+
+
+## Installation Instructions
 
 ### Prerequisites
 * Node.js 8.15+
+* TypeScript 3+ (`npm install -g typescript`)
 * MongoDB 4.0+
 * BCHD (recommended with "fastsync"), BitcoinABC, BitcoinUnlimited or other Bitcoin Cash full node with:
   * RPC-JSON and 
   * ZeroMQ event notifications
 
-### Full Node Settings — `bitcoin.conf`
+### Full Node Settings for `bitcoin.conf`
 
 The following settings should be applied to your full node's configuration.  NOTE: The settings presented here are matched up with the default settings presented in `config.ts`, you should modify these settings and use environment variables (shown in `config.ts`) if you need a custom setup.
 * `server=1`
@@ -153,11 +176,6 @@ Three categories of information are stored in MongoDB:
 3. Token graph state 
 
 
-### Use of Decimal128 and Large Numbers
-
-Some of the values used in SLP require 64 or more bits of precision, which is more precision than `number` type can provide. To ensure value precision is maintained values are stored in collections using the `Decimal128` type.  `Decimal128` allows users to make database queries using query comparison operators like `$gte`.  
-
-However, when using `SlpServe` to return query results as a JSON object these `Decimal128` values are converted into `string` type to improve readability of the value by the consumer, as opposed to being returned as a special `$DecimalNumber` JSON object.  The `string` type also maintains the original value precision, but this means that if a query consumer using `SlpServe` wanting to perform math operations on these values will need to convert them to a big number type like `BigNumber` or `Decimal128` (e.g., `Decimal128.fromString("1000.123124")` or using "bignumber.js" npm library via `new BigNumber("1000.00000001")`).
 
 ### DB Collections
 
@@ -260,7 +278,6 @@ Six MongoDB collections used to store these three categories of data, they are a
 	```
 
       
-
 ## Future Updates & Features
 
 ### TokenID Filtering
