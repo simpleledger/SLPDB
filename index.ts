@@ -53,6 +53,7 @@ const daemon = {
 		bit._zmqSubscribers.push(tokenManager);
 		await tokenManager.initAllTokens();
 		await bit.handleConfirmedTxnsMissingSlpMetadata();
+		await tokenManager.fixMissingTokenTimestamps();
 		await bit.checkForMissingMempoolTxns();
 		bit.listenToZmq();
 	}

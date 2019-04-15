@@ -156,6 +156,9 @@ export class SlpGraphManager implements IZmqSubscriber {
                 console.log("[ZMQ-PUB] SLP block txn notification", hash);
                 this.zmqPubSocket.send([ 'block', JSON.stringify(blockTxns) ]);
             }
+
+            // fix any missed token timestamps 
+            await this.fixMissingTokenTimestamps();
         }
     }
 
@@ -166,6 +169,20 @@ export class SlpGraphManager implements IZmqSubscriber {
         this._tokens = new Map<string, SlpTokenGraph>();
         let connectionString = 'http://' + Config.rpc.user + ':' + Config.rpc.pass + '@' + Config.rpc.host + ':' + Config.rpc.port;
         this._rpcClient = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
+    }
+
+    async fixMissingTokenTimestamps() {
+        let tokens = await Query.getNullTokenGenesisTimestamps();
+        if(tokens) {
+            this.asyncForEach(tokens, async (txid: string) => {
+                let timestamp = await Query.getConfirmedTxnTimestamp(txid);
+                if (timestamp) {
+                    let token = this._tokens.get(txid)!;
+                    token._tokenDetails.timestamp = timestamp;
+                    await this.db.tokeninsertreplace(token.toTokenDbObject());
+                }
+            })
+        }
     }
 
     private async updateTxnCollections(txid: string, tokenId: string) {
