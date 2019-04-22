@@ -32,15 +32,15 @@ export class Config {
 				fulltext: [ 'tokenDetails.name', 'tokenDetails.symbol' ]
 			},
 			graphs: {
-				keys: [ 'tokenDetails.tokenIdHex'],
+				keys: [ 'tokenDetails.tokenIdHex', 'graphTxn.txid'],
 				fulltext: [ ]
 			},
 			addresses: {
-				keys: [ 'tokenDetails.tokenIdHex'],
+				keys: [ 'tokenDetails.tokenIdHex', 'address'],
 				fulltext: [ ]
 			},
 			utxos: {
-				keys: [ 'tokenDetails.tokenIdHex'],
+				keys: [ 'tokenDetails.tokenIdHex', 'utxo'],
 				fulltext: [ ]
 			},
 			confirmed: {
