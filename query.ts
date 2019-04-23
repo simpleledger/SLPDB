@@ -27,7 +27,7 @@ export class Query {
             "v": 3,
             "q": {
                 "db": "t",
-                "find": { "tokenDetails.timestamp": null },
+                "find": { "tokenDetails.timestamp": null, "tokenDetails.timestamp_unix": null },
                 "limit": limit, 
                 "project": { "tokenDetails.tokenIdHex": 1 }
             },
@@ -54,7 +54,7 @@ export class Query {
                 "limit": 1,
                 "project": { "blk": 1 }
             },
-            "r": { "f": "[ .[] | { timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end) } ]" }
+            "r": { "f": "[ .[] | { timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end) } ]" }
         }
 
         let res: SendTxnQueryResponse = await this.dbQuery.read(q);
@@ -75,7 +75,7 @@ export class Query {
                 "find": { "blk.h": blockHash, "out.s3": "GENESIS" },
                 "limit": limit
             },
-            "r": { "f": "[ .[] | { txid: .tx.h, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end) } ]" }
+            "r": { "f": "[ .[] | { txid: .tx.h, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end) } ]" }
         }
 
         let res: SendTxnQueryResponse = await this.dbQuery.read(q);
@@ -98,7 +98,7 @@ export class Query {
                 "find": { "blk.h": blockHash },
                 "limit": limit
             },
-            "r": { "f": "[ .[] | { txid: .tx.h, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), slp: .slp } ]" }
+            "r": { "f": "[ .[] | { txid: .tx.h, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end), slp: .slp } ]" }
         }
 
         let res: SendTxnQueryResponse = await this.dbQuery.read(q);
@@ -142,7 +142,7 @@ export class Query {
               "find": { "out.h1": "534c5000", "out.s3": "GENESIS" },
               "limit": limit
             },
-            "r": { "f": "[ .[] | { tokenIdHex: .tx.h, versionTypeHex: .out[0].h2, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), symbol: .out[0].s4, name: .out[0].s5, documentUri: .out[0].s6, documentSha256Hex: .out[0].h7, decimalsHex: .out[0].h8, batonHex: .out[0].h9, quantityHex: .out[0].h10 } ]" }
+            "r": { "f": "[ .[] | { tokenIdHex: .tx.h, versionTypeHex: .out[0].h2, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end), symbol: .out[0].s4, name: .out[0].s5, documentUri: .out[0].s6, documentSha256Hex: .out[0].h7, decimalsHex: .out[0].h8, batonHex: .out[0].h9, quantityHex: .out[0].h10 } ]" }
         }
 
         let response: GenesisQueryResult | any = await this.dbQuery.read(q);
@@ -235,7 +235,7 @@ export class Query {
                 "find": { "tx.h": tokenIdHex, "out.h1": "534c5000", "out.s3": "GENESIS" },
                 "limit": 1
             },
-            "r": { "f": "[ .[] | { tokenIdHex: .tx.h, versionTypeHex: .out[0].h2, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), symbol: .out[0].s4, name: .out[0].s5, documentUri: .out[0].s6, documentSha256Hex: .out[0].h7, decimalsHex: .out[0].h8, batonHex: .out[0].h9, quantityHex: .out[0].h10 } ]" }
+            "r": { "f": "[ .[] | { tokenIdHex: .tx.h, versionTypeHex: .out[0].h2, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end), symbol: .out[0].s4, name: .out[0].s5, documentUri: .out[0].s6, documentSha256Hex: .out[0].h7, decimalsHex: .out[0].h8, batonHex: .out[0].h9, quantityHex: .out[0].h10 } ]" }
         }
 
         let response: GenesisQueryResult | any = await this.dbQuery.read(q);
@@ -312,7 +312,7 @@ export class Query {
                 }, 
                 "limit": 1   
             },
-            "r": { "f": "[ .[] | { txid: .tx.h, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), tokenid: .out[0].h4, batonHex: .out[0].h5, mintQty: .out[0].h6, mintBchQty: .out[1].e.v } ]" }
+            "r": { "f": "[ .[] | { txid: .tx.h, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end), tokenid: .out[0].h4, batonHex: .out[0].h5, mintQty: .out[0].h6, mintBchQty: .out[1].e.v } ]" }
         }
 
         let response: MintTxnQueryResponse = await this.dbQuery.read(q);
@@ -350,7 +350,7 @@ export class Query {
                 }, 
                 "limit": 1   
             },
-            "r": { "f": "[ .[] | { txid: .tx.h, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), tokenid: .out[0].h4, slp1: .out[0].h5, slp2: .out[0].h6, slp3: .out[0].h7, slp4: .out[0].h8, slp5: .out[0].h9, slp6: .out[0].h10, slp7: .out[0].h11, slp8: .out[0].h12, slp9: .out[0].h13, slp10: .out[0].h14, slp11: .out[0].h15, slp12: .out[0].h16, slp13: .out[0].h17, slp14: .out[0].h18, slp15: .out[0].h19, slp16: .out[0].h20, slp17: .out[0].h21, slp18: .out[0].h22, slp19: .out[0].h23, bch0: .out[0].e.v, bch1: .out[1].e.v, bch2: .out[2].e.v, bch3: .out[3].e.v, bch4: .out[4].e.v, bch5: .out[5].e.v, bch6: .out[6].e.v, bch7: .out[7].e.v, bch8: .out[8].e.v, bch9: .out[9].e.v, bch10: .out[10].e.v, bch11: .out[11].e.v, bch12: .out[12].e.v, bch13: .out[13].e.v, bch14: .out[14].e.v, bch15: .out[15].e.v, bch16: .out[16].e.v, bch17: .out[17].e.v, bch18: .out[18].e.v, bch19: .out[19].e.v } ]" }
+            "r": { "f": "[ .[] | { txid: .tx.h, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end), tokenid: .out[0].h4, slp1: .out[0].h5, slp2: .out[0].h6, slp3: .out[0].h7, slp4: .out[0].h8, slp5: .out[0].h9, slp6: .out[0].h10, slp7: .out[0].h11, slp8: .out[0].h12, slp9: .out[0].h13, slp10: .out[0].h14, slp11: .out[0].h15, slp12: .out[0].h16, slp13: .out[0].h17, slp14: .out[0].h18, slp15: .out[0].h19, slp16: .out[0].h20, slp17: .out[0].h21, slp18: .out[0].h22, slp19: .out[0].h23, bch0: .out[0].e.v, bch1: .out[1].e.v, bch2: .out[2].e.v, bch3: .out[3].e.v, bch4: .out[4].e.v, bch5: .out[5].e.v, bch6: .out[6].e.v, bch7: .out[7].e.v, bch8: .out[8].e.v, bch9: .out[9].e.v, bch10: .out[10].e.v, bch11: .out[11].e.v, bch12: .out[12].e.v, bch13: .out[13].e.v, bch14: .out[14].e.v, bch15: .out[15].e.v, bch16: .out[16].e.v, bch17: .out[17].e.v, bch18: .out[18].e.v, bch19: .out[19].e.v } ]" }
         }
 
         let response: SendTxnQueryResponse = await this.dbQuery.read(q);
@@ -392,7 +392,7 @@ export class Query {
                 "find": { "tx.h": txid }, 
                 "limit": 1
             },
-            "r": { "f": "[ .[] | { block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end) } ]" }
+            "r": { "f": "[ .[] | { block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end) } ]" }
         }
 
         let res: SendTxnQueryResponse = await Query.dbQuery.read(q);
@@ -417,7 +417,7 @@ export class Query {
                 "find": { "out.h1": "534c5000", "out.s3": "MINT", "out.h4": tokenId }, 
                 "limit": limit
             },
-            "r": { "f": "[ .[] | { slp: .slp, txid: .tx.h, versionTypeHex: .out[0].h2, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M\")) else null end), batonHex: .out[0].h5, quantityHex: .out[0].h6 } ]" }
+            "r": { "f": "[ .[] | { slp: .slp, txid: .tx.h, versionTypeHex: .out[0].h2, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end), batonHex: .out[0].h5, quantityHex: .out[0].h6 } ]" }
         }
 
         let res: SendTxnQueryResponse = await Query.dbQuery.read(q);
