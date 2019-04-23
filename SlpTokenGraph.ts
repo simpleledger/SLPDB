@@ -156,7 +156,7 @@ export class SlpTokenGraph implements TokenGraph {
 
         let graphTxn: GraphTxn;
         if(!this._graphTxns.has(txid))
-            graphTxn = { details: txnSlpDetails, outputs: [], timestamp: null, block: null }
+            graphTxn = { details: txnSlpDetails, outputs: [], block: null }
         else {
             graphTxn = this._graphTxns.get(txid)!;
             graphTxn.outputs = [];
@@ -175,7 +175,6 @@ export class SlpTokenGraph implements TokenGraph {
         // get block and timestamp of this txn
         let txq: any = await Query.getSendTransactionDetails(txid);
         if(txq) {
-            graphTxn.timestamp = txq.timestamp;
             graphTxn.block = txq.block;
         }
 
@@ -467,7 +466,6 @@ export class SlpTokenGraph implements TokenGraph {
                 tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, 
                 graphTxn: {
                     txid: k[0],
-                    timestamp: k[1].timestamp, 
                     block: k[1].block,
                     details: SlpTokenGraph.MapTokenDetailsToDbo(this._graphTxns.get(k[0])!.details, this._tokenDetails.decimals),
                     outputs: this.mapGraphTxnOutputsToDbo(this._graphTxns.get(k[0])!.outputs)
@@ -513,6 +511,7 @@ export class SlpTokenGraph implements TokenGraph {
             decimals: details.decimals,
             tokenIdHex: details.tokenIdHex,
             timestamp: details.timestamp,
+            timestamp_unix: this.ConvertToUnixTime(details.timestamp),
             transactionType: details.transactionType,
             versionType: details.versionType,
             documentUri: details.documentUri,
@@ -526,6 +525,15 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
         return res;
+    }
+    
+    static ConvertToUnixTime(Y_m_d_H_M_S: string): number|null {
+        // timestamp is formatted as "%Y-%m-%d %H:%M:%S"
+        if(Y_m_d_H_M_S) {
+            let d = Y_m_d_H_M_S.split(" ")[0] + "T" + Y_m_d_H_M_S.split(" ")[1] + "Z";
+            return Date.parse(d)/1000;
+        }
+        return null;
     }
 
     static MapDbTokenDetailsFromDbo(details: SlpTransactionDetailsDbo, decimals: number): SlpTransactionDetails {
@@ -541,7 +549,7 @@ export class SlpTokenGraph implements TokenGraph {
         let res = {
             decimals: details.decimals,
             tokenIdHex: details.tokenIdHex,
-            timestamp: details.timestamp,
+            timestamp: details.timestamp!,
             transactionType: details.transactionType,
             versionType: details.versionType,
             documentUri: details.documentUri,
@@ -572,7 +580,6 @@ export class SlpTokenGraph implements TokenGraph {
             try { dag[idx].graphTxn.outputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)) } catch(_) { throw Error("Error in mapping database object"); }
 
             let gt: GraphTxn = {
-                timestamp: item.graphTxn.timestamp, 
                 block: item.graphTxn.block,
                 details: this.MapDbTokenDetailsFromDbo(dag[idx].graphTxn.details, token.tokenDetails.decimals),
                 outputs: dag[idx].graphTxn.outputs as any as GraphTxnOutput[]
@@ -663,7 +670,8 @@ export interface SlpTransactionDetailsDbo {
     transactionType: SlpTransactionType;
     tokenIdHex: string;
     versionType: number;
-    timestamp: string;
+    timestamp: string|null;
+    timestamp_unix: number|null;
     symbol: string;
     name: string;
     documentUri: string; 
@@ -678,7 +686,6 @@ export interface SlpTransactionDetailsDbo {
 interface GraphTxnDetailsDbo {
     txid: string,
     details: SlpTransactionDetailsDbo;
-    timestamp: string|null;
     block: number|null;
     outputs: GraphTxnOutputDbo[]
 }
@@ -695,7 +702,6 @@ interface GraphTxnOutputDbo {
 
 interface GraphTxn {
     details: SlpTransactionDetails;
-    timestamp: string|null
     block: number|null;
     outputs: GraphTxnOutput[]
 }
