@@ -76,28 +76,77 @@ export class SlpTokenGraph implements TokenGraph {
                 let spendTxnInfo = await Query.queryForTxoInputAsSlpMint(txid, vout);
 
                 if(spendTxnInfo.txid === null) {
-                    if(vout < slpOutputLength)
-                        return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
-                    return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
+                    if(vout < slpOutputLength) return {
+                        status: BatonUtxoStatus.BATON_SPENT_NON_SLP,
+                        txid: null,
+                        queryResponse: null,
+                        invalidReason: this._slpValidator.cachedValidations[txid].invalidReason
+                    };
+
+                    return {
+                        status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT,
+                        txid: null,
+                        queryResponse: null,
+                        invalidReason: "SLP output has no corresponding BCH output."
+                    };
                 }
                 if(typeof spendTxnInfo!.txid === 'string') {
                     let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
-                    if(!this._slpValidator.cachedValidations[spendTxnInfo.txid!])
-                        console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex)
-                    if(valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.MINT)
-                        return { status: BatonUtxoStatus.BATON_SPENT_IN_MINT, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null };
-                    else if(valid)
-                        return { status: BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: "Baton was spent in a non-mint SLP transaction." };
-                    return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
+                    if(! this._slpValidator.cachedValidations[spendTxnInfo.txid!]) {
+                        console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex);
+                    }
+
+                    if(valid &&
+                       this._slpValidator.cachedValidations[spendTxnInfo.txid!] &&
+                       this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.MINT
+                    ) {
+                        return {
+                            status: BatonUtxoStatus.BATON_SPENT_IN_MINT,
+                            txid: spendTxnInfo!.txid,
+                            queryResponse: spendTxnInfo,
+                            invalidReason: null
+                        };
+                    } else if(valid) {
+                        return {
+                            status: BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT,
+                            txid: spendTxnInfo!.txid,
+                            queryResponse: spendTxnInfo,
+                            invalidReason: "Baton was spent in a non-mint SLP transaction."
+                        };
+                    }
+
+                    return {
+                        status: BatonUtxoStatus.BATON_SPENT_NON_SLP,
+                        txid: spendTxnInfo!.txid,
+                        queryResponse: spendTxnInfo,
+                        invalidReason: this._slpValidator.cachedValidations[txid].invalidReason
+                    };
                 }
             } catch(_) {
-                if(vout < slpOutputLength)
-                    return { status: BatonUtxoStatus.BATON_SPENT_INVALID_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
-                return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
+                if(vout < slpOutputLength) {
+                    return {
+                        status: BatonUtxoStatus.BATON_SPENT_INVALID_SLP,
+                        txid: null,
+                        queryResponse: null,
+                        invalidReason: this._slpValidator.cachedValidations[txid].invalidReason
+                    };
+                }
+
+                return {
+                    status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT,
+                    txid: null,
+                    queryResponse: null,
+                    invalidReason: "SLP output has no corresponding BCH output."
+                };
             }
         }
         this._mintBatonUtxo = txid + ":" + vout;
-        return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, queryResponse: null, invalidReason: null };
+        return {
+            status: BatonUtxoStatus.BATON_UNSPENT,
+            txid: null,
+            queryResponse: null,
+            invalidReason: null
+        };
     }
 
     async getSpendDetails(txid: string, vout: number, slpOutputLength: number): Promise<SpendDetails> {
@@ -107,28 +156,77 @@ export class SlpTokenGraph implements TokenGraph {
             try {
                 let spendTxnInfo = await Query.queryForTxoInputAsSlpSend(txid, vout);
                 if(spendTxnInfo.txid === null) {
-                    if(vout < slpOutputLength)
-                        return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
-                    return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
+                    if(vout < slpOutputLength) {
+                        return {
+                            status: TokenUtxoStatus.SPENT_NON_SLP,
+                            txid: null,
+                            queryResponse: null,
+                            invalidReason: this._slpValidator.cachedValidations[txid].invalidReason
+                        };
+                    }
+                    return {
+                        status: TokenUtxoStatus.MISSING_BCH_VOUT,
+                        txid: null,
+                        queryResponse: null,
+                        invalidReason: "SLP output has no corresponding BCH output."
+                    };
                 }
                 if(typeof spendTxnInfo!.txid === 'string') {
                     let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
-                    if(!this._slpValidator.cachedValidations[spendTxnInfo.txid!])
-                        console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex)
-                    if(valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.SEND)
-                        return { status: TokenUtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null };
-                    else if(valid)
-                        return { status: TokenUtxoStatus.SPENT_NOT_IN_SEND, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: "Token was not spent in a SEND transaction." }
-                    return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
+                    if(! this._slpValidator.cachedValidations[spendTxnInfo.txid!]) {
+                        console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex);
+                    }
+                    if(valid &&
+                       this._slpValidator.cachedValidations[spendTxnInfo.txid!] &&
+                       this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.SEND
+                    ) {
+                        return {
+                            status: TokenUtxoStatus.SPENT_SAME_TOKEN,
+                            txid: spendTxnInfo!.txid,
+                            queryResponse: spendTxnInfo,
+                            invalidReason: null
+                        };
+                    } else if(valid) {
+                        return {
+                            status: TokenUtxoStatus.SPENT_NOT_IN_SEND,
+                            txid: spendTxnInfo!.txid,
+                            queryResponse: spendTxnInfo,
+                            invalidReason: "Token was not spent in a SEND transaction."
+                        };
+                    }
+
+                    return {
+                        status: TokenUtxoStatus.SPENT_INVALID_SLP,
+                        txid: spendTxnInfo!.txid,
+                        queryResponse: spendTxnInfo,
+                        invalidReason: this._slpValidator.cachedValidations[txid].invalidReason
+                    };
                 }
             } catch(_) {
-                if(vout < slpOutputLength)
-                    return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
-                return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
+                if(vout < slpOutputLength) {
+                    return {
+                        status: TokenUtxoStatus.SPENT_INVALID_SLP,
+                        txid: null,
+                        queryResponse: null,
+                        invalidReason: this._slpValidator.cachedValidations[txid].invalidReason
+                    };
+                }
+
+                return {
+                    status: TokenUtxoStatus.MISSING_BCH_VOUT,
+                    txid: null,
+                    queryResponse: null,
+                    invalidReason: "SLP output has no corresponding BCH output."
+                };
             }
         }
         this._tokenUtxos.add(txid + ":" + vout);
-        return { status: TokenUtxoStatus.UNSPENT, txid: null, queryResponse: null, invalidReason: null };
+        return {
+            status: TokenUtxoStatus.UNSPENT,
+            txid: null,
+            queryResponse: null,
+            invalidReason: null
+        };
     }
 
     async updateTokenGraphFrom(txid: string, isParent=false): Promise<boolean> {
@@ -238,7 +336,12 @@ export class SlpTokenGraph implements TokenGraph {
 
         // Continue to complete graph from output UTXOs
         if(!isParent) {
-            await this.asyncForEach(graphTxn.outputs.filter(o => o.spendTxid && (o.status === TokenUtxoStatus.SPENT_SAME_TOKEN || o.status === BatonUtxoStatus.BATON_SPENT_IN_MINT)), async (o: any) => {
+            await this.asyncForEach(graphTxn.outputs.filter(
+                o => o.spendTxid && (
+                    o.status === TokenUtxoStatus.SPENT_SAME_TOKEN ||
+                    o.status === BatonUtxoStatus.BATON_SPENT_IN_MINT
+                )
+            ), async (o: any) => {
                 await this.updateTokenGraphFrom(o.spendTxid!);
             });
         }
@@ -263,6 +366,7 @@ export class SlpTokenGraph implements TokenGraph {
                 if(this._addresses.has(addr)) {
                     bal = this._addresses.get(addr)!
                     bal.satoshis_balance+=txout.value*10**8
+
                     if(txnDetails.transactionType === SlpTransactionType.SEND)
                         bal.token_balance = bal.token_balance.plus(txnDetails.sendOutputs![vout])
                     else if(vout === 1)
@@ -333,7 +437,9 @@ export class SlpTokenGraph implements TokenGraph {
             if(this._mintBatonUtxo.includes(this._tokenDetails.tokenIdHex + ":" + this._tokenDetails.batonVout))
                 return TokenBatonStatus.ALIVE;
             //let mints = await Query.getMintTransactions(this._tokenDetails.tokenIdHex);
-            let mintTxids = Array.from(this._graphTxns).filter(o => o[1].details.transactionType === SlpTransactionType.MINT).map(o => o[0]);
+            let mintTxids = Array.from(this._graphTxns)
+                .filter(o => o[1].details.transactionType === SlpTransactionType.MINT)
+                .map(o => o[0]);
             let mints = mintTxids.map(i => this._slpValidator.cachedValidations[i])
             if(mints) {
                 for(let i = 0; i < mints!.length; i++) {
@@ -428,7 +534,10 @@ export class SlpTokenGraph implements TokenGraph {
 
     logAddressBalances(): void {
         console.log("ADDRESS BALANCES:")
-        console.log(Array.from(this._addresses).map((v) => { return { addr: v[0], bal: v[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() }}))
+        console.log(Array.from(this._addresses).map((v) => ({
+            addr: v[0],
+            bal: v[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()
+        })));
     }
 
     toTokenDbObject(): TokenDBObject {
@@ -447,20 +556,41 @@ export class SlpTokenGraph implements TokenGraph {
     toAddressesDbObject(): AddressBalancesDbo[] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
         let result: AddressBalancesDbo[] = [];
-        Array.from(this._addresses).forEach(a => { result.push({ tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, address: a[0], satoshis_balance: a[1].satoshis_balance, token_balance: Decimal128.fromString(a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) }) })
+
+        Array.from(this._addresses).forEach(a => {
+            result.push({
+                tokenDetails: {
+                    tokenIdHex: tokenDetails.tokenIdHex
+                },
+                address: a[0],
+                satoshis_balance: a[1].satoshis_balance,
+                token_balance: Decimal128.fromString(a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed())
+            });
+        });
+
         return result;
     }
 
     toUtxosDbObject(): UtxoDbo[] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
         let result: UtxoDbo[] = [];
-        Array.from(this._tokenUtxos).forEach(u => { result.push({ tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, utxo: u })});
+
+        Array.from(this._tokenUtxos).forEach(u => {
+            result.push({
+                tokenDetails: {
+                    tokenIdHex: tokenDetails.tokenIdHex
+                },
+                utxo: u
+            });
+        });
+
         return result;
     }
 
     toGraphDbObject(): GraphTxnDbo[] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
         let result: GraphTxnDbo[] = [];
+
         Array.from(this._graphTxns).forEach(k => {
             result.push({
                 tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex },
@@ -470,8 +600,9 @@ export class SlpTokenGraph implements TokenGraph {
                     details: SlpTokenGraph.MapTokenDetailsToDbo(this._graphTxns.get(k[0])!.details, this._tokenDetails.decimals),
                     outputs: this.mapGraphTxnOutputsToDbo(this._graphTxns.get(k[0])!.outputs)
                 }
-            })
+            });
         });
+
         return result;
     }
 
@@ -520,8 +651,12 @@ export class SlpTokenGraph implements TokenGraph {
             name: details.name,
             batonVout: details.batonVout,
             containsBaton: details.containsBaton ? true : false,
-            genesisOrMintQuantity: details.genesisOrMintQuantity ? Decimal128.fromString(details.genesisOrMintQuantity!.dividedBy(10**decimals).toFixed()) : null,
-            sendOutputs: details.sendOutputs ? details.sendOutputs.map(o => Decimal128.fromString(o.dividedBy(10**decimals).toFixed())) : null
+            genesisOrMintQuantity: details.genesisOrMintQuantity
+                ? Decimal128.fromString(details.genesisOrMintQuantity!.dividedBy(10**decimals).toFixed())
+                : null,
+            sendOutputs: details.sendOutputs
+                ? details.sendOutputs.map(o => Decimal128.fromString(o.dividedBy(10**decimals).toFixed()))
+                : null
         }
 
         return res;
@@ -537,14 +672,24 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     static MapDbTokenDetailsFromDbo(details: SlpTransactionDetailsDbo, decimals: number): SlpTransactionDetails {
-
         let genesisMintQty = new BigNumber(0);
-        if(details.genesisOrMintQuantity)
-            try { genesisMintQty = new BigNumber(details.genesisOrMintQuantity.toString()).multipliedBy(10**decimals); } catch(_) { throw Error("Error in mapping database object"); }
+
+        if(details.genesisOrMintQuantity) {
+            try {
+                genesisMintQty = new BigNumber(details.genesisOrMintQuantity.toString()).multipliedBy(10**decimals);
+            } catch(_) {
+                throw Error("Error in mapping database object");
+            }
+        }
 
         let sendOutputs: BigNumber[] = [];
-        if(details.sendOutputs)
-            try { sendOutputs = details.sendOutputs.map(o => o = <any>new BigNumber(o.toString()).multipliedBy(10**decimals)); } catch(_) { throw Error("Error in mapping database object"); }
+        if(details.sendOutputs) {
+            try {
+                sendOutputs = details.sendOutputs.map(o => o = <any>new BigNumber(o.toString()).multipliedBy(10**decimals));
+            } catch(_) {
+                throw Error("Error in mapping database object");
+            }
+        }
 
         let res = {
             decimals: details.decimals,
@@ -577,7 +722,13 @@ export class SlpTokenGraph implements TokenGraph {
         // Map _txnGraph
         tg._graphTxns = new Map<txid, GraphTxn>();
         dag.forEach((item, idx) => {
-            try { dag[idx].graphTxn.outputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)) } catch(_) { throw Error("Error in mapping database object"); }
+            try {
+                dag[idx].graphTxn.outputs.map(o =>
+                    o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)
+                );
+            } catch(_) {
+                throw Error("Error in mapping database object");
+            }
 
             let gt: GraphTxn = {
                 block: item.graphTxn.block,

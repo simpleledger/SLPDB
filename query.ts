@@ -351,7 +351,15 @@ export class Query {
             }
             else {
                 console.log("Assumed Token Burn: Could not find the spend transaction: " + txid + ":" + vout);
-                return { tokenid: null, txid: null, block: null, timestamp: null, batonHex: null, mintQty: null, mintBchQty: null }
+                return {
+                    tokenid: null,
+                    txid: null,
+                    block: null,
+                    timestamp: null,
+                    batonHex: null,
+                    mintQty: null,
+                    mintBchQty: null
+                };
             }
         }
         throw Error("Mongo DB ERROR.")

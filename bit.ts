@@ -89,7 +89,9 @@ export class Bit {
         this.rpc = rpc;
 
         this.network = await Info.getNetwork();
-        let BITBOX = this.network === 'mainnet' ? new BITBOXSDK({ restURL: `https://rest.bitcoin.com/v2/` }) : new BITBOXSDK({ restURL: `https://trest.bitcoin.com/v2/` });
+        let BITBOX = this.network === 'mainnet'
+            ? new BITBOXSDK({ restURL: `https://rest.bitcoin.com/v2/` })
+            : new BITBOXSDK({ restURL: `https://trest.bitcoin.com/v2/` });
 
         let isSyncd = false;
         let lastReportedSyncBlocks = 0;
@@ -194,11 +196,19 @@ export class Bit {
 
         // Remove cached txs not in the mempool.
         let cacheCopyForRemovals = new Map(this.slpMempool);
-        cacheCopyForRemovals.forEach((txhex, txid) => currentBchMempoolList.includes(txid) ? null : this.removeCachedTransaction(txid) );
+        cacheCopyForRemovals.forEach((txhex, txid) =>
+            currentBchMempoolList.includes(txid)
+                ? null
+                : this.removeCachedTransaction(txid)
+        );
 
         // Add SLP txs to the mempool not in the cache.
         let cachedSlpMempoolTxs = Array.from(this.slpMempool.keys());
-        await this.asyncForEach(currentBchMempoolList, async (txid: string) => cachedSlpMempoolTxs.includes(txid) ? null : await this.handleWiredSlpTransaction(txid) );
+        await this.asyncForEach(currentBchMempoolList, async (txid: string) =>
+            cachedSlpMempoolTxs.includes(txid)
+                ? null
+                : await this.handleWiredSlpTransaction(txid)
+        );
 
         console.log('[INFO] SLP mempool txs =', this.slpMempool.size);
     }
@@ -445,7 +455,13 @@ export class Bit {
             }
             result = { syncType: SyncType.Block, filteredContent: new Map<SyncFilterTypes, TransactionPool>() }
             try {
-                let lastCheckpoint = hash ? <ChainSyncCheckpoint>await Info.checkpoint() : <ChainSyncCheckpoint>await Info.checkpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
+                let lastCheckpoint = hash
+                    ? <ChainSyncCheckpoint>await Info.checkpoint()
+                    : <ChainSyncCheckpoint>await Info.checkpoint(
+                        (await Info.getNetwork()) === 'mainnet'
+                            ? Config.core.from
+                            : Config.core.from_testnet
+                    );
 
                 // Handle block reorg
                 lastCheckpoint = await Bit.checkForReorg(self, lastCheckpoint);
@@ -530,7 +546,10 @@ export class Bit {
         if (lastCheckpoint.hash) {
             let lastCheckedHash = lastCheckpoint.hash;
             let lastCheckedHeight = lastCheckpoint.height;
-            let from = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
+            let from = (await Info.getNetwork()) === 'mainnet'
+                ? Config.core.from
+                : Config.core.from_testnet;
+
             while (lastCheckedHash !== actualHash && lastCheckedHeight > from) {
                 lastCheckedHash = await Info.getCheckpointHash(--lastCheckedHeight);
                 await Info.updateTip(lastCheckedHeight, null);

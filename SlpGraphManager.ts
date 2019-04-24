@@ -274,18 +274,33 @@ export class SlpGraphManager implements IZmqSubscriber {
         }
     }
 
-    static MapTokenDetailsToTnaDbo(details: SlpTransactionDetails, genesisDetails: SlpTransactionDetails, addresses: (string|null)[]): SlpTransactionDetailsTnaDbo {
+    static MapTokenDetailsToTnaDbo(
+        details: SlpTransactionDetails,
+        genesisDetails: SlpTransactionDetails,
+        addresses: (string|null)[]
+    ): SlpTransactionDetailsTnaDbo {
         var outputs: any|null = null;
         if(details.sendOutputs) {
             outputs = [];
             details.sendOutputs.forEach((o,i) => {
-                if(i > 0)
-                    outputs.push({ address: addresses[i], amount: Decimal128.fromString(o.dividedBy(10**genesisDetails.decimals).toFixed())})
+                if(i > 0) outputs.push({
+                    address: addresses[i],
+                    amount: Decimal128.fromString(
+                        o.dividedBy(10**genesisDetails.decimals).toFixed()
+                    )
+                })
             })
         }
         if(details.genesisOrMintQuantity) {
             outputs = [];
-            outputs.push({ address: addresses[0], amount: Decimal128.fromString(details.genesisOrMintQuantity!.dividedBy(10**genesisDetails.decimals).toFixed()) })
+            outputs.push({
+                address: addresses[0],
+                amount: Decimal128.fromString(
+                    details.genesisOrMintQuantity!.dividedBy(
+                        10**genesisDetails.decimals
+                    ).toFixed()
+                )
+            });
         }
         let res: SlpTransactionDetailsTnaDbo = {
             decimals: genesisDetails.decimals,
@@ -293,7 +308,9 @@ export class SlpGraphManager implements IZmqSubscriber {
             transactionType: details.transactionType,
             versionType: genesisDetails.versionType,
             documentUri: genesisDetails.documentUri,
-            documentSha256Hex: genesisDetails.documentSha256 ? genesisDetails.documentSha256.toString('hex')! : null,
+            documentSha256Hex: genesisDetails.documentSha256
+                ? genesisDetails.documentSha256.toString('hex')!
+                : null,
             symbol: genesisDetails.symbol,
             name: genesisDetails.name,
             txnBatonVout: details.batonVout,
@@ -333,7 +350,10 @@ export class SlpGraphManager implements IZmqSubscriber {
                 let potentialReorgFactor = 10;
                 let updateFromHeight = graph._lastUpdatedBlock - potentialReorgFactor;
                 console.log("Checking for Graph Updates since token's last update at (height - " + potentialReorgFactor + "):", updateFromHeight);
-                let res = await Query.queryForRecentTokenTxns(graph._tokenDetails.tokenIdHex, updateFromHeight);
+                let res = await Query.queryForRecentTokenTxns(
+                    graph._tokenDetails.tokenIdHex,
+                    updateFromHeight
+                );
 
                 // TODO: Pre-load validation results into the tokenGraph's local validator.
 
