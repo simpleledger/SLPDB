@@ -21,7 +21,7 @@ export class Query {
     }
 
     static async getNullTokenGenesisTimestamps(): Promise<string[]|null> {
-        console.log("[Query] getNullTokenGenesisTimestamps()")
+        console.log("[Query] getNullTokenGenesisTimestamps()");
         let limit = 100000;
         let q = {
             "v": 3,
@@ -45,7 +45,7 @@ export class Query {
     }
 
     static async getConfirmedTxnTimestamp(txid: string): Promise<string|null> {
-        console.log("[Query] getConfirmedTxnTimestamp()")
+        console.log("[Query] getConfirmedTxnTimestamp()");
         let q = {
             "v": 3,
             "q": {
@@ -65,8 +65,11 @@ export class Query {
         return a[0];
     }
 
-    static async getGenesisTransactionsForBlock(blockHash: string): Promise<{ txns: string[], timestamp: string|null }|null> {
-        console.log("[Query] getGenesisTransactionsForBlock("+blockHash+")")
+    static async getGenesisTransactionsForBlock(blockHash: string): Promise< {
+        txns: string[];
+        timestamp: string|null;
+    } | null> {
+        console.log("[Query] getGenesisTransactionsForBlock("+blockHash+")");
         let limit = 1000000;
         let q = {
             "v": 3,
@@ -88,8 +91,14 @@ export class Query {
         return { txns: a, timestamp: response[0] ? response[0].timestamp: null };
     }
 
-    static async getTransactionsForBlock(blockHash: string): Promise<{ txns: {txid: string, slp: TNATxnSlpDetails }[], timestamp: string|null }|null> {
-        console.log("[Query] getTransactionsForBlock(" + blockHash + ")")
+    static async getTransactionsForBlock(blockHash: string): Promise< {
+        txns: {
+            txid: string;
+            slp: TNATxnSlpDetails;
+        }[];
+        timestamp: string|null;
+    } | null> {
+        console.log("[Query] getTransactionsForBlock(" + blockHash + ")");
         let limit = 1000000;
         let q = {
             "v": 3,
@@ -380,7 +389,7 @@ export class Query {
                 return { tokenid: null, txid: null, block: null, timestamp: null, sendOutputs: [ { tokenQty: new BigNumber(0), satoshis: 0} ] }
             }
         }
-        throw Error("Mongo DB ERROR.")
+        throw Error("Mongo DB ERROR.");
     }
 
     static async getSendTransactionDetails(txid: string): Promise<{ block: number|null, timestamp: string|null} |null> {

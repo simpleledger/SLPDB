@@ -6,8 +6,8 @@ var kv = level('./_leveldb');
 */
 
 export interface ChainSyncCheckpoint {
-    height: number, 
-    hash: string|null 
+    height: number;
+    hash: string|null;
 }
 
 export module Info {

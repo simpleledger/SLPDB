@@ -36,7 +36,7 @@ export declare module Bitcore {
         fromString(hex: string): Script;
         fromASM(asm: string): string;
         toASM(): string;
-        fromHex(hex: string): string
+        fromHex(hex: string): string;
         toHex(): string;
         chunks: Chunk[];
     }
@@ -57,7 +57,7 @@ export declare module Bitcore {
         inputs: TxnInput[];
         outputs: TxnOutput[];
         toObject(): any;
-        serialize(unsafe?: boolean): string
+        serialize(unsafe?: boolean): string;
         hash: string;
         id: string;
     }

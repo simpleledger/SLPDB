@@ -103,17 +103,17 @@ export interface TNATxn {
 }
 
 export interface TNATxnSlpDetails {
-    valid: boolean|null, 
-    detail: SlpTransactionDetailsTnaDbo|null, 
-    invalidReason: string|null,
-    schema_version: number 
+    valid: boolean|null;
+    detail: SlpTransactionDetailsTnaDbo|null;
+    invalidReason: string|null;
+    schema_version: number;
 }
 
 export interface Xput {
     [key:string]: any;
     i: number;
     str?: string;
-    e?: Sender|Receiver
+    e?: Sender|Receiver;
 }
 
 export interface Sender {

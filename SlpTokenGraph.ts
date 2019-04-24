@@ -638,7 +638,8 @@ export interface TokenGraph {
 }
 
 export interface AddressBalance {
-    token_balance: BigNumber, satoshis_balance: number
+    token_balance: BigNumber;
+    satoshis_balance: number;
 }
 
 export interface TokenDBObject {
@@ -684,36 +685,36 @@ export interface SlpTransactionDetailsDbo {
 }
 
 interface GraphTxnDetailsDbo {
-    txid: string,
+    txid: string;
     details: SlpTransactionDetailsDbo;
     block: number|null;
-    outputs: GraphTxnOutputDbo[]
+    outputs: GraphTxnOutputDbo[];
 }
 
 interface GraphTxnOutputDbo { 
-    address: string,
-    vout: number, 
-    bchSatoshis: number, 
-    slpAmount: Decimal128, 
-    spendTxid: string | null,
-    status: TokenUtxoStatus|BatonUtxoStatus,
-    invalidReason: string | null
+    address: string;
+    vout: number;
+    bchSatoshis: number;
+    slpAmount: Decimal128; 
+    spendTxid: string | null;
+    status: TokenUtxoStatus|BatonUtxoStatus;
+    invalidReason: string | null;
 }
 
 interface GraphTxn {
     details: SlpTransactionDetails;
     block: number|null;
-    outputs: GraphTxnOutput[]
+    outputs: GraphTxnOutput[];
 }
 
 interface GraphTxnOutput { 
-    address: string,
-    vout: number, 
-    bchSatoshis: number, 
-    slpAmount: BigNumber, 
-    spendTxid: string | null,
-    status: TokenUtxoStatus|BatonUtxoStatus,
-    invalidReason: string | null
+    address: string;
+    vout: number;
+    bchSatoshis: number;
+    slpAmount: BigNumber;
+    spendTxid: string | null;
+    status: TokenUtxoStatus|BatonUtxoStatus;
+    invalidReason: string | null;
  }
 
 type txid = string;
