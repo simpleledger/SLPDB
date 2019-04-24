@@ -108,7 +108,15 @@ export class SlpGraphManager implements IZmqSubscriber {
         // Wait until the txn count is greater than 0 
         let retries = 0;
         let count = 0;
-        let blockTxns: { txns: { txid: string, slp: TNATxnSlpDetails }[], timestamp: string|null }|null; 
+        let blockTxns: null | {
+            txns: {
+                txid: string;
+                slp: TNATxnSlpDetails;
+            }[];
+
+            timestamp: string|null;
+        };
+
         // TODO: Need to test if this while statement is needed.
         while(count === 0 && retries < 5) {
             await sleep(1000);
