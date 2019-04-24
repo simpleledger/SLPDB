@@ -2,6 +2,7 @@ node_modules
 /*.js
 *.js.map
 !migrate-mongo-config.js
+!.eslintrc.js
 
 _leveldb
 _leveldb_testnet

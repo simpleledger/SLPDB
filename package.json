@@ -6,7 +6,7 @@
   "scripts": {
     "test": "tsc && test",
     "start": "tsc && node index",
-    "lint": "./node_modules/.bin/eslint .",
+    "lint": "./node_modules/.bin/eslint *.ts",
     "migrate": "./node_modules/.bin/migrate-mongo"
   },
   "repository": {
@@ -30,6 +30,8 @@
     "@types/p-limit": "2.0.0",
     "@types/p-queue": "3.1.0",
     "@types/zeromq": "^4.6.1",
+    "@typescript-eslint/eslint-plugin": "^1.7.0",
+    "@typescript-eslint/parser": "^1.7.0",
     "bcash": "^1.1.1",
     "bignumber.js": "^8.1.0",
     "bitbox-sdk": "5.0.1",
@@ -50,9 +52,10 @@
     "p-queue": "3.1.0",
     "slpjs": "^0.15.6",
     "traverse": "^0.6.6",
+    "typescript": "^3.4.5",
     "zeromq": "^4.6.0"
   },
   "devDependencies": {
-    "eslint": "^5.6.1"
+    "eslint": "^5.16.0"
   }
 }
