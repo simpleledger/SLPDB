@@ -10,5 +10,6 @@ module.exports = {
     '@typescript-eslint/indent': 'off',
     'no-tabs': 'error',
     'no-trailing-spaces': 'error',
+    'max-len': ['warn', { 'code': 150 }],
   }
 }
