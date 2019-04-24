@@ -350,7 +350,7 @@ export class SlpTokenGraph implements TokenGraph {
         return TokenBatonStatus.DEAD_BURNED;
     }
 
-    async updateStatistics(log_results = true): Promise<void> {
+    async updateStatistics(): Promise<void> {
         await this.updateAddressesFromScratch();
 
         if(!this._tokenStats)
@@ -428,7 +428,7 @@ export class SlpTokenGraph implements TokenGraph {
 
     logAddressBalances(): void {
         console.log("ADDRESS BALANCES:")
-        console.log(Array.from(this._addresses).map((v, _, __) => { return { addr: v[0], bal: v[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() }}))
+        console.log(Array.from(this._addresses).map((v) => { return { addr: v[0], bal: v[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() }}))
     }
 
     toTokenDbObject(): TokenDBObject {

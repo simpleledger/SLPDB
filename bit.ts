@@ -165,7 +165,7 @@ export class Bit {
             let tasks: any[] = [];
             const limit = pLimit(Config.rpc.limit);
             let self = this;
-            this.slpMempool.forEach((txhex, txid, map) => {
+            this.slpMempool.forEach((txhex, txid) => {
                 tasks.push(limit(async function() {
                     let content = <Bitcore.Transaction>(await self.getSlpMempoolTransaction(txid));
                     return self.tna.fromTx(content);

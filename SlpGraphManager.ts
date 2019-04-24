@@ -27,7 +27,7 @@ export class SlpGraphManager implements IZmqSubscriber {
         let tokensUpdate: string[] = [];
         if(syncResult) {
             let txns = Array.from(syncResult.filteredContent.get(SyncFilterTypes.SLP)!)
-            await this.asyncForEach(txns, async (txPair: [string, string], index: number) =>
+            await this.asyncForEach(txns, async (txPair: [string, string]) =>
             {
                 console.log("PROCESSING SLP GRAPH UPDATE FOR:", txPair[0]);
                 let tokenId: string|null;

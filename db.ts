@@ -132,7 +132,6 @@ export class Db {
             console.log('mempoolsync ERR ', err)
         })
 
-        let index = 0
         while (true) {
             let chunk = items.splice(0, 1000)
             if (chunk.length > 0) {
@@ -142,7 +141,6 @@ export class Db {
                         process.exit()
                     }
                 })
-                index++
             } else {
                 break
             }

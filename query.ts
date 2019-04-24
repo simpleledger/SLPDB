@@ -363,7 +363,7 @@ export class Query {
                 res.sendOutputs = sendOutputs;
                 res.sendOutputs.push({ tokenQty: new BigNumber(0), satoshis: res.bch0 });
                 let keys = Object.keys(res);
-                keys.forEach((key, index) => {
+                keys.forEach((key) => {
                     if(res[key] && key.includes('slp')) {
                         try {
                             let qtyBuf = Buffer.from(res[key], 'hex');
