@@ -406,5 +406,8 @@ export interface SlpTransactionDetailsTnaDbo {
     decimals: number;
     txnContainsBaton: boolean;
     txnBatonVout: number|null;
-    outputs: { address: string|null, amount: Decimal128|null }[]|null;
+    outputs: {
+        address: string|null;
+        amount: Decimal128|null;
+    }[] | null;
 }

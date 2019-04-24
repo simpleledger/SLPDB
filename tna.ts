@@ -89,7 +89,13 @@ export class TNA {
                     }
                 })
             }
-            return { tx: { h: t.hash }, in: inputs, out: outputs }   
+            return {
+                tx: {
+                    h: t.hash
+                },
+                in: inputs,
+                out: outputs
+            };
         })(gene, options);
     }
 }

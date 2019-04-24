@@ -6,7 +6,10 @@ export interface DbConfig {
     schema_version: number;
 }
 
-export type CollectionType = { keys: string[], fulltext: string[] }
+export type CollectionType = {
+    keys: string[];
+    fulltext: string[];
+}
 
 export interface RpcConfig { 
     protocol: string; user: string; pass: string; host: string; port: string; limit: number; 

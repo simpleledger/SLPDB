@@ -287,10 +287,21 @@ export class Query {
             "r": { "f": "[.[] | { type: .out[0].s3, sendOrMintTokenId: .out[0].h4 } ]" }
         }
 
-        let response: { c: any, u: any, errors?: any } = await this.dbQuery.read(q);
+        let response: {
+            c: any;
+            u: any;
+            errors?: any;
+        } = await this.dbQuery.read(q);
         
         if(!response.errors) {
-            let results: { type: string, sendTokenId: string }[] = ([].concat(<any>response.c).concat(<any>response.u));
+            let results: {
+                type: string;
+                sendTokenId: string;
+            }[] = (
+                [].concat(<any>response.c)
+                  .concat(<any>response.u)
+            );
+
             if(results.length === 1) {
                 if((results[0].type === "SEND" || results[0].type === "MINT") && results[0].sendTokenId) {
                     return results[0].sendTokenId;
@@ -368,15 +379,24 @@ export class Query {
             let results: SendTxnQueryResult[] = ([].concat(<any>response.c).concat(<any>response.u));
             if(results.length === 1) {
                 let res: any = results[0];
-                let sendOutputs: { tokenQty: BigNumber, satoshis: number }[] = [];
+                let sendOutputs: {
+                    tokenQty: BigNumber;
+                    satoshis: number;
+                }[] = [];
                 res.sendOutputs = sendOutputs;
-                res.sendOutputs.push({ tokenQty: new BigNumber(0), satoshis: res.bch0 });
+                res.sendOutputs.push({
+                    tokenQty: new BigNumber(0),
+                    satoshis: res.bch0
+                });
                 let keys = Object.keys(res);
                 keys.forEach((key) => {
                     if(res[key] && key.includes('slp')) {
                         try {
                             let qtyBuf = Buffer.from(res[key], 'hex');
-                            res.sendOutputs.push({ tokenQty: Utils.buffer2BigNumber(qtyBuf), satoshis: res["bch" + key.replace('slp', '')] });
+                            res.sendOutputs.push({
+                                tokenQty: Utils.buffer2BigNumber(qtyBuf),
+                                satoshis: res["bch" + key.replace('slp', '')]
+                            });
                         } catch(err) {
                             throw err;
                         }
@@ -386,7 +406,18 @@ export class Query {
             }
             else {
                 console.log("Assumed Token Burn: Could not find the spend transaction: " + txid + ":" + vout);
-                return { tokenid: null, txid: null, block: null, timestamp: null, sendOutputs: [ { tokenQty: new BigNumber(0), satoshis: 0} ] }
+                return {
+                    tokenid: null,
+                    txid: null,
+                    block: null,
+                    timestamp: null,
+                    sendOutputs: [
+                        {
+                            tokenQty: new BigNumber(0),
+                            satoshis: 0
+                        }
+                    ]
+                };
             }
         }
         throw Error("Mongo DB ERROR.");

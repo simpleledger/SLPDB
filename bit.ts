@@ -133,7 +133,10 @@ export class Bit {
         return null;
     }
 
-    async handleWiredSlpTransaction(txid: string): Promise<{ isSlp: boolean, added: boolean }> {
+    async handleWiredSlpTransaction(txid: string): Promise< {
+        isSlp: boolean;
+        added: boolean;
+    } > {
         // case whien SLP mempool already has txn
         if(this.slpMempool.has(txid))
             return { isSlp: true, added: false };  
