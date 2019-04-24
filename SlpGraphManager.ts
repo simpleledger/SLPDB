@@ -47,7 +47,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                     tokenId = tokenDetails.tokenIdHex;
                 }
 
-                // Based on Txn output OP_RETURN data, update graph for the tokenId 
+                // Based on Txn output OP_RETURN data, update graph for the tokenId
                 if(tokenDetails && tokenId!) {
                     if(!this._tokens.has(tokenId!)) {
                         console.log("ADDING NEW GRAPH FOR:", tokenId!);
@@ -65,11 +65,11 @@ export class SlpGraphManager implements IZmqSubscriber {
                         console.log("UPDATING GRAPH FOR:", tokenId!);
                         await this._tokens.get(tokenId!)!.updateTokenGraphFrom(txPair[0]);
                         tokensUpdate.push(tokenId!);
-                    }   
-                    
+                    }
+
                     // Update the confirmed/unconfirmed collections with token details
                     await this.updateTxnCollections(txn.id, tokenId!);
-    
+
                     // zmq publish mempool notifications
                     if(this.zmqPubSocket) {
                         let tna: TNATxn | null = await this.db.db.collection('unconfirmed').findOne({ "tx.h": txn.id });
@@ -105,7 +105,7 @@ export class SlpGraphManager implements IZmqSubscriber {
 
     async onBlockHash(hash: string): Promise<void> {
 
-        // Wait until the txn count is greater than 0 
+        // Wait until the txn count is greater than 0
         let retries = 0;
         let count = 0;
         let blockTxns: null | {
@@ -165,7 +165,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                 this.zmqPubSocket.send([ 'block', JSON.stringify(blockTxns) ]);
             }
 
-            // fix any missed token timestamps 
+            // fix any missed token timestamps
             await this.fixMissingTokenTimestamps();
         }
     }
@@ -204,8 +204,8 @@ export class SlpGraphManager implements IZmqSubscriber {
                     let txn = await this._rpcClient.getRawTransaction(txid, 1);
                     let block = await this._rpcClient.getBlock(txn.blockhash);
                     tna.blk = {
-                        h: txn.blockhash, 
-                        i: block.height, 
+                        h: txn.blockhash,
+                        i: block.height,
                         t: block.time
                     }
                     await this.db.db.collection(collection).replaceOne({ "tx.h": txid }, tna);
@@ -221,7 +221,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                         if(!keys.includes(txid)) {
                             await tokenGraph._slpValidator.isValidSlpTxid(txid, tokenGraph._tokenDetails.tokenIdHex);
                         }
-                        let validation = tokenGraph._slpValidator.cachedValidations[txid];                        
+                        let validation = tokenGraph._slpValidator.cachedValidations[txid];
                         isValid = validation.validity;
                         invalidReason = validation.invalidReason;
                         let addresses: (string|null)[] = [];
@@ -229,7 +229,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                             addresses = tna.out.map(o => {
                                 try {
                                     if(o.e!.a && Utils.isCashAddress(o.e!.a))
-                                        return Utils.toSlpAddress(o.e!.a); 
+                                        return Utils.toSlpAddress(o.e!.a);
                                     else return null;
                                 } catch(_) { return null; }
                             });
@@ -345,7 +345,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                     console.log("No token transactions after block", updateFromHeight, "were found.");
                 else
                     console.log("Token's graph is up to date.");
-                
+
             } catch(err) {
                 if(err.message.includes(throwMsg1) || err.message.includes(throwMsg2)) {
                     graph = new SlpTokenGraph(this.db);
@@ -358,7 +358,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                     throw err;
                 }
             }
-            
+
             if(graph.IsValid()) {
                 this._tokens.set(tokens[i].tokenIdHex, graph);
                 await this.db.tokeninsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toTokenDbObject());
@@ -401,7 +401,7 @@ export interface SlpTransactionDetailsTnaDbo {
     versionType: number;
     symbol: string;
     name: string;
-    documentUri: string; 
+    documentUri: string;
     documentSha256Hex: string|null;
     decimals: number;
     txnContainsBaton: boolean;

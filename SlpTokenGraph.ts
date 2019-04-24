@@ -52,7 +52,7 @@ export class SlpTokenGraph implements TokenGraph {
             let mints = await Query.getMintTransactions(tokenDetails.tokenIdHex);
             if(mints && mints.length > 0)
                 await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom(m.txid!));
-    
+
             await this.updateAddressesFromScratch();
             await this.initStatistics();
         }
@@ -126,15 +126,15 @@ export class SlpTokenGraph implements TokenGraph {
                     return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
                 return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
             }
-        } 
+        }
         this._tokenUtxos.add(txid + ":" + vout);
         return { status: TokenUtxoStatus.UNSPENT, txid: null, queryResponse: null, invalidReason: null };
     }
 
-    async updateTokenGraphFrom(txid: string, isParent=false): Promise<boolean> { 
-        this._statisticsUpdateStatus.add(txid);       
+    async updateTokenGraphFrom(txid: string, isParent=false): Promise<boolean> {
+        this._statisticsUpdateStatus.add(txid);
         if(this._graphTxns.has(txid) && !isParent) {
-            this._statisticsUpdateStatus.delete(txid);       
+            this._statisticsUpdateStatus.delete(txid);
             return true;
         }
 
@@ -144,13 +144,13 @@ export class SlpTokenGraph implements TokenGraph {
 
         if (!isValid) {
             console.log("Not valid token transaction:", txid);
-            this._statisticsUpdateStatus.delete(txid);       
+            this._statisticsUpdateStatus.delete(txid);
             return false;
         }
 
         if(!txnSlpDetails) {
             console.log("No token details for:", txid);
-            this._statisticsUpdateStatus.delete(txid);       
+            this._statisticsUpdateStatus.delete(txid);
             return false;
         }
 
@@ -188,7 +188,7 @@ export class SlpTokenGraph implements TokenGraph {
                 graphTxn.outputs.push({
                     address: address,
                     vout: 1,
-                    bchSatoshis: txn.outputs.length > 1 ? txn.outputs[1].satoshis : 0, 
+                    bchSatoshis: txn.outputs.length > 1 ? txn.outputs[1].satoshis : 0,
                     slpAmount: <any>graphTxn.details.genesisOrMintQuantity!,
                     spendTxid: spendDetails.txid,
                     status: spendDetails.status,
@@ -202,7 +202,7 @@ export class SlpTokenGraph implements TokenGraph {
                     graphTxn.outputs.push({
                         address: address,
                         vout: txnSlpDetails.batonVout,
-                        bchSatoshis: txnSlpDetails.batonVout < txn.outputs.length ? txn.outputs[txnSlpDetails.batonVout].satoshis : 0, 
+                        bchSatoshis: txnSlpDetails.batonVout < txn.outputs.length ? txn.outputs[txnSlpDetails.batonVout].satoshis : 0,
                         slpAmount: new BigNumber(0),
                         spendTxid: mintSpendDetails.txid,
                         status: mintSpendDetails.status,
@@ -212,7 +212,7 @@ export class SlpTokenGraph implements TokenGraph {
             }
         }
         else if(isValid && graphTxn.details.sendOutputs!.length > 0) {
-            await this.asyncForEach(graphTxn.details.sendOutputs!, async (output: BigNumber, slp_vout: number) => { 
+            await this.asyncForEach(graphTxn.details.sendOutputs!, async (output: BigNumber, slp_vout: number) => {
                 if(output.isGreaterThanOrEqualTo(0)) {
                     if(slp_vout > 0) {
                         let spendDetails = await this.getSpendDetails(txid, slp_vout, txn.outputs.length);
@@ -222,7 +222,7 @@ export class SlpTokenGraph implements TokenGraph {
                         graphTxn.outputs.push({
                             address: address,
                             vout: slp_vout,
-                            bchSatoshis: slp_vout < txn.outputs.length ? txn.outputs[slp_vout].satoshis : 0, 
+                            bchSatoshis: slp_vout < txn.outputs.length ? txn.outputs[slp_vout].satoshis : 0,
                             slpAmount: <any>graphTxn.details.sendOutputs![slp_vout],
                             spendTxid: spendDetails.txid,
                             status: spendDetails.status,
@@ -245,7 +245,7 @@ export class SlpTokenGraph implements TokenGraph {
 
         this._graphTxns.set(txid, graphTxn);
         this._lastUpdatedBlock = await this._rpcClient.getBlockCount();
-        this._statisticsUpdateStatus.delete(txid);       
+        this._statisticsUpdateStatus.delete(txid);
         return true;
     }
 
@@ -371,7 +371,7 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
 
-        
+
         if(this._tokenStats.qty_token_circulating_supply.isGreaterThan(this._tokenStats.qty_token_minted)) {
             console.log("[ERROR] Cannot have circulating supply larger than mint quantity.");
             console.log("[INFO] Statistics will be recomputed after transaction queue is cleared.");
@@ -463,7 +463,7 @@ export class SlpTokenGraph implements TokenGraph {
         let result: GraphTxnDbo[] = [];
         Array.from(this._graphTxns).forEach(k => {
             result.push({
-                tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, 
+                tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex },
                 graphTxn: {
                     txid: k[0],
                     block: k[1].block,
@@ -526,7 +526,7 @@ export class SlpTokenGraph implements TokenGraph {
 
         return res;
     }
-    
+
     static ConvertToUnixTime(Y_m_d_H_M_S: string): number|null {
         // timestamp is formatted as "%Y-%m-%d %H:%M:%S"
         if(Y_m_d_H_M_S) {
@@ -541,7 +541,7 @@ export class SlpTokenGraph implements TokenGraph {
         let genesisMintQty = new BigNumber(0);
         if(details.genesisOrMintQuantity)
             try { genesisMintQty = new BigNumber(details.genesisOrMintQuantity.toString()).multipliedBy(10**decimals); } catch(_) { throw Error("Error in mapping database object"); }
-        
+
         let sendOutputs: BigNumber[] = [];
         if(details.sendOutputs)
             try { sendOutputs = details.sendOutputs.map(o => o = <any>new BigNumber(o.toString()).multipliedBy(10**decimals)); } catch(_) { throw Error("Error in mapping database object"); }
@@ -608,7 +608,7 @@ export class SlpTokenGraph implements TokenGraph {
         tg._addresses = new Map<string, AddressBalance>();
         addresses.forEach((item, idx) => {
             tg._addresses.set(item.address, {
-                satoshis_balance: addresses[idx].satoshis_balance, 
+                satoshis_balance: addresses[idx].satoshis_balance,
                 token_balance: (new BigNumber(addresses[idx].token_balance.toString())).multipliedBy(10**tg._tokenDetails.decimals)
             });
         });
@@ -675,7 +675,7 @@ export interface SlpTransactionDetailsDbo {
     timestamp_unix: number|null;
     symbol: string;
     name: string;
-    documentUri: string; 
+    documentUri: string;
     documentSha256Hex: string|null;
     decimals: number;
     containsBaton: boolean;
@@ -691,11 +691,11 @@ interface GraphTxnDetailsDbo {
     outputs: GraphTxnOutputDbo[];
 }
 
-interface GraphTxnOutputDbo { 
+interface GraphTxnOutputDbo {
     address: string;
     vout: number;
     bchSatoshis: number;
-    slpAmount: Decimal128; 
+    slpAmount: Decimal128;
     spendTxid: string | null;
     status: TokenUtxoStatus|BatonUtxoStatus;
     invalidReason: string | null;
@@ -707,7 +707,7 @@ interface GraphTxn {
     outputs: GraphTxnOutput[];
 }
 
-interface GraphTxnOutput { 
+interface GraphTxnOutput {
     address: string;
     vout: number;
     bchSatoshis: number;
@@ -749,7 +749,7 @@ interface TokenStatsDbo {
 }
 
 enum TokenUtxoStatus {
-    "UNSPENT" = "UNSPENT", 
+    "UNSPENT" = "UNSPENT",
     "SPENT_SAME_TOKEN" = "SPENT_SAME_TOKEN",
     "SPENT_WRONG_TOKEN" = "SPENT_WRONG_TOKEN",
     "SPENT_NOT_IN_SEND" = "SPENT_NOT_IN_SEND",
@@ -759,9 +759,9 @@ enum TokenUtxoStatus {
 }
 
 enum BatonUtxoStatus {
-    "BATON_UNSPENT" = "BATON_UNSPENT", 
+    "BATON_UNSPENT" = "BATON_UNSPENT",
     "BATON_SPENT_IN_MINT" = "BATON_SPENT_IN_MINT",
-    "BATON_SPENT_NOT_IN_MINT" = "BATON_SPENT_NOT_IN_MINT", 
+    "BATON_SPENT_NOT_IN_MINT" = "BATON_SPENT_NOT_IN_MINT",
     "BATON_SPENT_NON_SLP" = "BATON_SPENT_NON_SLP",
     "BATON_SPENT_INVALID_SLP" = "BATON_SPENT_INVALID_SLP",
     "BATON_MISSING_BCH_VOUT" = "BATON_MISSING_BCH_VOUT"

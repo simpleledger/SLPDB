@@ -9,9 +9,9 @@ const bitqueryd = require('fountainhead-core').slpqueryd
 
 export class Query {
 
-    static dbQuery: any; 
+    static dbQuery: any;
     static async init(): Promise<void> {
-        if(!Query.dbQuery) { 
+        if(!Query.dbQuery) {
             if((await Info.getNetwork()) === 'mainnet')
                 Query.dbQuery = await bitqueryd.init({ url: Config.db.url, name: Config.db.name, log_result: false });
             else
@@ -28,7 +28,7 @@ export class Query {
             "q": {
                 "db": "t",
                 "find": { "tokenDetails.timestamp": null, "tokenDetails.timestamp_unix": null },
-                "limit": limit, 
+                "limit": limit,
                 "project": { "tokenDetails.tokenIdHex": 1 }
             },
             "r": { "f": "[ .[] | { txid: .tokenDetails.tokenIdHex } ]" }
@@ -168,7 +168,7 @@ export class Query {
             "q": {
                 "db": ["c"],
                 "find": { "out.h4": tokenIdHex, "out.h1": "534c5000", "out.s3": "MINT" },
-                "sort": { "blk.i": -1 }, 
+                "sort": { "blk.i": -1 },
                 "limit": 1
             },
             "r": { "f": "[ .[] | { block: (if .blk? then .blk.i else null end)} ]" }
@@ -186,7 +186,7 @@ export class Query {
             "q": {
                 "db": ["c"],
                 "find": { "out.h4": tokenIdHex, "out.h1": "534c5000", "out.s3": "SEND" },
-                "sort": { "blk.i": -1 }, 
+                "sort": { "blk.i": -1 },
                 "limit": 1
             },
             "r": { "f": "[ .[] | { block: (if .blk? then .blk.i else null end)} ]" }
@@ -266,8 +266,8 @@ export class Query {
             versionType: parseInt(res.versionTypeHex, 16),
             documentUri: res.documentUri,
             documentSha256: Buffer.from(res.documentSha256Hex, 'hex'),
-            symbol: res.symbol, 
-            name: res.name, 
+            symbol: res.symbol,
+            name: res.name,
             batonVout: baton,
             decimals: parseInt(res.decimalsHex, 16),
             containsBaton: baton && baton > 1 && baton < 256 ? true : false,
@@ -281,7 +281,7 @@ export class Query {
             "v": 3,
             "q": {
                 "db": ["c","u"],
-                "find": { "tx.h": txid }, 
+                "find": { "tx.h": txid },
                 "limit": 1
             },
             "r": { "f": "[.[] | { type: .out[0].s3, sendOrMintTokenId: .out[0].h4 } ]" }
@@ -292,7 +292,7 @@ export class Query {
             u: any;
             errors?: any;
         } = await this.dbQuery.read(q);
-        
+
         if(!response.errors) {
             let results: {
                 type: string;
@@ -325,18 +325,18 @@ export class Query {
             "v": 3,
             "q": {
                 "db": ["c","u"],
-                "find": { 
+                "find": {
                     "in": {
                         "$elemMatch": { "e.h": txid, "e.i": vout } // DO NOT INCLUDE! --> , "out.s3": "MINT" }
                     }
-                }, 
-                "limit": 1   
+                },
+                "limit": 1
             },
             "r": { "f": "[ .[] | { txid: .tx.h, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end), tokenid: .out[0].h4, batonHex: .out[0].h5, mintQty: .out[0].h6, mintBchQty: .out[1].e.v } ]" }
         }
 
         let response: MintTxnQueryResponse = await this.dbQuery.read(q);
-        
+
         if(!response.errors) {
             let results: MintTxnQueryResult[] = ([].concat(<any>response.c).concat(<any>response.u));
             if(results.length === 1) {
@@ -344,7 +344,7 @@ export class Query {
                 try {
                     let qtyBuf = Buffer.from(res.mintQty as any as string, 'hex');
                     res.mintQty = Utils.buffer2BigNumber(qtyBuf)
-                } catch(err) { 
+                } catch(err) {
                     throw err;
                 }
                 return res;
@@ -363,18 +363,18 @@ export class Query {
             "v": 3,
             "q": {
                 "db": ["c","u"],
-                "find": { 
+                "find": {
                     "in": {
                         "$elemMatch": { "e.h": txid, "e.i": vout } // DO NOT INCLUDE! --> , "out.s3": "SEND" }
                     }
-                }, 
-                "limit": 1   
+                },
+                "limit": 1
             },
             "r": { "f": "[ .[] | { txid: .tx.h, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end), tokenid: .out[0].h4, slp1: .out[0].h5, slp2: .out[0].h6, slp3: .out[0].h7, slp4: .out[0].h8, slp5: .out[0].h9, slp6: .out[0].h10, slp7: .out[0].h11, slp8: .out[0].h12, slp9: .out[0].h13, slp10: .out[0].h14, slp11: .out[0].h15, slp12: .out[0].h16, slp13: .out[0].h17, slp14: .out[0].h18, slp15: .out[0].h19, slp16: .out[0].h20, slp17: .out[0].h21, slp18: .out[0].h22, slp19: .out[0].h23, bch0: .out[0].e.v, bch1: .out[1].e.v, bch2: .out[2].e.v, bch3: .out[3].e.v, bch4: .out[4].e.v, bch5: .out[5].e.v, bch6: .out[6].e.v, bch7: .out[7].e.v, bch8: .out[8].e.v, bch9: .out[9].e.v, bch10: .out[10].e.v, bch11: .out[11].e.v, bch12: .out[12].e.v, bch13: .out[13].e.v, bch14: .out[14].e.v, bch15: .out[15].e.v, bch16: .out[16].e.v, bch17: .out[17].e.v, bch18: .out[18].e.v, bch19: .out[19].e.v } ]" }
         }
 
         let response: SendTxnQueryResponse = await this.dbQuery.read(q);
-        
+
         if(!response.errors) {
             let results: SendTxnQueryResult[] = ([].concat(<any>response.c).concat(<any>response.u));
             if(results.length === 1) {
@@ -429,14 +429,14 @@ export class Query {
             "v": 3,
             "q": {
                 "db": ["c","u"],
-                "find": { "tx.h": txid }, 
+                "find": { "tx.h": txid },
                 "limit": 1
             },
             "r": { "f": "[ .[] | { block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end) } ]" }
         }
 
         let res: SendTxnQueryResponse = await Query.dbQuery.read(q);
-        
+
         if(!res.errors) {
             let results: { block: number|null, timestamp: string|null}[] = [];
             results = [ ...([].concat(<any>res.c).concat(<any>res.u))]
@@ -454,14 +454,14 @@ export class Query {
             "v": 3,
             "q": {
                 "db": ["c","u"],
-                "find": { "out.h1": "534c5000", "out.s3": "MINT", "out.h4": tokenId }, 
+                "find": { "out.h1": "534c5000", "out.s3": "MINT", "out.h4": tokenId },
                 "limit": limit
             },
             "r": { "f": "[ .[] | { slp: .slp, txid: .tx.h, versionTypeHex: .out[0].h2, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end), batonHex: .out[0].h5, quantityHex: .out[0].h6 } ]" }
         }
 
         let res: SendTxnQueryResponse = await Query.dbQuery.read(q);
-        
+
         if(!res.errors) {
             let results: MintQueryResult[] = [].concat(<any>res.c).concat(<any>res.u);
             if(results.length === limit)
@@ -486,7 +486,7 @@ export interface MintTxnQueryResponse {
 
 export interface SendTxnQueryResponse {
     c: SendTxnQueryResult[];
-    u: SendTxnQueryResult[]; 
+    u: SendTxnQueryResult[];
     errors?: any;
 }
 
@@ -503,7 +503,7 @@ export interface GenesisQueryResult {
     symbol: string;
     name: string;
     documentUri: string;
-    documentSha256Hex: string; 
+    documentSha256Hex: string;
     decimalsHex: string;
     batonHex: string;
     quantityHex: string;
@@ -520,7 +520,7 @@ export interface MintQueryResult {
     slp: TNATxnSlpDetails;
 }
 
-//batonHex: .out[0].h5, mintQty: .out[0].h6, mintBchQty: 
+//batonHex: .out[0].h5, mintQty: .out[0].h6, mintBchQty:
 export interface MintTxnQueryResult {
     txid: string|null;
     block: number|null;

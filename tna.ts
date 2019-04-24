@@ -58,7 +58,7 @@ export class TNA {
                         output.script.chunks.forEach(function(c, chunk_index) {
                             if (c.buf) {
                                 const key_prefix = (c.buf.length >= 512) ? 'l' : '';
-    
+
                                 xput[key_prefix + "b" + chunk_index] = c.buf.toString('base64')
                                 xput[key_prefix + "s" + chunk_index] = c.buf.toString('utf8')
                                 if (options && options.h && options.h > 0) {

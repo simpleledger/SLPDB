@@ -46,13 +46,13 @@ export declare module Bitcore {
         len: number;
         opcodenum: number;
     }
-    
+
     export interface TxnOutput {
         _scriptBuffer: Buffer;
         script: Script;
         satoshis: number;
     }
-    
+
     export interface Transaction {
         inputs: TxnInput[];
         outputs: TxnOutput[];

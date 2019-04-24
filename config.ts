@@ -1,7 +1,7 @@
-export interface DbConfig { 
-    name: string; 
+export interface DbConfig {
+    name: string;
     name_testnet: string;
-    url: string; 
+    url: string;
     index: { [key: string]: { [key: string]: string[] } };
     schema_version: number;
 }
@@ -11,8 +11,8 @@ export type CollectionType = {
     fulltext: string[];
 }
 
-export interface RpcConfig { 
-    protocol: string; user: string; pass: string; host: string; port: string; limit: number; 
+export interface RpcConfig {
+    protocol: string; user: string; pass: string; host: string; port: string; limit: number;
 }
 
 export class Config {

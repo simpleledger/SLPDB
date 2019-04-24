@@ -21,7 +21,7 @@ export module Info {
     export const getNetwork =  async function(): Promise<string> {
         try {
             return await kv.get('network');
-        } catch(_) { 
+        } catch(_) {
             throw Error("Cannot get network");
         }
     }
@@ -34,7 +34,7 @@ export module Info {
                 //console.log('Checkpoint found,', cp)
                 return { height: cp, hash: hash }
             }
-        } catch(_) { 
+        } catch(_) {
             if(fallback_index) {
                 console.log("[INFO] Checkpoint not found, starting sync at", fallback_index)
                 return { height: fallback_index, hash: null }
@@ -58,7 +58,7 @@ export module Info {
     }
 
     export const deleteTip = async function() {
-        try { 
+        try {
             await kv.del('tip');
         } catch(err) {
             console.log('[ERROR] deleteTip err', err)
@@ -66,7 +66,7 @@ export module Info {
     }
 
     export const deleteOldTipHash = async function (index: number){
-        try { 
+        try {
             await kv.del(index + '-hash');
         } catch(err) {
             console.log('[ERROR] deleteTip err', err)
