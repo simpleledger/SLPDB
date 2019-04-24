@@ -1,5 +1,4 @@
 import { VerboseRawTransaction } from 'bitbox-sdk/lib/RawTransactions'
-import BITBOXSDK from 'bitbox-sdk';
 import { BlockchainInfo, TxOut } from 'bitbox-sdk/lib/Blockchain';
 import { NodeInfo } from 'bitbox-sdk/lib/Control';
 import { BlockDetails } from 'bitbox-sdk/lib/Block';

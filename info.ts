@@ -1,8 +1,6 @@
 const level = require('level');
 var kv = level('./_leveldb');
 
-import { Config } from './config';
-
 /**
 * Return the last synchronized checkpoint
 */
