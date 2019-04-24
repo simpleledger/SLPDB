@@ -9,5 +9,6 @@ module.exports = {
     '@typescript-eslint/camelcase': 'off',
     '@typescript-eslint/indent': 'off',
     'no-tabs': 'error',
+    'no-trailing-spaces': 'error',
   }
 }
