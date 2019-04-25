@@ -110,7 +110,15 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 
 **5)** Install and run [slpserve](https://github.com/fountainhead-cash/slpserve) and/or [slpsocket](https://github.com/simpleledger/sockserve) to access SLP token data and statistics
 
+### Updating SLPDB
 
+**1)** Execute `git pull origin master` to update to latest version.
+
+**2)** Execute `npm install` to update packages
+
+**3)** Execute `npm run migrate up` to run latest migrations.
+
+**4)** Restart SLPDB.
 
 ## Token Stats
 
