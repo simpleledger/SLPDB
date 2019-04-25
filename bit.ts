@@ -37,6 +37,7 @@ export interface SyncCompletionInfo {
 export interface IZmqSubscriber {
     onTransactionHash: undefined | ((syncInfo: SyncCompletionInfo) => Promise<void>);
     onBlockHash: undefined | ((blockhash: string) => Promise<void>);
+    searchForNonSlpBurnTransactions: (() => Promise<void>);
     zmqPubSocket?: zmq.Socket; 
 }
 export type CrawlResult = Map<txid, CrawlTxnInfo>;
@@ -466,6 +467,12 @@ export class Bit {
 
                     // re-check current height in case it was updated during crawl()
                     currentHeight = await self.requestheight();
+                }
+
+                if(self._zmqSubscribers.length > 0) {
+                    console.log('[INFO] Starting to look for any burned tokens resulting from non-SLP transactions');
+                    await self._zmqSubscribers[0].searchForNonSlpBurnTransactions();
+                    console.log('[INFO] Finished looking for burned tokens.');
                 }
 
                 // clear mempool and synchronize
