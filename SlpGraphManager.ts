@@ -140,9 +140,9 @@ export class SlpGraphManager implements IZmqSubscriber {
                 let token = this._tokens.get(tokenIds[i])!;
                 await token.updateStatistics();
                 await this.db.tokeninsertreplace(token.toTokenDbObject());
-                await this.db.addressinsertreplace(token.toAddressesDbObject());
-                await this.db.graphinsertreplace(token.toGraphDbObject());
-                await this.db.utxoinsertreplace(token.toUtxosDbObject());
+                await this.db.addressinsertreplace(token.toAddressesDbObject(), token._tokenDetails.tokenIdHex);
+                await this.db.graphinsertreplace(token.toGraphDbObject(), token._tokenDetails.tokenIdHex);
+                await this.db.utxoinsertreplace(token.toUtxosDbObject(), token._tokenDetails.tokenIdHex);
 
                 console.log("########################################################################################################")
                 console.log("TOKEN STATS/ADDRESSES FOR", token._tokenDetails.name, token._tokenDetails.tokenIdHex)
@@ -183,6 +183,12 @@ export class SlpGraphManager implements IZmqSubscriber {
                 }
             })
         }
+    }
+
+    async searchForNonSlpBurnTransactions() {
+        await this.asyncForEach(Array.from(this._tokens), async (a: [string, SlpTokenGraph]) => {
+            await a[1].searchForNonSlpBurnTransactions();
+        })
     }
 
     private async updateTxnCollections(txid: string, tokenId: string) {
@@ -354,9 +360,9 @@ export class SlpGraphManager implements IZmqSubscriber {
             if(graph.IsValid()) {
                 this._tokens.set(tokens[i].tokenIdHex, graph);
                 await this.db.tokeninsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toTokenDbObject());
-                await this.db.graphinsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toGraphDbObject());
-                await this.db.utxoinsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toUtxosDbObject());
-                await this.db.addressinsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toAddressesDbObject());
+                await this.db.graphinsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toGraphDbObject(), tokens[i].tokenIdHex);
+                await this.db.utxoinsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toUtxosDbObject(), tokens[i].tokenIdHex);
+                await this.db.addressinsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toAddressesDbObject(), tokens[i].tokenIdHex);
             }
         }
 

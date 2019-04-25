@@ -49,9 +49,9 @@ export class Db {
         return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async graphinsertreplace(graph: GraphTxnDbo[]) {
+    async graphinsertreplace(graph: GraphTxnDbo[], tokenIdHex: string) {
+        await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
         if(graph.length > 0) {
-            await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": graph[0].tokenDetails.tokenIdHex })
             return await this.db.collection('graphs').insertMany(graph);
         }
     }
@@ -69,9 +69,9 @@ export class Db {
         return await this.db.collection('graphs').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
     }
 
-    async addressinsertreplace(addresses: AddressBalancesDbo[]) {
+    async addressinsertreplace(addresses: AddressBalancesDbo[], tokenIdHex: string) {
+        await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
         if(addresses.length > 0) {
-            await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": addresses[0].tokenDetails.tokenIdHex })
             return await this.db.collection('addresses').insertMany(addresses);
         }
     }
@@ -89,9 +89,9 @@ export class Db {
         return await this.db.collection('addresses').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
     }
 
-    async utxoinsertreplace(utxos: UtxoDbo[]) {
+    async utxoinsertreplace(utxos: UtxoDbo[], tokenIdHex: string) {
+        await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
         if(utxos.length > 0) {
-            await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": utxos[0].tokenDetails.tokenIdHex })
             return await this.db.collection('utxos').insertMany(utxos);
         }
     }

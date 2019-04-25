@@ -54,6 +54,7 @@ const daemon = {
 		await tokenManager.initAllTokens();
 		await bit.handleConfirmedTxnsMissingSlpMetadata();
 		await tokenManager.fixMissingTokenTimestamps();
+		await tokenManager.searchForNonSlpBurnTransactions();
 		await bit.checkForMissingMempoolTxns();
 		bit.listenToZmq();
 	}

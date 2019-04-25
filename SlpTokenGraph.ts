@@ -77,7 +77,7 @@ export class SlpTokenGraph implements TokenGraph {
 
                 if(spendTxnInfo.txid === null) {
                     if(vout < slpOutputLength)
-                        return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
+                        return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: null };
                     return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
                 }
                 if(typeof spendTxnInfo!.txid === 'string') {
@@ -88,7 +88,7 @@ export class SlpTokenGraph implements TokenGraph {
                         return { status: BatonUtxoStatus.BATON_SPENT_IN_MINT, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null };
                     else if(valid)
                         return { status: BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: "Baton was spent in a non-mint SLP transaction." };
-                    return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
+                    return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null };
                 }
             } catch(_) {
                 if(vout < slpOutputLength)
@@ -108,7 +108,7 @@ export class SlpTokenGraph implements TokenGraph {
                 let spendTxnInfo = await Query.queryForTxoInputAsSlpSend(txid, vout);
                 if(spendTxnInfo.txid === null) {
                     if(vout < slpOutputLength)
-                        return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
+                        return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: null };
                     return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
                 }
                 if(typeof spendTxnInfo!.txid === 'string') {
@@ -118,7 +118,7 @@ export class SlpTokenGraph implements TokenGraph {
                     if(valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.SEND)
                         return { status: TokenUtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null };
                     else if(valid)
-                        return { status: TokenUtxoStatus.SPENT_NOT_IN_SEND, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: "Token was not spent in a SEND transaction." }
+                        return { status: TokenUtxoStatus.SPENT_NOT_IN_SEND, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null }
                     return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
                 }
             } catch(_) {
@@ -140,6 +140,8 @@ export class SlpTokenGraph implements TokenGraph {
 
         let isValid = await this._slpValidator.isValidSlpTxid(txid, this._tokenDetails.tokenIdHex);
         let txnSlpDetails = this._slpValidator.cachedValidations[txid].details;
+        if(!this._slpValidator.cachedRawTransactions[txid])
+            this._slpValidator.cachedRawTransactions[txid] = await this._rpcClient.getRawTransaction(txid);
         let txn: Bitcore.Transaction = new bitcore.Transaction(this._slpValidator.cachedRawTransactions[txid])
 
         if (!isValid) {
@@ -350,6 +352,25 @@ export class SlpTokenGraph implements TokenGraph {
         return TokenBatonStatus.DEAD_BURNED;
     }
 
+    async searchForNonSlpBurnTransactions(): Promise<boolean> {
+        let updated = false;
+        await this.asyncForEach(Array.from(this._tokenUtxos), async (txo: string) => {
+            let txid = txo.split(":")[0];
+            let vout = parseInt(txo.split(":")[1]);
+            let txout = null;
+            try {
+                txout = <TxOut>(await this._rpcClient.getTxOut(txid, vout, true))
+            } catch(_) { }
+            if(!txout) {
+                await this.updateTokenGraphFrom(txid, true);
+                updated = true;
+            }
+            if(updated)
+                await this.updateStatistics();
+        })
+        return updated;
+    }
+
     async updateStatistics(log_results = true): Promise<void> {
         await this.updateAddressesFromScratch();
 
@@ -383,9 +404,9 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
         await this._db.tokeninsertreplace(this.toTokenDbObject());
-        await this._db.addressinsertreplace(this.toAddressesDbObject());
-        await this._db.graphinsertreplace(this.toGraphDbObject());
-        await this._db.utxoinsertreplace(this.toUtxosDbObject());
+        await this._db.addressinsertreplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
+        await this._db.graphinsertreplace(this.toGraphDbObject(), this._tokenDetails.tokenIdHex);
+        await this._db.utxoinsertreplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
 
         if(this._statisticsUpdateStatus.size === 0) {
             console.log("########################################################################################################")
@@ -635,6 +656,7 @@ export interface TokenGraph {
     _addresses: Map<cashAddr, AddressBalance>;
     updateTokenGraphFrom(txid: string): Promise<boolean>;
     initStatistics(): Promise<void>;
+    searchForNonSlpBurnTransactions(): Promise<boolean>;
 }
 
 export interface AddressBalance {
