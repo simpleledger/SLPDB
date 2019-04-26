@@ -1,9 +1,9 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-04-25
+**Last Updated:** 2019-04-26
 
-**Current SLPDB Version:** 0.10.1 (beta)
+**Current SLPDB Version:** 0.11.0 (beta)
 
 
 
@@ -52,7 +52,7 @@ Users should utilize the [SlpServe](https://github.com/fountainhead-cash/slpserv
 
 Some of the values used in SLP require 64 or more bits of precision, which is more precision than `number` type can provide. To ensure value precision is maintained values are stored in collections using the `Decimal128` type.  `Decimal128` allows users to make database queries using query comparison operators like `$gte`.  
 
-However, when  `SlpServe` or `SlpSockServer` query results are returned as a JSON object these `Decimal128` values are converted into `string` type to improve readability of the value for the query consumer, as opposed to being returned as a special (and odd looking)  `$DecimalNumber` JSON object.  The `string` type also maintains the original value precision.  If a user wants to perform math operations on these `string`  values the user will need to first convert them to a large number type like `BigNumber` or `Decimal128` (e.g., `Decimal128.fromString("1000.123124")` or using [bignumber.js](https://github.com/MikeMcl/bignumber.js/) npm library via `new BigNumber("1000.00000001")`).
+The services `SlpServe` and `SlpSockServer` return query results as a JSON object with `Decimal128` values converted to `string` type so that readability is improved for the query consumer, as opposed to being returned as an awqward `$DecimalNumber` JSON object.  The `string` type also maintains the original value precision.  If a user wants to perform math operations on these `string` values the user will need to first convert them to a large number type like `BigNumber` or `Decimal128` (e.g., `Decimal128.fromString("1000.123124")` or using [bignumber.js](https://github.com/MikeMcl/bignumber.js/) npm library via `new BigNumber("1000.00000001")`).
 
 
 
@@ -341,7 +341,6 @@ Six MongoDB collections used to store these three categories of data, they are a
 	    "graphTxn": {
 			txid: string;
 			details: SlpTransactionDetailsDbo;
-			block: number|null;
 			outputs: GraphTxnOutputDbo[];
 		};
 	}

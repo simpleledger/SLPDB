@@ -357,7 +357,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                 }
             }
             
-            if(graph.IsValid()) {
+            if(graph.IsValid) {
                 this._tokens.set(tokens[i].tokenIdHex, graph);
                 await this.db.tokeninsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toTokenDbObject());
                 await this.db.graphinsertreplace(this._tokens.get(tokens[i].tokenIdHex)!.toGraphDbObject(), tokens[i].tokenIdHex);

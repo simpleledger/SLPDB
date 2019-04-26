@@ -402,8 +402,9 @@ export class Bit {
         }
     }
 
-    async checkForMissingMempoolTxns() {
-        let currentBchMempoolList = await this.rpc.getRawMempool();
+    async checkForMissingMempoolTxns(currentBchMempoolList?: string[]) {
+        if(!currentBchMempoolList)
+            currentBchMempoolList = await this.rpc.getRawMempool();
         let cachedSlpMempoolTxs = Array.from(this.slpMempool.keys());
 
         // add missing SLP transactions and process
@@ -413,6 +414,10 @@ export class Bit {
                 await this._zmqSubscribers[0].onTransactionHash!(syncResult!);
             }
         });
+
+        let residualMempoolList = (await this.rpc.getRawMempool()).filter(id => !this.slpMempoolIgnoreList.includes(id) && !Array.from(this.slpMempool.keys()).includes(id))
+        if(residualMempoolList.length > 0)
+            this.checkForMissingMempoolTxns(residualMempoolList)
 
         console.log('[INFO] BCH mempool txn count:', currentBchMempoolList.length);
         console.log("[INFO] SLP mempool txn count:", this.slpMempool.size);
@@ -523,6 +528,14 @@ export class Bit {
                         result.filteredContent.set(SyncFilterTypes.SLP, pool)
                     }
                     return result;
+                }
+                else if(!isSLP) {
+                    // check transaction inputs for spending of SLP transactions
+                    // if(txn && self._zmqSubscribers.length > 0) {
+                    //     await self.asyncForEach(txn!.inputs, async () => {
+                    //         console.log("[TEST] checking input");
+                    //     })
+                    // }
                 }
             }
         }

@@ -319,7 +319,7 @@ export class Query {
         
         if(!response.errors) {
             let results: MintTxnQueryResult[] = ([].concat(<any>response.c).concat(<any>response.u));
-            if(results.length === 1) {
+            if(results.length > 0) {
                 let res: MintTxnQueryResult = results[0];
                 try {
                     let qtyBuf = Buffer.from(res.mintQty as any as string, 'hex');
@@ -330,7 +330,7 @@ export class Query {
                 return res;
             }
             else {
-                console.log("Assumed Token Burn: Could not find the spend transaction: " + txid + ":" + vout);
+                console.log("[INFO] Assumed Token Burn: Could not find the spend transaction: " + txid + ":" + vout);
                 return { tokenid: null, txid: null, block: null, timestamp: null, batonHex: null, mintQty: null, mintBchQty: null }
             }
         }
@@ -357,7 +357,7 @@ export class Query {
         
         if(!response.errors) {
             let results: SendTxnQueryResult[] = ([].concat(<any>response.c).concat(<any>response.u));
-            if(results.length === 1) {
+            if(results.length > 0) {
                 let res: any = results[0];
                 let sendOutputs: { tokenQty: BigNumber, satoshis: number }[] = [];
                 res.sendOutputs = sendOutputs;
@@ -376,7 +376,7 @@ export class Query {
                 return res;
             }
             else {
-                console.log("Assumed Token Burn: Could not find the spend transaction: " + txid + ":" + vout);
+                console.log("[INFO] Assumed Token Burn: Could not find the spend transaction: " + txid + ":" + vout);
                 return { tokenid: null, txid: null, block: null, timestamp: null, sendOutputs: [ { tokenQty: new BigNumber(0), satoshis: 0} ] }
             }
         }

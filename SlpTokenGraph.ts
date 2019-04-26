@@ -25,15 +25,14 @@ export class SlpTokenGraph implements TokenGraph {
     _slpValidator!: LocalValidator;
     _rpcClient: BitcoinRpc.RpcClient;
     _network!: string;
-    _statisticsUpdateStatus: Set<string>;
     _db: Db;
     _waitingToUpdate: boolean = false;
+    _lockGraphUpdates: boolean = false;
 
     constructor(db: Db) {
         let connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port
         this._rpcClient = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
         this._slpValidator = new LocalValidator(BITBOX, async (txids) => [ await this._rpcClient.getRawTransaction(txids[0]) ])
-        this._statisticsUpdateStatus = new Set<string>();
         this._db = db;
     }
 
@@ -58,7 +57,7 @@ export class SlpTokenGraph implements TokenGraph {
         }
     }
 
-    IsValid(): boolean {
+    get IsValid(): boolean {
         return this._graphTxns.has(this._tokenDetails.tokenIdHex);
     }
 
@@ -131,10 +130,20 @@ export class SlpTokenGraph implements TokenGraph {
         return { status: TokenUtxoStatus.UNSPENT, txid: null, queryResponse: null, invalidReason: null };
     }
 
-    async updateTokenGraphFrom(txid: string, isParent=false): Promise<boolean> { 
-        this._statisticsUpdateStatus.add(txid);       
+    async updateTokenGraphFrom(txid: string, isParent=false, lock_master=true): Promise<boolean> {
+        if(this._lockGraphUpdates && lock_master) {
+            while (this._lockGraphUpdates) {
+                sleep(250);
+                console.log("[INFO] Locking graph update for", this._tokenDetails.tokenIdHex, txid, isParent, lock_master);
+            }
+        }
+        if(lock_master) {
+            this._lockGraphUpdates = true;
+        }
+
         if(this._graphTxns.has(txid) && !isParent) {
-            this._statisticsUpdateStatus.delete(txid);       
+            if(lock_master)
+                this._lockGraphUpdates = false;      
             return true;
         }
 
@@ -145,20 +154,22 @@ export class SlpTokenGraph implements TokenGraph {
         let txn: Bitcore.Transaction = new bitcore.Transaction(this._slpValidator.cachedRawTransactions[txid])
 
         if (!isValid) {
-            console.log("Not valid token transaction:", txid);
-            this._statisticsUpdateStatus.delete(txid);       
+            console.log("[WARN] updateTokenGraphFrom: Not valid token transaction:", txid);
+            if(lock_master)
+                this._lockGraphUpdates = false;           
             return false;
         }
 
         if(!txnSlpDetails) {
-            console.log("No token details for:", txid);
-            this._statisticsUpdateStatus.delete(txid);       
+            console.log("[WARN] updateTokenGraphFrom: No token details for:", txid);
+            if(lock_master)
+                this._lockGraphUpdates = false;            
             return false;
         }
 
         let graphTxn: GraphTxn;
         if(!this._graphTxns.has(txid))
-            graphTxn = { details: txnSlpDetails, outputs: [], block: null }
+            graphTxn = { details: txnSlpDetails, outputs: [] }
         else {
             graphTxn = this._graphTxns.get(txid)!;
             graphTxn.outputs = [];
@@ -169,15 +180,9 @@ export class SlpTokenGraph implements TokenGraph {
             let parentIds = new Set<string>([...txn.inputs.map(i => i.prevTxId.toString('hex'))])
             await this.asyncForEach(Array.from(parentIds), async (txid: string) => {
                 if(this._graphTxns.get(txid)!) {
-                    await this.updateTokenGraphFrom(txid, true);
+                    await this.updateTokenGraphFrom(txid, true, false);
                 }
             });
-        }
-
-        // get block and timestamp of this txn
-        let txq: any = await Query.getSendTransactionDetails(txid);
-        if(txq) {
-            graphTxn.block = txq.block;
         }
 
         // Create SLP graph outputs for each new valid SLP output
@@ -241,13 +246,14 @@ export class SlpTokenGraph implements TokenGraph {
         // Continue to complete graph from output UTXOs
         if(!isParent) {
             await this.asyncForEach(graphTxn.outputs.filter(o => o.spendTxid && (o.status === TokenUtxoStatus.SPENT_SAME_TOKEN || o.status === BatonUtxoStatus.BATON_SPENT_IN_MINT)), async (o: any) => {
-                await this.updateTokenGraphFrom(o.spendTxid!);
+                await this.updateTokenGraphFrom(o.spendTxid!, false, false);
             });
         }
 
         this._graphTxns.set(txid, graphTxn);
         this._lastUpdatedBlock = await this._rpcClient.getBlockCount();
-        this._statisticsUpdateStatus.delete(txid);       
+        if(lock_master)
+            this._lockGraphUpdates = false;             
         return true;
     }
 
@@ -308,27 +314,25 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async initStatistics(): Promise<void> {
-        this._tokenStats = <TokenStats> {
-            block_created: await Query.queryTokenGenesisBlock(this._tokenDetails.tokenIdHex),
-            block_last_active_mint: await Query.blockLastMinted(this._tokenDetails.tokenIdHex),
-            block_last_active_send: await Query.blockLastSent(this._tokenDetails.tokenIdHex),
-            qty_valid_txns_since_genesis: this._graphTxns.size,
-            qty_valid_token_utxos: this._tokenUtxos.size,
-            qty_valid_token_addresses: this._addresses.size,
-            qty_token_minted: await this.getTotalMintQuantity(),
-            qty_token_burned: new BigNumber(0),
-            qty_token_circulating_supply: this.getTotalHeldByAddresses(),
-            qty_satoshis_locked_up: this.getTotalSatoshisLockedUp(),
-            minting_baton_status: await this.getBatonStatus()
+        if(this.IsValid) {
+            this._tokenStats = <TokenStats> {
+                block_created: await Query.queryTokenGenesisBlock(this._tokenDetails.tokenIdHex),
+                block_last_active_mint: await Query.blockLastMinted(this._tokenDetails.tokenIdHex),
+                block_last_active_send: await Query.blockLastSent(this._tokenDetails.tokenIdHex),
+                qty_valid_txns_since_genesis: this._graphTxns.size,
+                qty_valid_token_utxos: this._tokenUtxos.size,
+                qty_valid_token_addresses: this._addresses.size,
+                qty_token_minted: await this.getTotalMintQuantity(),
+                qty_token_burned: new BigNumber(0),
+                qty_token_circulating_supply: this.getTotalHeldByAddresses(),
+                qty_satoshis_locked_up: this.getTotalSatoshisLockedUp(),
+                minting_baton_status: await this.getBatonStatus()
+            }
+            this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply)
         }
-
-        this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply)
     }
 
     async getBatonStatus(): Promise<TokenBatonStatus> {
-        //console.log("DETAILS 2", this._tokenDetails);
-        //console.log("get baton", this._tokenDetails.tokenIdHex);
-        //console.log("baton", this._tokenDetails.batonVout);
         if(!this._tokenDetails.containsBaton)
             return TokenBatonStatus.NEVER_CREATED;
         else if(this._tokenDetails.containsBaton === true) {
@@ -352,76 +356,85 @@ export class SlpTokenGraph implements TokenGraph {
         return TokenBatonStatus.DEAD_BURNED;
     }
 
-    async searchForNonSlpBurnTransactions(): Promise<boolean> {
-        let updated = false;
+    async searchForNonSlpBurnTransactions(): Promise<void> {
         await this.asyncForEach(Array.from(this._tokenUtxos), async (txo: string) => {
-            let txid = txo.split(":")[0];
-            let vout = parseInt(txo.split(":")[1]);
-            let txout = null;
-            try {
-                txout = <TxOut>(await this._rpcClient.getTxOut(txid, vout, true))
-            } catch(_) { }
-            if(!txout) {
-                await this.updateTokenGraphFrom(txid, true);
-                updated = true;
-            }
-            if(updated)
-                await this.updateStatistics();
+            await this.updateTxoIfSpent(txo)
         })
-        return updated;
+        if(this._mintBatonUtxo !== "") {
+            await this.updateTxoIfSpent(this._mintBatonUtxo)
+        }
     }
 
-    async updateStatistics(log_results = true): Promise<void> {
-        await this.updateAddressesFromScratch();
-
-        if(!this._tokenStats)
-            await this.initStatistics();
-        else {
-            let minted = await this.getTotalMintQuantity();
-            let addressesTotal = this.getTotalHeldByAddresses()
-            this._tokenStats.block_last_active_mint = await Query.blockLastMinted(this._tokenDetails.tokenIdHex),
-            this._tokenStats.block_last_active_send = await Query.blockLastSent(this._tokenDetails.tokenIdHex),
-            this._tokenStats.qty_valid_token_addresses = this._addresses.size;
-            this._tokenStats.qty_valid_token_utxos = this._tokenUtxos.size;
-            this._tokenStats.qty_valid_txns_since_genesis = this._graphTxns.size;
-            this._tokenStats.qty_token_minted = minted;
-            this._tokenStats.qty_token_circulating_supply = addressesTotal;
-            this._tokenStats.qty_token_burned = minted.minus(addressesTotal);
-            this._tokenStats.qty_satoshis_locked_up = this.getTotalSatoshisLockedUp();
-            this._tokenStats.minting_baton_status = await this.getBatonStatus();
+    async updateTxoIfSpent(txo: string) {
+        let updated = false;
+        let txid = txo.split(":")[0];
+        let vout = parseInt(txo.split(":")[1]);
+        let txout = null;
+        try {
+            txout = <TxOut>(await this._rpcClient.getTxOut(txid, vout, true))
+        } catch(_) { }
+        if(!txout) {
+            await this.updateTokenGraphFrom(txid, true);
+            updated = true;
         }
+        if(updated)
+            await this.updateStatistics();
+    }
+
+    async updateStatistics(): Promise<void> {
+        if(this.IsValid) {
+            await this.updateAddressesFromScratch();
+
+            if(!this._tokenStats)
+                await this.initStatistics();
+            else {
+                let minted = await this.getTotalMintQuantity();
+                let addressesTotal = this.getTotalHeldByAddresses()
+                this._tokenStats.block_last_active_mint = await Query.blockLastMinted(this._tokenDetails.tokenIdHex),
+                this._tokenStats.block_last_active_send = await Query.blockLastSent(this._tokenDetails.tokenIdHex),
+                this._tokenStats.qty_valid_token_addresses = this._addresses.size;
+                this._tokenStats.qty_valid_token_utxos = this._tokenUtxos.size;
+                this._tokenStats.qty_valid_txns_since_genesis = this._graphTxns.size;
+                this._tokenStats.qty_token_minted = minted;
+                this._tokenStats.qty_token_circulating_supply = addressesTotal;
+                this._tokenStats.qty_token_burned = minted.minus(addressesTotal);
+                this._tokenStats.qty_satoshis_locked_up = this.getTotalSatoshisLockedUp();
+                this._tokenStats.minting_baton_status = await this.getBatonStatus();
+            }
 
 
-        
-        if(this._tokenStats.qty_token_circulating_supply.isGreaterThan(this._tokenStats.qty_token_minted)) {
-            console.log("[ERROR] Cannot have circulating supply larger than mint quantity.");
-            console.log("[INFO] Statistics will be recomputed after transaction queue is cleared.");
-            this.updateStatsAfterQueueIsCleared();
-        }
+            
+            if(this._tokenStats.qty_token_circulating_supply.isGreaterThan(this._tokenStats.qty_token_minted)) {
+                console.log("[ERROR] Cannot have circulating supply larger than mint quantity.");
+                console.log("[INFO] Statistics will be recomputed after transaction queue is cleared.");
+                this.updateStatsAfterQueueIsCleared();
+            }
 
-        if(!this._tokenStats.qty_token_circulating_supply.isEqualTo(this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_burned))) {
-            console.log("[WARN] Circulating supply minus burn quantity does not equal minted quantity");
-        }
+            if(!this._tokenStats.qty_token_circulating_supply.isEqualTo(this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_burned))) {
+                console.log("[WARN] Circulating supply minus burn quantity does not equal minted quantity");
+            }
 
-        await this._db.tokeninsertreplace(this.toTokenDbObject());
-        await this._db.addressinsertreplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
-        await this._db.graphinsertreplace(this.toGraphDbObject(), this._tokenDetails.tokenIdHex);
-        await this._db.utxoinsertreplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
+            await this._db.tokeninsertreplace(this.toTokenDbObject());
+            await this._db.addressinsertreplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
+            await this._db.graphinsertreplace(this.toGraphDbObject(), this._tokenDetails.tokenIdHex);
+            await this._db.utxoinsertreplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
 
-        if(this._statisticsUpdateStatus.size === 0) {
-            console.log("########################################################################################################")
-            console.log("TOKEN STATS/ADDRESSES FOR", this._tokenDetails.name, this._tokenDetails.tokenIdHex)
-            console.log("########################################################################################################")
-            this.logTokenStats();
-            this.logAddressBalances();
+            if(!this._lockGraphUpdates) {
+                console.log("########################################################################################################")
+                console.log("TOKEN STATS/ADDRESSES FOR", this._tokenDetails.name, this._tokenDetails.tokenIdHex)
+                console.log("########################################################################################################")
+                this.logTokenStats();
+                this.logAddressBalances();
+            }
         }
     }
 
     async updateStatsAfterQueueIsCleared() {
         if(!this._waitingToUpdate) {
-            while(this._statisticsUpdateStatus.size > 0) {
+            while(this._lockGraphUpdates) {
                 this._waitingToUpdate = true;
                 await sleep(250);
+                console.log("[INFO] Waiting to update graph for", this._tokenDetails.tokenIdHex);
             }
             this._waitingToUpdate = false;
             await this.updateStatistics();
@@ -430,7 +443,6 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     logTokenStats(): void {
-        //await this.updateStatistics();
         console.log("TOKEN STATS:")
         console.log({
             block_created: this._tokenStats.block_created,
@@ -487,7 +499,6 @@ export class SlpTokenGraph implements TokenGraph {
                 tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, 
                 graphTxn: {
                     txid: k[0],
-                    block: k[1].block,
                     details: SlpTokenGraph.MapTokenDetailsToDbo(this._graphTxns.get(k[0])!.details, this._tokenDetails.decimals),
                     outputs: this.mapGraphTxnOutputsToDbo(this._graphTxns.get(k[0])!.outputs)
                 }
@@ -601,7 +612,6 @@ export class SlpTokenGraph implements TokenGraph {
             try { dag[idx].graphTxn.outputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)) } catch(_) { throw Error("Error in mapping database object"); }
 
             let gt: GraphTxn = {
-                block: item.graphTxn.block,
                 details: this.MapDbTokenDetailsFromDbo(dag[idx].graphTxn.details, token.tokenDetails.decimals),
                 outputs: dag[idx].graphTxn.outputs as any as GraphTxnOutput[]
             }
@@ -656,7 +666,7 @@ export interface TokenGraph {
     _addresses: Map<cashAddr, AddressBalance>;
     updateTokenGraphFrom(txid: string): Promise<boolean>;
     initStatistics(): Promise<void>;
-    searchForNonSlpBurnTransactions(): Promise<boolean>;
+    searchForNonSlpBurnTransactions(): Promise<void>;
 }
 
 export interface AddressBalance {
@@ -708,7 +718,6 @@ export interface SlpTransactionDetailsDbo {
 interface GraphTxnDetailsDbo {
     txid: string,
     details: SlpTransactionDetailsDbo;
-    block: number|null;
     outputs: GraphTxnOutputDbo[]
 }
 
@@ -724,7 +733,6 @@ interface GraphTxnOutputDbo {
 
 interface GraphTxn {
     details: SlpTransactionDetails;
-    block: number|null;
     outputs: GraphTxnOutput[]
 }
 
