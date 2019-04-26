@@ -117,7 +117,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                 count = blockTxns!.txns.length;
             } catch(_){ }
             if(retries > 5) {
-                console.log("No SLP transactions found in block " + hash + " .");
+                console.log("[INFO] No SLP transactions found in block " + hash + " .");
                 return;
             }
             retries++;
@@ -211,7 +211,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                 if(!tna.slp)
                     tna.slp = {} as any;
                 if(tna.slp!.schema_version !== Config.db.schema_version) {
-                    console.log("Updating confirmed/unconfirmed collections for", txid);
+                    console.log("[INFO] Updating confirmed/unconfirmed collections for", txid);
                     let isValid: boolean|null, details: SlpTransactionDetailsTnaDbo|null, invalidReason: string|null;
                     let tokenGraph = this._tokens.get(tokenId)!;
                     try {
@@ -330,19 +330,19 @@ export class SlpGraphManager implements IZmqSubscriber {
                 console.log("########################################################################################################")
                 let potentialReorgFactor = 10;
                 let updateFromHeight = graph._lastUpdatedBlock - potentialReorgFactor;
-                console.log("Checking for Graph Updates since token's last update at (height - " + potentialReorgFactor + "):", updateFromHeight);
+                console.log("[INFO] Checking for Graph Updates since token's last update at (height - " + potentialReorgFactor + "):", updateFromHeight);
                 let res = await Query.queryForRecentTokenTxns(graph._tokenDetails.tokenIdHex, updateFromHeight);
 
                 // TODO: Pre-load validation results into the tokenGraph's local validator.
 
                 await this.asyncForEach(res, async (txid: string) => {
                     await graph.updateTokenGraphFrom(txid);
-                    console.log("Updated graph from", txid);
+                    console.log("[INFO] Updated graph from", txid);
                 });
                 if(res.length === 0)
-                    console.log("No token transactions after block", updateFromHeight, "were found.");
+                    console.log("[INFO] No token transactions after block", updateFromHeight, "were found.");
                 else
-                    console.log("Token's graph is up to date.");
+                    console.log("[INFO] Token's graph is up to date.");
                 
             } catch(err) {
                 if(err.message.includes(throwMsg1) || err.message.includes(throwMsg2)) {
