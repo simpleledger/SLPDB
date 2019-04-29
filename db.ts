@@ -1,6 +1,6 @@
 import { MongoClient, Db as MongoDb } from 'mongodb';
 import { Config, DbConfig } from './config';
-import { TNATxn } from './tna';
+import { TNATxn, TNA } from './tna';
 import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from './SlpTokenGraph';
 import { Info } from './info';
 import { BitcoinRpc } from './vendor';
@@ -123,6 +123,10 @@ export class Db {
 
     async mempoolfetch(txid: string) {
         return await this.db.collection('unconfirmed').findOne({ "tx.h": txid });
+    }
+
+    async mempoolprocessedslp(): Promise<string[]> {
+        return (await this.db.collection('unconfirmed').find().toArray()).filter((i:TNATxn) => i.slp);
     }
 
     async mempoolsync(items: TNATxn[]) {

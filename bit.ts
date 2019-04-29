@@ -71,17 +71,14 @@ export class Bit {
         this.slpMempoolIgnoreList = [];
     }
 
-    slp_txn_filter(txnhex: string, isBlock=false): boolean {
+    slp_txn_filter(txnhex: string): boolean {
         if(txnhex.includes('6a04534c5000')) {
             return true;
         }
-        if(!isBlock) {
-            let txn: Bitcore.Transaction = new bitcore.Transaction(txnhex);
-            this.slpMempoolIgnoreList.push(txn.id);
-            if(this.slpMempoolIgnoreList.length > 10000)
-                this.slpMempoolIgnoreList.pop();
-        }
-
+        let txn: Bitcore.Transaction = new bitcore.Transaction(txnhex);
+        this.slpMempoolIgnoreList.push(txn.id);
+        if(this.slpMempoolIgnoreList.length > 10000)
+            this.slpMempoolIgnoreList.pop();
         return false;
     }
     
@@ -254,27 +251,48 @@ export class Bit {
                         let t: TNATxn|undefined, tries=0;
                         while(!t) {
                             t = await self.db.mempoolfetch(block.txs[i].txid());
-                            if(!t) {
-                                if(tries > 5)
-                                    throw Error("Cannot find transaction.");
-                                await sleep(1000);
-                            }
+                            if(tries > 5)
+                                throw Error("Cannot find transaction.");
+                            await sleep(1000);
+                            tries++;
                         }
                         t.blk = {
                             h: block_hash,
                             i: block_index,
                             t: block_time
                         };
-                        if(!t.slp) {
-                            console.log("[ERROR] Missing SLP in", block.txs[i].txid());
-                            throw Error("SLP object is null.")
-                        }
-                        result.set(block.txs[i].txid(), { txHex: txnhex, tnaTxn: t });
+
+                        if(!t!.slp)
+                            return null;
+
+                        // For case: Txn hash comes for the first time WITH the block hash OR
+                        // before the SLP graph has completed processing
+                        // Must wait for SLP processing to complete before we move from "unconfirmed" to "confirmed" collection
+                        //while(!t!.slp) {
+                        //     console.log("[INFO] Block", block_index, "txn is waiting for SLP processing, txid:", block.txs[i].txid())
+                        //     t = await self.db.mempoolfetch(block.txs[i].txid());
+                        //     t!.blk = {
+                        //         h: block_hash,
+                        //         i: block_index,
+                        //         t: block_time
+                        //     };
+                        //     if(tries > 10)
+                        //         throw Error("Block" + block_index + "update timed out waiting for SLP processing.");
+                        //     await sleep(250);
+                        //     tries++;
+                        //}
+
+                        // if(!t!.slp) {
+                        //     console.log("[ERROR] Missing SLP in", block.txs[i].txid());
+                        //     throw Error("SLP object is null.")
+                        // }
+
+                        result.set(block.txs[i].txid(), { txHex: txnhex, tnaTxn: t! });
                         return t;
                     }))
                 }
             }
-            let btxs = await Promise.all(tasks);
+            let btxs = (await Promise.all(tasks)).filter(i => i);
             console.log('[INFO] Block', block_index, 'processed :', txs.length, 'BCH txs |', btxs.length, 'SLP txs');
             return result;
         } else {
@@ -402,7 +420,7 @@ export class Bit {
         }
     }
 
-    async checkForMissingMempoolTxns(currentBchMempoolList?: string[]) {
+    async checkForMissingMempoolTxns(currentBchMempoolList?: string[], recursive=false) {
         if(!currentBchMempoolList)
             currentBchMempoolList = await this.rpc.getRawMempool();
         let cachedSlpMempoolTxs = Array.from(this.slpMempool.keys());
@@ -415,9 +433,16 @@ export class Bit {
             }
         });
 
-        let residualMempoolList = (await this.rpc.getRawMempool()).filter(id => !this.slpMempoolIgnoreList.includes(id) && !Array.from(this.slpMempool.keys()).includes(id))
-        if(residualMempoolList.length > 0)
-            this.checkForMissingMempoolTxns(residualMempoolList)
+        if(recursive) {
+            let residualMempoolList = (await this.rpc.getRawMempool()).filter(id => !this.slpMempoolIgnoreList.includes(id) && !Array.from(this.slpMempool.keys()).includes(id))
+            if(residualMempoolList.length > 0)
+                await this.checkForMissingMempoolTxns(residualMempoolList, true)
+            else {
+                console.log('[INFO] BCH mempool txn count:', currentBchMempoolList.length);
+                console.log("[INFO] SLP mempool txn count:", this.slpMempool.size);
+                return
+            }
+        }
 
         console.log('[INFO] BCH mempool txn count:', currentBchMempoolList.length);
         console.log("[INFO] SLP mempool txn count:", this.slpMempool.size);

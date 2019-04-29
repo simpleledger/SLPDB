@@ -189,7 +189,7 @@ export class Query {
     }
 
     static async queryForConfirmedMissingSlpMetadata(): Promise<string[]|null> {
-        console.log("[Query] ")
+        console.log("[Query] queryForConfirmedMissingSlpMetadata()")
         let q = {
             "v": 3,
             "q": {
