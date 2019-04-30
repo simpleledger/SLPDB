@@ -38,6 +38,7 @@ export interface IZmqSubscriber {
     onTransactionHash: undefined | ((syncInfo: SyncCompletionInfo) => Promise<void>);
     onBlockHash: undefined | ((blockhash: string) => Promise<void>);
     searchForNonSlpBurnTransactions: (() => Promise<void>);
+    updateTxnCollections:((txid: string, tokenid?: string)=> Promise<void>);
     zmqPubSocket?: zmq.Socket; 
 }
 export type CrawlResult = Map<txid, CrawlTxnInfo>;
@@ -148,11 +149,20 @@ export class Bit {
         return { isSlp: false, added: false};
     }
 
-    async removeCachedTransaction(txid: string) {
+    async removeMempoolTransaction(txid: string) {
         try { 
-            this.slpMempool.delete(txid);
-            await this.db.db.collection('unconfirmed').deleteOne({ "tx.h": txid });
-        } catch(err){ 
+            if(this.slpMempool.has(txid)) {
+                this.slpMempool.delete(txid);
+            }
+            let tna = await this.db.mempoolfetch(txid);
+            if(tna) {
+                await this.db.mempooldelete(txid);
+                let blkhash = (await this.rpc.getRawTransaction(tna!.tx.h, 1)).blockhash;
+                let blkindex = (await this.rpc.getBlock(blkhash)).height;
+                await this.db.blockinsert([ tna! ], blkindex, false);
+                await this._zmqSubscribers[0].updateTxnCollections(tna!.tx.h);
+            }
+        } catch(err) { 
             console.log(err);
         } 
     }
@@ -189,7 +199,7 @@ export class Bit {
         
         // Remove cached txs not in the mempool.
         let cacheCopyForRemovals = new Map(this.slpMempool);
-        cacheCopyForRemovals.forEach((txhex, txid) => currentBchMempoolList.includes(txid) ? null : this.removeCachedTransaction(txid) );
+        cacheCopyForRemovals.forEach((txhex, txid) => currentBchMempoolList.includes(txid) ? null : this.removeMempoolTransaction(txid) );
         
         // Add SLP txs to the mempool not in the cache.
         let cachedSlpMempoolTxs = Array.from(this.slpMempool.keys());
@@ -219,15 +229,15 @@ export class Bit {
             for(let i=0; i < block.txs.length; i++) {
                 let txnhex = block.txs[i].toRaw().toString('hex');
 
+                // This block handles any SLP transactions that were broadcasted with the block
                 if(listenMode && this.slp_txn_filter(txnhex) && !this.slpMempool.has(block.txs[i].txid())) {
                     while(!this.slpMempool.has(block.txs[i].txid())) {
                         console.log("SLP transaction not in mempool:", block.txs[i].txid());
                         let syncResult = await Bit.sync(this, 'mempool', block.txs[i].txid());
                         await this._zmqSubscribers[0].onTransactionHash!(syncResult!);
                     }
-                }
-                
-                if(this.slp_txn_filter(txnhex) && !this.slpMempool.has(block.txs[i].txid())) {
+                } 
+                else if(this.slp_txn_filter(txnhex) && !this.slpMempool.has(block.txs[i].txid())) {
                     tasks.push(limit(async function() {
                         try {
                             let txn: Bitcore.Transaction = new bitcore.Transaction(txnhex);
@@ -246,17 +256,18 @@ export class Bit {
                     }))
                 }
                 else if(this.slpMempool.has(block.txs[i].txid())) {
-                    console.log("Mempool has txid", block.txs[i].txid());
+                    console.log("[INFO] Mempool has txid", block.txs[i].txid());
                     tasks.push(limit(async function() {
-                        let t: TNATxn|undefined, tries=0;
-                        while(!t) {
-                            t = await self.db.mempoolfetch(block.txs[i].txid());
-                            if(tries > 5)
-                                throw Error("Cannot find transaction.");
-                            await sleep(1000);
-                            tries++;
-                        }
-                        t.blk = {
+                        let t: TNATxn|null = await self.db.mempoolfetch(block.txs[i].txid());
+                        // let tries=0;
+                        // while(!t) {
+                        //     t = await self.db.mempoolfetch(block.txs[i].txid());
+                        //     if(tries > 5)
+                        //         throw Error("Cannot find transaction.");
+                        //     await sleep(1000);
+                        //     tries++;
+                        // }
+                        t!.blk = {
                             h: block_hash,
                             i: block_index,
                             t: block_time
@@ -366,37 +377,37 @@ export class Bit {
         // }, 600000);
     }
 
-    async checkForOrphanPoolUpdates() {
-        let cachedOrphanPool = Array.from(this.slpOrphanPool.keys());
-        let mempool: string[];
+    // async checkForOrphanPoolUpdates() {
+    //     let cachedOrphanPool = Array.from(this.slpOrphanPool.keys());
+    //     let mempool: string[];
 
-        try {
-            mempool = await this.rpc.getRawMempool();
-        } catch(err) {
-            console.log(err);
-            process.exit();
-        }
+    //     try {
+    //         mempool = await this.rpc.getRawMempool();
+    //     } catch(err) {
+    //         console.log(err);
+    //         process.exit();
+    //     }
 
-        this.asyncForEach(cachedOrphanPool, async (txid: string) => {
-            // delete old orphans from orphan pool (i.e., orphans older than 3 blocks will be deleted)
-            if((<ChainSyncCheckpoint>await Info.checkpoint()).height && (<ChainSyncCheckpoint>await Info.checkpoint()).height - 3 > this.slpOrphanPool.get(txid)!) {
-                this.slpOrphanPool.delete(txid);
-            }
-            // if orphan is found in mempool then update the token graph
-            if(mempool.includes(txid)) {
-                this.slpOrphanPool.delete(txid);
-                let syncResult = await Bit.sync(this, 'mempool', txid);
-                await this._zmqSubscribers[0].onTransactionHash!(syncResult!);
-            }
-        });
-    }
+    //     this.asyncForEach(cachedOrphanPool, async (txid: string) => {
+    //         // delete old orphans from orphan pool (i.e., orphans older than 3 blocks will be deleted)
+    //         if((<ChainSyncCheckpoint>await Info.getBlockCheckpoint()).height && (<ChainSyncCheckpoint>await Info.getBlockCheckpoint()).height - 3 > this.slpOrphanPool.get(txid)!) {
+    //             this.slpOrphanPool.delete(txid);
+    //         }
+    //         // if orphan is found in mempool then update the token graph
+    //         if(mempool.includes(txid)) {
+    //             this.slpOrphanPool.delete(txid);
+    //             let syncResult = await Bit.sync(this, 'mempool', txid);
+    //             await this._zmqSubscribers[0].onTransactionHash!(syncResult!);
+    //         }
+    //     });
+    // }
 
     // This method should only be used after initial startup phase is done building Token Graphs, to clean up unused / invalid SLP txns
     async handleConfirmedTxnsMissingSlpMetadata() {
         let missing = await Query.queryForConfirmedMissingSlpMetadata();
         if(missing) {
             this.asyncForEach(missing, async (txid:string) => {
-                let tx: TNATxn = await this.db.db.collection('confirmed').findOne({ "tx.h": txid })!;
+                let tx = await this.db.blockfetch(txid);
                 let txnhex = await this.rpc.getRawTransaction(txid);
 
                 let txn: bitcore.Transaction = new bitcore.Transaction(txnhex);
@@ -409,12 +420,12 @@ export class Bit {
                 }
 
                 if(details && details.transactionType === SlpTransactionType.SEND) {
-                    if(!(await this.db.db.collection('confirmed').findOne({ "tx.h": details.tokenIdHex }))) {
+                    if(!(await this.db.blockfetch(details.tokenIdHex))) {
                         slpParseError = "SLP transaction not in any graph; Token ID does not exist: " + details.tokenIdHex; 
                     }
                 }
 
-                tx.slp! = { valid: false, detail: details, invalidReason: slpParseError, "schema_version": Config.db.schema_version }
+                tx!.slp! = { valid: false, detail: details, invalidReason: slpParseError, "schema_version": Config.db.schema_version }
                 await this.db.db.collection('confirmed').replaceOne({ "tx.h": txid },  tx)
             })
         }
@@ -453,9 +464,7 @@ export class Bit {
         
         // remove extraneous SLP transactions no longer in the mempool
         let cacheCopyForRemovals = new Map(this.slpMempool);
-        cacheCopyForRemovals.forEach((txhex, txid) => currentBchMempoolList.includes(txid) ? null : this.removeCachedTransaction(txid) );
-        
-        console.log("[INFO] SLP mempool txn count:", this.slpMempool.size);
+        cacheCopyForRemovals.forEach((txhex, txid) => currentBchMempoolList.includes(txid) ? null : this.removeMempoolTransaction(txid) );        
     }
 
     static async sync(self: Bit, type: string, hash?: string): Promise<SyncCompletionInfo|null> {
@@ -464,19 +473,17 @@ export class Bit {
             // TODO: Handle case where block sync is already underway (e.g., situation where 2 blocks mined together)
             if(hash) {
                 console.log("[INFO] Sync started at block", hash);
-                console.log("Queue size", self.queue.size)
                 while(self.queue.size > 0) {
-                    await sleep(1000);
-                    console.log("[DEBUG]", self.queue.size);
+                    console.log("[DEBUG] mempool processing queue size:", self.queue.size);
                     console.log("[INFO] Waiting for mempool processing queue to complete before processing block.");
+                    await sleep(1000);
                 }
             }
             result = { syncType: SyncType.Block, filteredContent: new Map<SyncFilterTypes, TransactionPool>() }
             try {
-                let lastCheckpoint = hash ? <ChainSyncCheckpoint>await Info.checkpoint() : <ChainSyncCheckpoint>await Info.checkpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
+                let lastCheckpoint = hash ? <ChainSyncCheckpoint>await Info.getBlockCheckpoint() : <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
                 
-                // Handle block reorg
-                lastCheckpoint = await Bit.checkForReorg(self, lastCheckpoint);
+                lastCheckpoint = await Bit.checkForBlockReorg(self, lastCheckpoint);
 
                 let currentHeight: number = await self.requestheight();
             
@@ -491,8 +498,8 @@ export class Bit {
                         await self.db.blockinsert(array, index, hash ? true : false);
                     }
 
-                    await Info.deleteOldTipHash(index - 1);
-                    await Info.updateTip(index, await self.rpc.getBlockHash(index));
+                    await Info.deleteBlockCheckpointHash(index - 11);
+                    await Info.updateBlockCheckpoint(index, await self.rpc.getBlockHash(index));
                     console.timeEnd('[PERF] DB Insert ' + index);
 
                     // re-check current height in case it was updated during crawl()
@@ -555,32 +562,28 @@ export class Bit {
                     return result;
                 }
                 else if(!isSLP) {
-                    // check transaction inputs for spending of SLP transactions
-                    // if(txn && self._zmqSubscribers.length > 0) {
-                    //     await self.asyncForEach(txn!.inputs, async () => {
-                    //         console.log("[TEST] checking input");
-                    //     })
-                    // }
+                    // Do nothing.
                 }
             }
         }
         return null;
     }
 
-    private static async checkForReorg(self: Bit, lastCheckpoint: ChainSyncCheckpoint) {
+    private static async checkForBlockReorg(self: Bit, lastCheckpoint: ChainSyncCheckpoint): Promise<ChainSyncCheckpoint> {
         let actualHash = await self.rpc.getBlockHash(lastCheckpoint.height);
+        // ignore this re-org check if the checkpoint block hash is null
         if (lastCheckpoint.hash) {
             let lastCheckedHash = lastCheckpoint.hash;
             let lastCheckedHeight = lastCheckpoint.height;
             let from = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
             while (lastCheckedHash !== actualHash && lastCheckedHeight > from) {
+                await Info.updateBlockCheckpoint(lastCheckedHeight, null);
                 lastCheckedHash = await Info.getCheckpointHash(--lastCheckedHeight);
-                await Info.updateTip(lastCheckedHeight, null);
                 actualHash = (await self.rpc.getBlock(actualHash)).previousblockhash;
             }
-            lastCheckpoint = <ChainSyncCheckpoint>await Info.checkpoint();
+            await Info.updateBlockCheckpoint(lastCheckedHeight, lastCheckedHash);
         }
-        return lastCheckpoint;
+        return await Info.getBlockCheckpoint();
     }
 
     async processBlocksForTNA() {

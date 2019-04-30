@@ -28,7 +28,7 @@ const daemon = {
 		await db.init(rpc);
 		await bit.init(db, rpc);
 
-		const lastSynchronized = <ChainSyncCheckpoint>await Info.checkpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
+		const lastSynchronized = <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
 		if(lastSynchronized.height > await bit.requestheight()) {
 			throw Error("Config.core.from or Config.core.from_testnet cannot be larger than the current blockchain height (check the config.ts file)");
 		}
@@ -66,21 +66,24 @@ const util = {
 		await db.init(rpc)
 		let cmd = process.argv[2]
 		if (cmd === 'fix') {
-			let fromHeight: number;
-			if (process.argv.length > 3) {
-				fromHeight = parseInt(process.argv[3])
-			} else {
-				fromHeight = (<ChainSyncCheckpoint>await Info.checkpoint()).height;
-			}
-			await util.fix(fromHeight)
+			console.log("Command not implemented");
+			// let fromHeight: number;
+			// if (process.argv.length > 3) {
+			// 	fromHeight = parseInt(process.argv[3])
+			// } else {
+			// 	fromHeight = (<ChainSyncCheckpoint>await Info.getCheckpoint()).height;
+			// }
+			// await util.fix(fromHeight)
 			process.exit()
 		} else if (cmd === 'reset') {
-			await db.blockreset()
-			await db.mempoolreset()
-			await Info.deleteTip()
+			console.log("Command not implemented");
+			// await db.blockreset()
+			// await db.mempoolreset()
+			// await Info.deleteTip()
 			process.exit()
 		} else if (cmd === 'index') {
-			await db.blockindex()
+			console.log("Command not implemented");
+			//await db.blockindex()
 			process.exit()
 		}
 	},
@@ -95,7 +98,7 @@ const util = {
 			await db.blockreplace(array, height)
 		}
 		console.log('[INFO] Block', height, 'fixed.')
-		await Info.updateTip(height, null)
+		await Info.updateBlockCheckpoint(height, null)
 		console.timeEnd('[PERF] replace')
 	}
 }

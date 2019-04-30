@@ -121,8 +121,12 @@ export class Db {
         })
     }
 
-    async mempoolfetch(txid: string) {
-        return await this.db.collection('unconfirmed').findOne({ "tx.h": txid });
+    async mempoolfetch(txid: string): Promise<TNATxn|null> {
+        return await this.db.collection('unconfirmed').findOne({ "tx.h": txid }) as TNATxn;
+    }
+
+    async mempooldelete(txid: string): Promise<void> {
+        await this.db.collection('unconfirmed').deleteOne({ "tx.h": txid });
     }
 
     async mempoolprocessedslp(): Promise<string[]> {
@@ -136,7 +140,6 @@ export class Db {
             console.log('mempoolsync ERR ', err)
         })
 
-        let index = 0
         while (true) {
             let chunk = items.splice(0, 1000)
             if (chunk.length > 0) {
@@ -146,11 +149,14 @@ export class Db {
                         process.exit()
                     }
                 })
-                index++
             } else {
                 break
             }
         }
+    }
+
+    async blockfetch(txid: string): Promise<TNATxn|null> {
+        return await this.db.collection('confirmed').findOne({ "tx.h": txid }) as TNATxn;
     }
 
     async blockreset() {
