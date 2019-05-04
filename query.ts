@@ -282,7 +282,7 @@ export class Query {
         
         if(!response.errors) {
             let results: { type: string, sendTokenId: string }[] = ([].concat(<any>response.c).concat(<any>response.u));
-            if(results.length === 1) {
+            if(results.length > 0) {
                 if((results[0].type === "SEND" || results[0].type === "MINT") && results[0].sendTokenId) {
                     return results[0].sendTokenId;
                 }

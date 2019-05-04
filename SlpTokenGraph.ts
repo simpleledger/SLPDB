@@ -58,9 +58,7 @@ export class SlpTokenGraph implements TokenGraph {
             let mints = await Query.getMintTransactions(tokenDetails.tokenIdHex);
             if(mints && mints.length > 0)
                 await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom(m.txid!));
-    
-            await this.updateAddressesFromScratch();
-            await this.initStatistics();
+            await this.updateStatistics();
         }
     }
 
@@ -145,17 +143,12 @@ export class SlpTokenGraph implements TokenGraph {
             // Update the confirmed/unconfirmed collections with token details
             await self._manager.updateTxnCollections(txid, self._tokenDetails.tokenIdHex);
 
-            // zmq publish mempool notifications
-            if(self._manager.zmqPubSocket) {
-                let tna: TNATxn | null = await self._db.db.collection('unconfirmed').findOne({ "tx.h": txid });
-                if(!tna) {
-                    console.log("[ZMQ-PUB] SLP mempool notification", tna);
-                    self._manager.zmqPubSocket.send(['mempool', JSON.stringify(tna)]);
-                }
-            }
+            // Update token's statistics
+            await self.updateStatistics();
 
-            if(self._graphUpdateQueue.size === 0)
-                await self.updateStatistics();
+            // zmq publish mempool notifications
+            if(!isParent)
+                await self._manager.publishZmqNotification(txid);
         })
     }
 
@@ -332,20 +325,7 @@ export class SlpTokenGraph implements TokenGraph {
 
     async initStatistics(): Promise<void> {
         if(this.IsValid) {
-            this._tokenStats = <TokenStats> {
-                block_created: await Query.queryTokenGenesisBlock(this._tokenDetails.tokenIdHex),
-                block_last_active_mint: await Query.blockLastMinted(this._tokenDetails.tokenIdHex),
-                block_last_active_send: await Query.blockLastSent(this._tokenDetails.tokenIdHex),
-                qty_valid_txns_since_genesis: this._graphTxns.size,
-                qty_valid_token_utxos: this._tokenUtxos.size,
-                qty_valid_token_addresses: this._addresses.size,
-                qty_token_minted: await this.getTotalMintQuantity(),
-                qty_token_burned: new BigNumber(0),
-                qty_token_circulating_supply: this.getTotalHeldByAddresses(),
-                qty_satoshis_locked_up: this.getTotalSatoshisLockedUp(),
-                minting_baton_status: await this.getBatonStatus()
-            }
-            this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply)
+
         }
     }
 
@@ -380,7 +360,6 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async updateTxoIfSpent(txo: string) {
-        let updated = false;
         let txid = txo.split(":")[0];
         let vout = parseInt(txo.split(":")[1]);
         let txout = null;
@@ -394,11 +373,25 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async updateStatistics(): Promise<void> {
-        if(this.IsValid) {
+        if(this.IsValid && this._graphUpdateQueue.size === 0) {
             await this.updateAddressesFromScratch();
 
-            if(!this._tokenStats)
-                await this.initStatistics();
+            if(!this._tokenStats) {
+                this._tokenStats = <TokenStats> {
+                    block_created: await Query.queryTokenGenesisBlock(this._tokenDetails.tokenIdHex),
+                    block_last_active_mint: await Query.blockLastMinted(this._tokenDetails.tokenIdHex),
+                    block_last_active_send: await Query.blockLastSent(this._tokenDetails.tokenIdHex),
+                    qty_valid_txns_since_genesis: this._graphTxns.size,
+                    qty_valid_token_utxos: this._tokenUtxos.size,
+                    qty_valid_token_addresses: this._addresses.size,
+                    qty_token_minted: await this.getTotalMintQuantity(),
+                    qty_token_burned: new BigNumber(0),
+                    qty_token_circulating_supply: this.getTotalHeldByAddresses(),
+                    qty_satoshis_locked_up: this.getTotalSatoshisLockedUp(),
+                    minting_baton_status: await this.getBatonStatus()
+                }
+                this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply)
+            }
             else {
                 let minted = await this.getTotalMintQuantity();
                 let addressesTotal = this.getTotalHeldByAddresses()
@@ -414,8 +407,6 @@ export class SlpTokenGraph implements TokenGraph {
                 this._tokenStats.minting_baton_status = await this.getBatonStatus();
             }
 
-
-            
             if(this._tokenStats.qty_token_circulating_supply.isGreaterThan(this._tokenStats.qty_token_minted)) {
                 console.log("[ERROR] Cannot have circulating supply larger than mint quantity.");
                 console.log("[INFO] Statistics will be recomputed after transaction queue is cleared.");
@@ -425,10 +416,10 @@ export class SlpTokenGraph implements TokenGraph {
                 console.log("[WARN] Circulating supply minus burn quantity does not equal minted quantity");
             }
 
-            await this._db.tokeninsertreplace(this.toTokenDbObject());
-            await this._db.addressinsertreplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
-            await this._db.graphinsertreplace(this.toGraphDbObject(), this._tokenDetails.tokenIdHex);
-            await this._db.utxoinsertreplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
+            await this._db.tokenInsertReplace(this.toTokenDbObject());
+            await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
+            await this._db.graphInsertReplace(this.toGraphDbObject(), this._tokenDetails.tokenIdHex);
+            await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
 
             if(this._graphUpdateQueue.size === 0) {
                 console.log("########################################################################################################")
@@ -466,7 +457,7 @@ export class SlpTokenGraph implements TokenGraph {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
 
         let result = {
-            schema_version: Config.db.schema_version,
+            schema_version: Config.db.token_schema_version,
             lastUpdatedBlock: this._lastUpdatedBlock,
             tokenDetails: tokenDetails,
             mintBatonUtxo: this._mintBatonUtxo,

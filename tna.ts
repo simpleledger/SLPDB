@@ -1,6 +1,7 @@
 require('dotenv').config()
 import { BitcoinRpc, Bitcore } from './vendor';
 import { SlpTransactionDetailsTnaDbo } from './SlpGraphManager';
+import { Utils } from 'slpjs';
 
 const bitcore = require('bitcore-lib-cash')
 
@@ -12,6 +13,7 @@ export class TNA {
 
     async fromTx(gene: Bitcore.Transaction, options?: any): Promise<TNATxn> {
         return await (async function(gene, options) {
+            let net = options.network === 'testnet' ? bitcore.Networks.testnet : bitcore.Networks.livenet;
             let t = gene.toObject()
             let inputs: Xput[] = [];
             let outputs: Xput[] = [];
@@ -42,7 +44,8 @@ export class TNA {
                             h: input.prevTxId.toString('hex'),
                             i: input.outputIndex
                         }
-                        let address = input.script.toAddress(bitcore.Networks.livenet).toString(bitcore.Address.CashAddrFormat).split(':')[1];
+                        let address;
+                        try { address = Utils.toSlpAddress(input.script.toAddress(net).toString(bitcore.Address.CashAddrFormat)); } catch(_) { }
                         if (address && address.length > 0) {
                             sender.a = address;
                         }
@@ -80,7 +83,8 @@ export class TNA {
                             v: output.satoshis,
                             i: output_index
                         }
-                        let address = output.script.toAddress(bitcore.Networks.livenet).toString(bitcore.Address.CashAddrFormat).split(':')[1];
+                        let address;
+                        try { address = Utils.toSlpAddress(output.script.toAddress(net).toString(bitcore.Address.CashAddrFormat));} catch(_) { }
                         if (address && address.length > 0) {
                             receiver.a = address;
                         }

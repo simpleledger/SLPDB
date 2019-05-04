@@ -1,16 +1,16 @@
 module.exports = {
   async up(db) {
-    console.log(await db.collection('graphs').dropIndex('tokenDetails.name_1'))
-    console.log(await db.collection('graphs').dropIndex('tokenDetails.symbol_1'))
-    console.log(await db.collection('graphs').dropIndex('fulltext'))
+    try { console.log(await db.collection('graphs').dropIndex('tokenDetails.name_1')) } catch(e) { console.log(e); }
+    try { console.log(await db.collection('graphs').dropIndex('tokenDetails.symbol_1')) } catch(e) { console.log(e); }
+    try { console.log(await db.collection('graphs').dropIndex('fulltext')) } catch(e) { console.log(e); }
 
-    console.log(await db.collection('addresses').dropIndex('tokenDetails.name_1'))
-    console.log(await db.collection('addresses').dropIndex('tokenDetails.symbol_1'))
-    console.log(await db.collection('addresses').dropIndex('fulltext'))
+    try { console.log(await db.collection('addresses').dropIndex('tokenDetails.name_1')) } catch(e) { console.log(e); }
+    try { console.log(await db.collection('addresses').dropIndex('tokenDetails.symbol_1')) } catch(e) { console.log(e); }
+    try { console.log(await db.collection('addresses').dropIndex('fulltext')) } catch(e) { console.log(e); }
 
-    console.log(await db.collection('utxos').dropIndex('tokenDetails.name_1'))
-    console.log(await db.collection('utxos').dropIndex('tokenDetails.symbol_1'))
-    console.log(await db.collection('utxos').dropIndex('fulltext'))
+    try { console.log(await db.collection('utxos').dropIndex('tokenDetails.name_1')) } catch(e) { console.log(e); }
+    try { console.log(await db.collection('utxos').dropIndex('tokenDetails.symbol_1')) } catch(e) { console.log(e); }
+    try { console.log(await db.collection('utxos').dropIndex('fulltext')) } catch(e) { console.log(e); }
   },
 
   async down(db) {

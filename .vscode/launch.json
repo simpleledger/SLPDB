@@ -7,9 +7,25 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Launch Program",
+            "name": "Start From Checkpoint",
             "program": "${workspaceFolder}/index.js",
             "console": "externalTerminal"
-        }
+        },        
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Fix",
+            "program": "${workspaceFolder}/index.js",
+            "args": ["fix", "580609"],
+            "console": "integratedTerminal"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Start From 576630",
+            "program": "${workspaceFolder}/index.js",
+            "args": ["run", "576630"],
+            "console": "externalTerminal"
+        },
     ]
 }

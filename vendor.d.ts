@@ -63,9 +63,10 @@ export declare module Bitcore {
         id: string;
     }
 
-    export interface Networks {
-        livenet: any;
-    }
+    // export interface Networks {
+    //     livenet: any;
+    //     testnet: any;
+    // }
 
     export interface Address {
         toString(format: string): string;

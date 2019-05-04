@@ -31,7 +31,7 @@ export class Db {
         await this.mongo.close()
     }
 
-    async tokeninsertreplace(token: any) {
+    async tokenInsertReplace(token: any) {
         await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex })
         return await this.db.collection('tokens').insertMany([ token ]);
     }
@@ -41,15 +41,23 @@ export class Db {
     //     return await this.db.collection('tokens').insertMany([ token ]);
     // }
 
-    async tokendelete(tokenIdHex: string) {
+    async tokenDelete(tokenIdHex: string) {
         return await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async tokenfetch(tokenIdHex: string): Promise<TokenDBObject|null> {
+    async tokenFetch(tokenIdHex: string): Promise<TokenDBObject|null> {
         return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async graphinsertreplace(graph: GraphTxnDbo[], tokenIdHex: string) {
+    async tokenReset() {
+        await this.db.collection('tokens').deleteMany({})
+        .catch(function(err) {
+            console.log('[ERROR] token collection reset ERR ', err)
+            process.exit()
+        })
+    }
+
+    async graphInsertReplace(graph: GraphTxnDbo[], tokenIdHex: string) {
         await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
         if(graph.length > 0) {
             return await this.db.collection('graphs').insertMany(graph);
@@ -61,15 +69,23 @@ export class Db {
     //     return await this.db.collection('graphs').insertMany(graph);
     // }
 
-    async graphdelete(tokenIdHex: string) {
+    async graphDelete(tokenIdHex: string) {
         return await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async graphfetch(tokenIdHex: string): Promise<GraphTxnDbo[]> {
+    async graphFetch(tokenIdHex: string): Promise<GraphTxnDbo[]> {
         return await this.db.collection('graphs').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
     }
 
-    async addressinsertreplace(addresses: AddressBalancesDbo[], tokenIdHex: string) {
+    async graphReset() {
+        await this.db.collection('graphs').deleteMany({})
+        .catch(function(err) {
+            console.log('[ERROR] graphs collection reset ERR ', err)
+            process.exit()
+        })
+    }
+
+    async addressInsertReplace(addresses: AddressBalancesDbo[], tokenIdHex: string) {
         await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
         if(addresses.length > 0) {
             return await this.db.collection('addresses').insertMany(addresses);
@@ -81,15 +97,23 @@ export class Db {
     //     return await this.db.collection('addresses').insertMany(addresses);
     // }
 
-    async addressdelete(tokenIdHex: string) {
+    async addressDelete(tokenIdHex: string) {
         return await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async addressfetch(tokenIdHex: string): Promise<AddressBalancesDbo[]> {
+    async addressFetch(tokenIdHex: string): Promise<AddressBalancesDbo[]> {
         return await this.db.collection('addresses').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
     }
 
-    async utxoinsertreplace(utxos: UtxoDbo[], tokenIdHex: string) {
+    async addressReset() {
+        await this.db.collection('addresses').deleteMany({})
+        .catch(function(err) {
+            console.log('[ERROR] addresses collection reset ERR ', err)
+            process.exit()
+        })
+    }
+
+    async utxoInsertReplace(utxos: UtxoDbo[], tokenIdHex: string) {
         await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
         if(utxos.length > 0) {
             return await this.db.collection('utxos').insertMany(utxos);
@@ -101,43 +125,53 @@ export class Db {
     //     return await this.db.collection('utxos').insertMany(utxos);
     // }
 
-    async utxodelete(tokenIdHex: string) {
+    async utxoDelete(tokenIdHex: string) {
         return await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async utxofetch(tokenIdHex: string): Promise<UtxoDbo[]> {
+    async utxoFetch(tokenIdHex: string): Promise<UtxoDbo[]> {
         return await this.db.collection('utxos').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
     }
 
-    async mempoolinsert(item: TNATxn) {
-        return await this.db.collection('unconfirmed').insertMany([item])
-    }
-
-    async mempoolreset() {
-        await this.db.collection('unconfirmed').deleteMany({})
+    async utxoReset() {
+        await this.db.collection('utxos').deleteMany({})
         .catch(function(err) {
-            console.log('mempoolreset ERR ', err)
+            console.log('[ERROR] utxos collection reset ERR ', err)
             process.exit()
         })
     }
 
-    async mempoolfetch(txid: string): Promise<TNATxn|null> {
-        return await this.db.collection('unconfirmed').findOne({ "tx.h": txid }) as TNATxn;
+    async unconfirmedInsert(item: TNATxn) {
+        return await this.db.collection('unconfirmed').insertMany([item])
     }
 
-    async mempooldelete(txid: string): Promise<void> {
-        await this.db.collection('unconfirmed').deleteOne({ "tx.h": txid });
+    async unconfirmedReset() {
+        await this.db.collection('unconfirmed').deleteMany({})
+        .catch(function(err) {
+            console.log('[ERROR] mempoolreset ERR ', err)
+            process.exit()
+        })
     }
 
-    async mempoolprocessedslp(): Promise<string[]> {
+    async unconfirmedFetch(txid: string): Promise<TNATxn|null> {
+        let res = await this.db.collection('unconfirmed').findOne({ "tx.h": txid }) as TNATxn;
+        return res;
+    }
+
+    async unconfirmedDelete(txid: string): Promise<any> {
+        let res = await this.db.collection('unconfirmed').deleteMany({ "tx.h": txid });
+        return res;
+    }
+
+    async unconfirmedProcessedSlp(): Promise<string[]> {
         return (await this.db.collection('unconfirmed').find().toArray()).filter((i:TNATxn) => i.slp);
     }
 
-    async mempoolsync(items: TNATxn[]) {
+    async unconfirmedSync(items: TNATxn[]) {
 
         await this.db.collection('unconfirmed').deleteMany({})
         .catch(function(err) {
-            console.log('mempoolsync ERR ', err)
+            console.log('[ERROR] unconfirmedSync ERR ', err)
         })
 
         while (true) {
@@ -145,7 +179,7 @@ export class Db {
             if (chunk.length > 0) {
                 await this.db.collection('unconfirmed').insertMany(chunk, { ordered: false }).catch(function(err) {
                     if (err.code !== 11000) {
-                        console.log('## ERR ', err, items)
+                        console.log('[ERROR] ## ERR ', err, items)
                         process.exit()
                     }
                 })
@@ -155,40 +189,60 @@ export class Db {
         }
     }
 
-    async blockfetch(txid: string): Promise<TNATxn|null> {
+    async confirmedFetch(txid: string): Promise<TNATxn|null> {
         return await this.db.collection('confirmed').findOne({ "tx.h": txid }) as TNATxn;
     }
 
-    async blockreset() {
+    async confirmedReset() {
         await this.db.collection('confirmed').deleteMany({}).catch(function(err) {
-            console.log('blockreset ERR ', err)
+            console.log('[ERROR] confirmedReset ERR ', err)
             process.exit()
         })
     }
 
-    async blockreplace(items: TNATxn[], block_index: number) {
-        console.log('Deleting all blocks greater than or equal to', block_index)
-        await this.db.collection('confirmed').deleteMany({
-            'blk.i': {
-                $gte: block_index
+    async confirmedReplace(items: TNATxn[], requireSlpMetadata=true, block_index?: number) {
+
+        if(requireSlpMetadata) {
+            if(items.filter(i => !i.slp).length > 0) {
+                console.log(items.filter(i => !i.slp).map(i => i.tx.h));
+                throw Error("Attempted to add items without SLP property.");
             }
-        }).catch(function(err) {
-            console.log('blockreplace ERR ', err)
-            process.exit()
-        })
-        console.log('Updating block', block_index, 'with', items.length, 'items')
+        }
+
+        if(items.filter(i => !i.blk).length > 0) {
+            //console.log(items.filter(i => !i.slp).map(i => i.tx.h));
+            throw Error("Attempted to add items without BLK property.");
+        }
+
+        if(block_index) {
+            console.log('[INFO] Deleting confirmed transactions in block:', block_index)
+            try {
+                await this.db.collection('confirmed').deleteMany({ 'blk.i': block_index })
+            } catch(err) {
+                console.log('confirmedReplace ERR ', err)
+                process.exit()
+            }
+            console.log('[INFO] Updating block', block_index, 'with', items.length, 'items')
+        } else {
+            for(let i=0; i < items.length; i++) {
+                await this.db.collection('confirmed').deleteMany({ "tx.h": items[i].tx.h })
+            }
+        }
+
+
         let index = 0
         while (true) {
             let chunk = items.slice(index, index+1000)
             if (chunk.length > 0) {
-                await this.db.collection('confirmed').insertMany(chunk, { ordered: false }).catch(function(err) {
+                try {
+                    await this.db.collection('confirmed').insertMany(chunk, { ordered: false })
+                } catch(err) {
                     // duplicates are ok because they will be ignored
                     if (err.code !== 11000) {
-                        console.log('blockreplace ERR ', err, items)
+                        console.log('[ERROR] confirmedReplace ERR ', err, items)
                         process.exit()
                     }
-                })
-                //console.log('\tchunk ' + index + ' processed ...')
+                }
                 index+=1000
             } else {
                 break
@@ -196,10 +250,11 @@ export class Db {
         }
     }
 
-    async blockinsert(items: TNATxn[], block_index: number, requireSlpMetadata: boolean) {
+    async confirmedInsert(items: TNATxn[], requireSlpMetadata: boolean) {
 
         if(requireSlpMetadata) {
             if(items.filter(i => !i.slp).length > 0) {
+                console.log(items.filter(i => !i.slp).map(i => i.tx.h));
                 throw Error("Attempted to add items without SLP property.");
             }
         }
@@ -213,7 +268,7 @@ export class Db {
                 } catch (e) {
                 // duplicates are ok because they will be ignored
                     if (e.code !== 11000) {
-                        console.log('blockinsert error:', e, items, block_index)
+                        console.log('[ERROR] confirmedInsert error:', e, items)
                         process.exit()
                     }
                 }
@@ -224,8 +279,8 @@ export class Db {
         }
     }
 
-    async blockindex() {
-        console.log('* Indexing MongoDB...')
+    async confirmedIndex() {
+        console.log('[INFO] * Indexing MongoDB...')
         console.time('TotalIndex')
 
         if (this.config.index) {
@@ -235,7 +290,7 @@ export class Db {
                 let keys: string[] = this.config.index[collectionName].keys
                 let fulltext: string[] = this.config.index[collectionName].fulltext
                 if (keys) {
-                    console.log('Indexing keys...')
+                    console.log('[INFO] Indexing keys...')
                     for(let i=0; i<keys.length; i++) {
                         let o: { [key:string]: number } = {}
                         o[keys[i]] = 1
@@ -249,14 +304,14 @@ export class Db {
                             //console.log('* Created index for ', keys[i])
                         }
                         } catch (e) {
-                            console.log('blockindex error:', e)
+                            console.log('[ERROR] blockindex error:', e)
                             process.exit()
                         }
                         console.timeEnd('Index:' + keys[i])
                     }
                 }
-                if (fulltext) {
-                    console.log('Creating full text index...')
+                if (fulltext && fulltext.length > 0) {
+                    console.log('[INFO] Creating full text index...')
                     let o: { [key:string]: string } = {}
                     fulltext.forEach(function(key) {
                         o[key] = 'text'
@@ -265,7 +320,7 @@ export class Db {
                     try {
                         await this.db.collection(collectionName).createIndex(o, { name: 'fulltext' })
                     } catch (e) {
-                        console.log('blockindex error:', e)
+                        console.log('[ERROR] blockindex error:', e)
                         process.exit()
                     }
                     console.timeEnd('Fulltext search for ' + collectionName)
@@ -282,7 +337,7 @@ export class Db {
             result = await this.db.collection('unconfirmed').indexInformation(<any>{ full: true }) // <- No MongoSession passed
             //console.log('* Unonfirmed Index = ', result)
         } catch (e) {
-            console.log('* Error fetching index info ', e)
+            console.log('[INFO] * Error fetching index info ', e)
             process.exit()
         }
     }

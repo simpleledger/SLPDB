@@ -2,6 +2,7 @@ const level = require('level');
 var kv = level('./_leveldb');
 
 import { Config } from './config';
+import { Db } from './db';
 
 /**
 * Return the last synchronized checkpoint
@@ -61,6 +62,11 @@ export module Info {
 		}
 	}
 
+	export const checkpointReset = async function() {
+		let start = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
+		await Info.updateBlockCheckpoint(start, null);
+	}
+
 	export const getCheckpointHash = async function(index: number) {
 		try {
 			return await kv.get(index + '-hash');
@@ -84,5 +90,20 @@ export module Info {
 		} catch(err) {
 			console.log('[ERROR] deleteTip err', err)
 		}
+	}
+
+	export const getConfirmedCollectionSchema = async function(): Promise<number|null> {
+		try {
+			return parseInt(await kv.get('confirmedSchemaVersion'));
+		} catch(_) { }
+		return null;
+	}
+
+	export const setConfirmedCollectionSchema = async function(version: number) {
+		try {
+			return await kv.put('confirmedSchemaVersion', version);
+		} catch(err) {
+			throw Error(err.message);
+		 }
 	}
 }
