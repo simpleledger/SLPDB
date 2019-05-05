@@ -175,8 +175,26 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
         let graphTxn: GraphTxn;
-        if(!this._graphTxns.has(txid))
-            graphTxn = { details: txnSlpDetails, outputs: [] }
+        if(!this._graphTxns.has(txid)){
+            graphTxn = { details: txnSlpDetails, outputs: [], inputs: [] }
+
+            // add contributing SLP inputs
+            txn.inputs.forEach(i => {
+                if(this._graphTxns.has(i.prevTxId.toString('hex'))) {
+                    let input = this._graphTxns.get(i.prevTxId.toString('hex'))!
+                    let o = input.outputs.find(o => o.vout === i.outputIndex);
+                    if(o) {
+                        graphTxn.inputs.push({
+                            txid: i.prevTxId.toString('hex'),
+                            vout: i.outputIndex,
+                            slpAmount: o.slpAmount,
+                            address: o.address,
+                            bchSatoshis: o.bchSatoshis
+                        })
+                    }
+                }
+            })
+        }
         else {
             graphTxn = this._graphTxns.get(txid)!;
             graphTxn.outputs = [];
@@ -237,7 +255,7 @@ export class SlpTokenGraph implements TokenGraph {
                             address: address,
                             vout: slp_vout,
                             bchSatoshis: slp_vout < txn.outputs.length ? txn.outputs[slp_vout].satoshis : 0, 
-                            slpAmount: <any>graphTxn.details.sendOutputs![slp_vout],
+                            slpAmount: graphTxn.details.sendOutputs![slp_vout],
                             spendTxid: spendDetails.txid,
                             status: spendDetails.status,
                             invalidReason: spendDetails.invalidReason
@@ -450,7 +468,13 @@ export class SlpTokenGraph implements TokenGraph {
 
     logAddressBalances(): void {
         console.log("ADDRESS BALANCES:")
-        console.log(Array.from(this._addresses).map((v, _, __) => { return { addr: v[0], bal: v[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() }}))
+        console.log(Array.from(this._addresses).map((v, _, __) => { 
+                return { 
+                    addr: v[0], 
+                    bal: v[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() 
+                }
+            })
+        )
     }
 
     toTokenDbObject(): TokenDBObject {
@@ -469,14 +493,36 @@ export class SlpTokenGraph implements TokenGraph {
     toAddressesDbObject(): AddressBalancesDbo[] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
         let result: AddressBalancesDbo[] = [];
-        Array.from(this._addresses).forEach(a => { result.push({ tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, address: a[0], satoshis_balance: a[1].satoshis_balance, token_balance: Decimal128.fromString(a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) }) })
+        Array.from(this._addresses).forEach(a => { 
+            result.push({ 
+                tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, 
+                address: a[0], 
+                satoshis_balance: a[1].satoshis_balance, 
+                token_balance: Decimal128.fromString(a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) 
+            }) 
+        })
         return result;
     }
 
     toUtxosDbObject(): UtxoDbo[] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
         let result: UtxoDbo[] = [];
-        Array.from(this._tokenUtxos).forEach(u => { result.push({ tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, utxo: u })});
+        Array.from(this._tokenUtxos).forEach(u => { 
+            let txid = u.split(":")[0]
+            let vout = parseInt(u.split(":")[1])
+            let output = this._graphTxns.get(txid)!.outputs.find(o => o.vout == vout)
+            if(output){
+                result.push({
+                    tokenDetails: {
+                        tokenIdHex: tokenDetails.tokenIdHex 
+                    },
+                    utxo: u,
+                    address: output.address,
+                    bchSatoshis: output.bchSatoshis,
+                    slpAmount: Decimal128.fromString(output.slpAmount.dividedBy(10**this._tokenDetails.decimals).toFixed())
+                })
+            }
+        });
         return result;
     }
 
@@ -489,7 +535,16 @@ export class SlpTokenGraph implements TokenGraph {
                 graphTxn: {
                     txid: k[0],
                     details: SlpTokenGraph.MapTokenDetailsToDbo(this._graphTxns.get(k[0])!.details, this._tokenDetails.decimals),
-                    outputs: this.mapGraphTxnOutputsToDbo(this._graphTxns.get(k[0])!.outputs)
+                    outputs: this.mapGraphTxnOutputsToDbo(this._graphTxns.get(k[0])!.outputs),
+                    inputs: this._graphTxns.get(k[0])!.inputs.map((i) => { 
+                        return {
+                            address: i.address,
+                            txid: i.txid,
+                            vout: i.vout,
+                            bchSatoshis: i.bchSatoshis,
+                            slpAmount: Decimal128.fromString(i.slpAmount.dividedBy(10**this._tokenDetails.decimals).toFixed())
+                        }
+                    })
                 }
             })
         });
@@ -598,13 +653,11 @@ export class SlpTokenGraph implements TokenGraph {
         // Map _txnGraph
         tg._graphTxns = new Map<txid, GraphTxn>();
         dag.forEach((item, idx) => {
-            try { dag[idx].graphTxn.outputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)) } catch(_) { throw Error("Error in mapping database object"); }
-
             let gt: GraphTxn = {
                 details: this.MapDbTokenDetailsFromDbo(dag[idx].graphTxn.details, token.tokenDetails.decimals),
-                outputs: dag[idx].graphTxn.outputs as any as GraphTxnOutput[]
+                outputs: item.graphTxn.outputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)),
+                inputs: item.graphTxn.inputs.map(i => i.slpAmount = <any>new BigNumber(i.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals))
             }
-
             tg._graphTxns.set(item.graphTxn.txid, gt);
         })
 
@@ -612,7 +665,7 @@ export class SlpTokenGraph implements TokenGraph {
         let txids = Array.from(tg._graphTxns.keys());
         //console.log(tg._slpValidator.cachedValidations);
         txids.forEach(txid => {
-            let validation = <Validation>{ validity: null, details: null, invalidReason: "", parents: [] }
+            let validation = <Validation>{ validity: null, details: null, invalidReason: null, parents: [] }
             validation.validity = tg._graphTxns.get(txid) ? true : false;
             validation.details = tg._graphTxns.get(txid)!.details;
             if(!validation.details)
@@ -660,7 +713,8 @@ export interface TokenGraph {
 }
 
 export interface AddressBalance {
-    token_balance: BigNumber, satoshis_balance: number
+    token_balance: BigNumber; 
+    satoshis_balance: number;
 }
 
 export interface TokenDBObject {
@@ -679,6 +733,9 @@ export interface GraphTxnDbo {
 export interface UtxoDbo {
     tokenDetails: { tokenIdHex: string };
     utxo: string;
+    address: string;
+    bchSatoshis: number;
+    slpAmount: Decimal128; 
 }
 
 export interface AddressBalancesDbo {
@@ -706,35 +763,53 @@ export interface SlpTransactionDetailsDbo {
 }
 
 interface GraphTxnDetailsDbo {
-    txid: string,
+    txid: string;
     details: SlpTransactionDetailsDbo;
-    outputs: GraphTxnOutputDbo[]
+    outputs: GraphTxnOutputDbo[];
+    inputs: GraphTxnInputDbo[];
 }
 
 interface GraphTxnOutputDbo { 
-    address: string,
-    vout: number, 
-    bchSatoshis: number, 
-    slpAmount: Decimal128, 
-    spendTxid: string | null,
-    status: TokenUtxoStatus|BatonUtxoStatus,
-    invalidReason: string | null
+    address: string;
+    vout: number;
+    bchSatoshis: number;
+    slpAmount: Decimal128; 
+    spendTxid: string | null;
+    status: TokenUtxoStatus|BatonUtxoStatus;
+    invalidReason: string | null;
+}
+
+interface GraphTxnInputDbo {
+    address: string;
+    txid: string;
+    vout: number;
+    bchSatoshis: number;
+    slpAmount: Decimal128; 
 }
 
 interface GraphTxn {
     details: SlpTransactionDetails;
-    outputs: GraphTxnOutput[]
+    outputs: GraphTxnOutput[];
+    inputs: GraphTxnInput[];
 }
 
 interface GraphTxnOutput { 
-    address: string,
-    vout: number, 
-    bchSatoshis: number, 
-    slpAmount: BigNumber, 
-    spendTxid: string | null,
-    status: TokenUtxoStatus|BatonUtxoStatus,
-    invalidReason: string | null
+    address: string;
+    vout: number;
+    bchSatoshis: number;
+    slpAmount: BigNumber; 
+    spendTxid: string | null;
+    status: TokenUtxoStatus|BatonUtxoStatus;
+    invalidReason: string | null;
  }
+
+ interface GraphTxnInput {
+    address: string;
+    txid: string;
+    vout: number;
+    bchSatoshis: number;
+    slpAmount: BigNumber; 
+}
 
 type txid = string;
 type cashAddr = string;

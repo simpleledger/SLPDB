@@ -46,9 +46,10 @@
     "migrate-mongo": "^5.0.1",
     "mingo": "^2.2.4",
     "mongodb": "^3.1.4",
+    "node-jq": "1.6.0",
     "p-limit": "2.0.0",
     "p-queue": "3.1.0",
-    "slpjs": "^0.15.13",
+    "slpjs": "^0.16.0",
     "traverse": "^0.6.6",
     "zeromq": "^4.6.0"
   },
