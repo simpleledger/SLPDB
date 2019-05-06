@@ -517,6 +517,8 @@ export class SlpTokenGraph implements TokenGraph {
                         tokenIdHex: tokenDetails.tokenIdHex 
                     },
                     utxo: u,
+                    txid: txid,
+                    vout: vout,
                     address: output.address,
                     bchSatoshis: output.bchSatoshis,
                     slpAmount: Decimal128.fromString(output.slpAmount.dividedBy(10**this._tokenDetails.decimals).toFixed())
@@ -733,6 +735,8 @@ export interface GraphTxnDbo {
 export interface UtxoDbo {
     tokenDetails: { tokenIdHex: string };
     utxo: string;
+    txid: string;
+    vout: number;
     address: string;
     bchSatoshis: number;
     slpAmount: Decimal128; 
