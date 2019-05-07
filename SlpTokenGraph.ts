@@ -618,11 +618,11 @@ export class SlpTokenGraph implements TokenGraph {
 
         let genesisMintQty = new BigNumber(0);
         if(details.genesisOrMintQuantity)
-            try { genesisMintQty = new BigNumber(details.genesisOrMintQuantity.toString()).multipliedBy(10**decimals); } catch(_) { throw Error("Error in mapping database object"); }
+            genesisMintQty = new BigNumber(details.genesisOrMintQuantity.toString()).multipliedBy(10**decimals);
         
         let sendOutputs: BigNumber[] = [];
         if(details.sendOutputs)
-            try { sendOutputs = details.sendOutputs.map(o => o = <any>new BigNumber(o.toString()).multipliedBy(10**decimals)); } catch(_) { throw Error("Error in mapping database object"); }
+            sendOutputs = details.sendOutputs.map(o => o = <any>new BigNumber(o.toString()).multipliedBy(10**decimals));
 
         let res = {
             decimals: details.decimals,
@@ -655,10 +655,13 @@ export class SlpTokenGraph implements TokenGraph {
         // Map _txnGraph
         tg._graphTxns = new Map<txid, GraphTxn>();
         dag.forEach((item, idx) => {
+            dag[idx].graphTxn.outputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)) 
+            dag[idx].graphTxn.inputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals))
+
             let gt: GraphTxn = {
                 details: this.MapDbTokenDetailsFromDbo(dag[idx].graphTxn.details, token.tokenDetails.decimals),
-                outputs: item.graphTxn.outputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)),
-                inputs: item.graphTxn.inputs.map(i => i.slpAmount = <any>new BigNumber(i.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals))
+                outputs: dag[idx].graphTxn.outputs as any as GraphTxnOutput[],
+                inputs: dag[idx].graphTxn.inputs as any as GraphTxnInput[]
             }
             tg._graphTxns.set(item.graphTxn.txid, gt);
         })

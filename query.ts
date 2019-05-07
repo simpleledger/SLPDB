@@ -245,7 +245,7 @@ export class Query {
 
     static mapSlpTokenDetailsFromQuery(res: GenesisQueryResult): SlpTransactionDetails {
         let baton: number|null = res.batonHex ? parseInt(res.batonHex, 16) : null;
-        let qtyBuf = Buffer.from(res.quantityHex, 'hex');
+        let qtyBuf = res.quantityHex ? Buffer.from(res.quantityHex, 'hex') : Buffer.from("", 'hex');
         let qty: BigNumber|null;
         try {
             qty = Utils.buffer2BigNumber(qtyBuf);
@@ -256,7 +256,7 @@ export class Query {
             transactionType: SlpTransactionType.GENESIS,
             versionType: parseInt(res.versionTypeHex, 16),
             documentUri: res.documentUri,
-            documentSha256: Buffer.from(res.documentSha256Hex, 'hex'),
+            documentSha256: res.documentSha256Hex ? Buffer.from(res.documentSha256Hex, 'hex') : null,
             symbol: res.symbol, 
             name: res.name, 
             batonVout: baton,
