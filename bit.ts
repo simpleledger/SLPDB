@@ -259,12 +259,13 @@ export class Bit {
                     
                     // ******************
                     // NOTE: The SLP property will be set by the SlpGraphManager after processing is completed.
-                    //       Sometimes a block notification is received before processing is completed, therefore
+                    //       Sometimes a block notification is received while processing a transaction notification is completed, therefore
                     //       we must wait until processing has completed before the block processing can complete.
                         while(!t!.slp) {
                             await sleep(1000);
                             timeout++;
-                            if(timeout > 10) {
+                            // TODO: Can check the zmqSubscriber if SLP processing is underway
+                            if(timeout > 20) {
                                 console.log("[ERROR] SLP was not processed within timeout periods", block.txs[i].txid());
                                 process.exit();
                             }
