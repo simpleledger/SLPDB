@@ -444,7 +444,6 @@ export class Bit {
             
                     if(content) {
                         let array = Array.from(content.values()).map(c => c.tnaTxn);
-                        let a = array.filter(i => i.tx.h === "a6fb72d5439d45accdaa07e570d6d9f02708f2a11284507f6f613ea616c79534");
                         await self.db.confirmedReplace(array, requireSlpData, index);
                     }
 

@@ -97,27 +97,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             await sleep(1000);
         }
 
-        // Wait until the txn count is greater than 0 
-        let retries = 0;
-        let count = 0;
-        let blockTxns: { txns: { txid: string, slp: TNATxnSlpDetails }[], timestamp: string|null }|null; 
-
-        // TODO: Need to ensure that all SLP transactions have been written to db before processing the block 
-        //          This is because there are queries that rely on db saved transactions.  This issue may come
-        //          up only when a transaction is broadcast with a block.
-        while(count === 0 && retries < 5) {
-            await sleep(2000);
-            blockTxns = await Query.getTransactionsForBlock(hash);
-            try {
-                count = blockTxns!.txns.length;
-            } catch(_){ }
-            if(retries > 5) {
-                console.log("[INFO] No SLP transactions found in block " + hash + " .");
-                return;
-            }
-            retries++;
-        }
-
+        let blockTxns = await Query.getTransactionsForBlock(hash);
         if(blockTxns!) {
             // update tokens collection timestamps on confirmation for Genesis transactions
             let genesisBlockTxns = await Query.getGenesisTransactionsForBlock(hash);
@@ -376,9 +356,9 @@ export class SlpGraphManager implements IZmqSubscriber {
             else {
                 console.log("[INFO] Token's graph was updated.");
                 await graph.updateStatistics();
-                await this.setAndSaveTokenGraph(graph);
-                await this.updateTxnCollectionsForTokenId(token.tokenIdHex);
-            }
+            await this.setAndSaveTokenGraph(graph);
+            await this.updateTxnCollectionsForTokenId(token.tokenIdHex);
+        }
         }
         catch (err) {
             if (err.message.includes(throwMsg1) || err.message.includes(throwMsg2)) {
