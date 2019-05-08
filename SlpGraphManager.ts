@@ -356,9 +356,9 @@ export class SlpGraphManager implements IZmqSubscriber {
             else {
                 console.log("[INFO] Token's graph was updated.");
                 await graph.updateStatistics();
+            }
             await this.setAndSaveTokenGraph(graph);
             await this.updateTxnCollectionsForTokenId(token.tokenIdHex);
-        }
         }
         catch (err) {
             if (err.message.includes(throwMsg1) || err.message.includes(throwMsg2)) {
