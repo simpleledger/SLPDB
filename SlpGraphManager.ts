@@ -36,7 +36,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                 let tokenId = tokenDetails ? tokenDetails.tokenIdHex : null;
 
                 // Based on Txn output OP_RETURN data, update graph for the tokenId 
-                if(tokenDetails && tokenId) {
+                if(tokenId) {
                     if(!this._tokens.has(tokenId)) {
                         if(tokenDetails) {
                             this._transaction_lock = true;
@@ -56,6 +56,8 @@ export class SlpGraphManager implements IZmqSubscriber {
                         }
                         this._tokens.get(tokenId)!.queueTokenGraphUpdateFrom(txPair[0]);
                     }
+                } else {
+                    await this.updateTxnCollections(txPair[0])
                 }
 
                 // Based on the spent inputs, look for associated tokenIDs of those inputs and update those token graphs also
@@ -181,75 +183,90 @@ export class SlpGraphManager implements IZmqSubscriber {
                 }
                 // Here we fix missing slp data (should only happen after block sync on startup)
                 if(!tna.slp)
-                    tna.slp = {} as any;
-                if(tna.slp!.schema_version !== Config.db.token_schema_version) {
+                    tna.slp = {} as TNATxnSlpDetails;
+                if(tna.slp && tna.slp.schema_version !== Config.db.token_schema_version) {
                     console.log("[INFO] Updating", collection, "TNATxn SLP data for", txid);
-                    let isValid: boolean|null = null, details: SlpTransactionDetailsTnaDbo|null, invalidReason: string|null = null;
+                    let isValid: boolean|null = null;
+                    let details: SlpTransactionDetailsTnaDbo|null = null;
+                    let invalidReason: string|null = null;
+                    let tokenDetails: SlpTransactionDetails|null = null;
+
                     if(!tokenId) {
+                        let txhex = await this._rpcClient.getRawTransaction(tna.tx.h);
+                        let bt = new bitcore.Transaction(txhex);
                         try {
-                            let txhex = await this._rpcClient.getRawTransaction(tna.tx.h);
-                            let bt = new bitcore.Transaction(txhex);
-                            let tokenDetails = slp.parseSlpOutputScript(bt.outputs[0]._scriptBuffer);
-                            if(tokenDetails.transactionType === SlpTransactionType.GENESIS || tokenDetails.transactionType === SlpTransactionType.MINT)
-                                tokenId = tokenDetails.tokenIdHex;
-                            else if(tokenDetails.transactionType !== SlpTransactionType.SEND)
-                                tokenId = tna.tx.h;
-                            else
-                                throw Error("updateTxnCollections: Unknown SLP transaction type")
-                        } catch(err) {
-                            console.log("[ERROR] updateTxnCollections(): Failed to get tokenId");
-                            console.log(err.message);
-                            process.exit()
+                            tokenDetails = slp.parseSlpOutputScript(bt.outputs[0]._scriptBuffer);
+                        } catch (err) {
+                            isValid = false;
+                            invalidReason = err.message;
+                        }
+                        if(tokenDetails) {
+                            try {
+                                if(tokenDetails.transactionType === SlpTransactionType.GENESIS || tokenDetails.transactionType === SlpTransactionType.MINT)
+                                    tokenId = tokenDetails.tokenIdHex;
+                                else if(tokenDetails.transactionType !== SlpTransactionType.SEND)
+                                    tokenId = tna.tx.h;
+                                else
+                                    throw Error("updateTxnCollections: Unknown SLP transaction type")
+                            } catch(err) {
+                                console.log("[ERROR] updateTxnCollections(): Failed to get tokenId");
+                                console.log(err.message);
+                                process.exit()
+                            }
                         }
                     }
-                    try {
-                        let tokenGraph = this._tokens.get(tokenId!)!;
-                        let keys = Object.keys(tokenGraph._slpValidator.cachedValidations);
-                        if(!keys.includes(txid)) {
-                            await tokenGraph._slpValidator.isValidSlpTxid(txid, tokenGraph._tokenDetails.tokenIdHex);
-                        }
-                        let validation = tokenGraph._slpValidator.cachedValidations[txid];                        
-                        isValid = validation.validity;
-                        invalidReason = validation.invalidReason;
-                        let addresses: (string|null)[] = [];
-                        if(isValid && validation.details!.transactionType === SlpTransactionType.SEND) {
-                            addresses = tna.out.map(o => {
+
+                    if(tokenId) {
+                        try {
+                            let tokenGraph = this._tokens.get(tokenId)!;
+                            let keys = Object.keys(tokenGraph._slpValidator.cachedValidations);
+                            if(!keys.includes(txid)) {
+                                await tokenGraph._slpValidator.isValidSlpTxid(txid, tokenGraph._tokenDetails.tokenIdHex);
+                            }
+                            let validation = tokenGraph._slpValidator.cachedValidations[txid];                        
+                            isValid = validation.validity;
+                            invalidReason = validation.invalidReason;
+                            let addresses: (string|null)[] = [];
+                            if(isValid && validation.details!.transactionType === SlpTransactionType.SEND) {
+                                addresses = tna.out.map(o => {
+                                    try {
+                                        if(o.e!.a)
+                                            return o.e!.a;
+                                        else return null;
+                                    } catch(_) { return null; }
+                                });
+                            }
+                            else if(isValid) {
                                 try {
-                                    if(o.e!.a)
-                                        return o.e!.a;
-                                    else return null;
+                                    if(tna.out[1]!.e!.a)
+                                        addresses = [ tna.out[1]!.e!.a ];
+                                    else addresses = [ null ];
                                 } catch(_) { return null; }
-                            });
+                            }
+                            if(isValid)
+                                details = SlpGraphManager.MapTokenDetailsToTnaDbo(validation.details!, tokenGraph._tokenDetails, addresses);
+                            else
+                                details = null;
+                        } catch(err) {
+                            if(err.message === "Cannot read property '_slpValidator' of undefined") {
+                                isValid = false;
+                                details = null;
+                                invalidReason = "Invalid Token Genesis";
+                            } else {
+                                console.log("[ERROR]", err.message);
+                                process.exit();
+                            }
                         }
-                        else if(isValid) {
-                            try {
-                                if(tna.out[1]!.e!.a)
-                                    addresses = [ tna.out[1]!.e!.a ];
-                                else addresses = [ null ];
-                            } catch(_) { return null; }
-                        }
-                        if(isValid)
-                            details = SlpGraphManager.MapTokenDetailsToTnaDbo(validation.details!, tokenGraph._tokenDetails, addresses);
-                        else
-                            details = null;
-                    } catch(err) {
-                        if(err.message === "Cannot read property '_slpValidator' of undefined") {
-                            isValid = false;
-                            details = null;
-                            invalidReason = "Invalid Token Genesis";
-                        } else {
-                            console.log("[ERROR]", err.message);
+                        if(isValid! === null) {
+                            console.log("[ERROR] Validitity of " + txid + " is null.");
                             process.exit();
                         }
                     }
-                    if(isValid! === null) {
-                        console.log("[ERROR] Validitity of " + txid + " is null.");
-                        process.exit();
-                    }
-                    tna.slp!.valid = isValid;
-                    tna.slp!.detail = details!;
-                    tna.slp!.invalidReason = invalidReason;
-                    tna.slp!.schema_version = Config.db.token_schema_version;
+
+                    tna.slp.valid = isValid;
+                    tna.slp.detail = details;
+                    tna.slp.invalidReason = invalidReason;
+                    tna.slp.schema_version = Config.db.token_schema_version;
                     await this.db.db.collection(collection).replaceOne({ "tx.h": txid }, tna);
                     let test = await this.db.db.collection(collection).findOne({ "tx.h": txid }) as TNATxn;
                     if(collection === 'confirmed')
