@@ -215,16 +215,16 @@ export class SlpGraphManager implements IZmqSubscriber {
                         if(isValid && validation.details!.transactionType === SlpTransactionType.SEND) {
                             addresses = tna.out.map(o => {
                                 try {
-                                    if(o.e!.a && Utils.isCashAddress(o.e!.a))
-                                        return Utils.toSlpAddress(o.e!.a); 
+                                    if(o.e!.a)
+                                        return o.e!.a;
                                     else return null;
                                 } catch(_) { return null; }
                             });
                         }
                         else if(isValid) {
                             try {
-                                if(tna.out[1]!.e!.a && Utils.isCashAddress(tna.out[1]!.e!.a))
-                                    addresses = [ Utils.toSlpAddress(tna.out[1]!.e!.a) ];
+                                if(tna.out[1]!.e!.a)
+                                    addresses = [ tna.out[1]!.e!.a ];
                                 else addresses = [ null ];
                             } catch(_) { return null; }
                         }
