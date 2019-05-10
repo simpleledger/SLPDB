@@ -110,7 +110,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             }
 
             // update all statistics for tokens included in this block
-            let tokenIds = Array.from(new Set<string>([...blockTxns!.txns.filter(t => t.slp).map(t => t.slp.detail!.tokenIdHex)]));
+            let tokenIds = Array.from(new Set<string>([...blockTxns!.txns.filter(t => t.slp && t.slp.valid).map(t => t.slp.detail!.tokenIdHex)]));
 
             // update statistics for each token
             for(let i = 0; i < tokenIds.length; i++) {
@@ -216,7 +216,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                         }
                     }
 
-                    if(tokenId) {
+                    if(tokenId && this._tokens.has(tokenId)) {
                         try {
                             let tokenGraph = this._tokens.get(tokenId)!;
                             let keys = Object.keys(tokenGraph._slpValidator.cachedValidations);
@@ -243,10 +243,8 @@ export class SlpGraphManager implements IZmqSubscriber {
                                     else addresses = [ null ];
                                 } catch(_) { return null; }
                             }
-                            if(isValid)
-                                details = SlpGraphManager.MapTokenDetailsToTnaDbo(validation.details!, tokenGraph._tokenDetails, addresses);
-                            else
-                                details = null;
+                            if(validation.details)
+                                details = SlpGraphManager.MapTokenDetailsToTnaDbo(validation.details, tokenGraph._tokenDetails, addresses);
                         } catch(err) {
                             if(err.message === "Cannot read property '_slpValidator' of undefined") {
                                 isValid = false;
@@ -261,6 +259,10 @@ export class SlpGraphManager implements IZmqSubscriber {
                             console.log("[ERROR] Validitity of " + txid + " is null.");
                             process.exit();
                         }
+                    } else if(tokenId) {
+                        isValid = false;
+                        details = null;
+                        invalidReason = "TokenId is not valid.";
                     }
 
                     tna.slp.valid = isValid;
