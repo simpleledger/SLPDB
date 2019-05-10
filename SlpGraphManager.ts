@@ -198,7 +198,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                             tokenDetails = slp.parseSlpOutputScript(bt.outputs[0]._scriptBuffer);
                         } catch (err) {
                             isValid = false;
-                            invalidReason = err.message;
+                            invalidReason = "SLP Parsing Error: " + err.message;
                         }
                         if(tokenDetails) {
                             try {
@@ -262,7 +262,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                     } else if(tokenId) {
                         isValid = false;
                         details = null;
-                        invalidReason = "TokenId is not valid.";
+                        invalidReason = "TokenId specified is not valid.";
                     }
 
                     tna.slp.valid = isValid;
