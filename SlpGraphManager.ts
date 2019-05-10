@@ -444,7 +444,7 @@ export class SlpGraphManager implements IZmqSubscriber {
     async publishZmqNotification(txid: string){
         if(this.zmqPubSocket) {
             let tna: TNATxn | null = await this.db.db.collection('unconfirmed').findOne({ "tx.h": txid });
-            if(!tna) {
+            if(tna) {
                 console.log("[ZMQ-PUB] SLP mempool notification", tna);
                 this.zmqPubSocket.send(['mempool', JSON.stringify(tna)]);
             }
