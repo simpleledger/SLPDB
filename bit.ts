@@ -59,6 +59,7 @@ export class Bit {
     queue: pQueue<DefaultAddOptions>;
     slpMempool: Map<txid, txhex>;
     slpMempoolIgnoreList: string[]; 
+    blockHashIgnoreList: string[];
     _zmqSubscribers: IZmqSubscriber[];
     network!: string;
     //lastBlockProcessing!: number
@@ -71,6 +72,7 @@ export class Bit {
         //this.slpOrphanPool = new Map<txid, number>();
         this._zmqSubscribers = [];
         this.slpMempoolIgnoreList = [];
+        this.blockHashIgnoreList = [];
     }
 
     slp_txn_filter(txnhex: string): boolean {
@@ -322,6 +324,13 @@ export class Bit {
                     }
                 } else if (topic.toString() === 'hashblock') {
                     let hash = message.toString('hex');
+                    if(self.blockHashIgnoreList.includes(hash)) {
+                        if(self.blockHashIgnoreList.length > 10)
+                            self.blockHashIgnoreList.pop();
+                        console.log('[ZMQ-SUB] Block message ignored:', hash);
+                        return;
+                    }
+                    self.blockHashIgnoreList.push(hash);   
                     console.log('[ZMQ-SUB] New block found:', hash);
                     await sync(self, 'block', hash);
                     for (let i = 0; i < self._zmqSubscribers.length; i++) {
