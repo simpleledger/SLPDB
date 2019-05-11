@@ -2,6 +2,8 @@ const level = require('level');
 var kv = level('./_leveldb');
 
 import { Config } from './config';
+import { TokenDBObject, UtxoDbo, GraphTxnDbo, AddressBalancesDbo } from './SlpTokenGraph';
+import { Decimal128 } from 'bson';
 
 /**
 * Return the last synchronized checkpoint
@@ -104,5 +106,99 @@ export module Info {
 		} catch(err) {
 			throw Error(err.message);
 		 }
+	}
+
+	export const saveTokensState = async function(tokens: TokenDBObject[]) {
+		try {
+			let json = JSON.stringify(tokens)
+			await kv.put('token-state', json)
+		} catch(err) {
+			console.log('[ERROR] Writing tokens state to leveldb')
+		}
+	}
+
+	export const loadTokensState = async function(): Promise<TokenDBObject[]|undefined> {
+		const reviver = (k: any, v: any)  => {
+			if(k === "genesisOrMintQuantity")
+				return Decimal128.fromString(v["$numberDecimal"]);
+			return v;
+		}
+		try {
+			let res = JSON.parse(await kv.get('token-state'), reviver);
+			return res;
+		} catch(err) {
+			console.log('[ERROR] Reading tokens state from leveldb')
+		}
+	}
+
+	export const saveUtxosState = async function(utxos: UtxoDbo[]) {
+		try {
+			let json = JSON.stringify(utxos)
+			await kv.put('utxo-state', json)
+		} catch(err) {
+			console.log('[ERROR] Writing utxos state to leveldb')
+		}
+	}
+
+	export const loadUtxosState = async function(): Promise<UtxoDbo[]|undefined> {
+		const reviver = (k: any, v: any)  => { 
+			if(k === "slpAmount")
+				return Decimal128.fromString(v["$numberDecimal"]);
+			return v;
+		}
+		try {
+			let res = JSON.parse(await kv.get('utxo-state'), reviver)
+			return res;
+		} catch(err) {
+			console.log('[ERROR] Reading utxos state from leveldb')
+		}
+	}
+
+	export const saveGraphsState = async function(graphs: GraphTxnDbo[]) {
+		try {
+			let json = JSON.stringify(graphs)
+			await kv.put('graph-state', json)
+		} catch(err) {
+			console.log('[ERROR] Writing graph state to leveldb')
+		}
+	}
+
+	export const loadGraphsState = async function(): Promise<GraphTxnDbo[]|undefined> {
+		const reviver = (k: any, v: any)  => { 
+			if(k === "sendOutputs")
+				return v.map((o: any) => Decimal128.fromString(o["$numberDecimal"]))
+			if(k === "slpAmount")
+				return Decimal128.fromString(v["$numberDecimal"]);
+			return v;
+		}
+		try {
+			let res = JSON.parse(await kv.get('graph-state'), reviver);
+			return res;
+		} catch(err) {
+			console.log('[ERROR] Reading graph state from leveldb')
+		}
+	}
+
+	export const saveAddressState = async function(addresses: AddressBalancesDbo[]) {
+		try {			
+			let json = JSON.stringify(addresses)
+			await kv.put('address-state', json)
+		} catch(err) {
+			console.log('[ERROR] Writing address state to leveldb')
+		}
+	}
+
+	export const loadAddressState = async function(): Promise<AddressBalancesDbo[]|undefined> {
+		const reviver = (k: any, v: any) => { 
+			if(k === "token_balance")
+				return Decimal128.fromString(v["$numberDecimal"]);
+			return v;
+		}
+		try {
+			let res = JSON.parse(await kv.get('address-state'), reviver)
+			return res;
+		} catch(err) {
+			console.log('[ERROR] Reading address state from leveldb')
+		}
 	}
 }

@@ -36,7 +36,7 @@ const daemon = {
             console.log("[INFO] Schema version for the confirmed collection was updated. Reseting block checkpoint reset to", (await Info.getBlockCheckpoint()).height)
         }
 
-        await db.init(rpc);
+        await db.init();
         await bit.init(db, rpc);
 
         const lastSynchronized = <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
@@ -85,7 +85,8 @@ const daemon = {
 const util = {
     run: async function() {
         const rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
-        await db.init(rpc)
+        await Info.setNetwork((await rpc.getInfo())!.testnet ? 'testnet' : 'mainnet');
+        await db.init()
         let cmd = process.argv[2]
         if (cmd === 'fix') {
             console.log("Command not implemented");
@@ -96,7 +97,7 @@ const util = {
             // } else
             // 	console.log("Usage 'node ./index.js fix <block number>'")
             process.exit()
-        } else if (cmd === 'reset') {
+        } else if (cmd === 'reset-all') {
             await db.confirmedReset()
             await db.unconfirmedReset()
             await db.tokenReset()
@@ -104,6 +105,14 @@ const util = {
             await db.utxoReset()
             await db.addressReset()
             await Info.checkpointReset()
+            //TODO: delete ldb token blob states
+            process.exit()
+        } else if (cmd === 'reset') {
+            await db.tokenReset()
+            await db.graphReset()
+            await db.utxoReset()
+            await db.addressReset()
+            console.log("[INFO] Completed reset of token collections.")
             process.exit()
         } else if (cmd === 'index') {
             console.log("Command not implemented");

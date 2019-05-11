@@ -10,12 +10,9 @@ import { Decimal128 } from 'mongodb';
 import { Db } from './db';
 import pQueue, { DefaultAddOptions } from 'p-queue';
 import { SlpGraphManager } from './SlpGraphManager';
-import { TNATxn } from './tna';
 
 const RpcClient = require('bitcoin-rpc-promise')
 const BITBOX = new BITBOXSDK();
-
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export class SlpTokenGraph implements TokenGraph {
     _lastUpdatedBlock!: number;
@@ -30,7 +27,6 @@ export class SlpTokenGraph implements TokenGraph {
     _network!: string;
     _db: Db;
     _waitingToUpdate: boolean = false;
-    //_lockGraphUpdates: boolean = false;
     _graphUpdateQueue: pQueue<DefaultAddOptions>;
     _manager: SlpGraphManager;
 

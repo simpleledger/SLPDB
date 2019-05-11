@@ -69,7 +69,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                         this._tokens.get(inputTokenId)!.queueTokenGraphUpdateFrom(txPair[0]);
                     }
                     else {
-                        console.log("[INFO] SLP txn input:", i, "does not need updated for txid:", txPair[0]);
+                        console.log("[INFO] SLP txn input:", i, "for txid:", txPair[0], "did not spend any other token's utxo.");
                     }
                 }
             })
@@ -98,6 +98,21 @@ export class SlpGraphManager implements IZmqSubscriber {
             console.log("[INFO] onBlockHash update is locked until processing for new token graph is completed.")
             await sleep(1000);
         }
+
+        console.time("LDB STATE SAVE")
+        await Info.saveTokensState(Array.from(this._tokens).map(t => t[1].toTokenDbObject()));
+        let addressdbos: AddressBalancesDbo[] = [];
+        let graphdbos: GraphTxnDbo[] = [];
+        let utxodbos: UtxoDbo[] = [];
+        Array.from(this._tokens).forEach(t => {
+            addressdbos.push(...t[1].toAddressesDbObject());
+            graphdbos.push(...t[1].toGraphDbObject());
+            utxodbos.push(...t[1].toUtxosDbObject())
+        });
+        await Info.saveAddressState(addressdbos);
+        await Info.saveGraphsState(graphdbos);
+        await Info.saveUtxosState(utxodbos);
+        console.timeEnd("LDB STATE SAVE");
 
         let blockTxns = await Query.getTransactionsForBlock(hash);
         if(blockTxns!) {
@@ -322,41 +337,59 @@ export class SlpGraphManager implements IZmqSubscriber {
         await Query.init();
         let tokens = await Query.queryTokensList();
 
+        console.time("LDB STATE LOAD");
+        let ldbTokens: TokenDBObject[]|undefined, ldbAddresses: AddressBalancesDbo[]|undefined, ldbGraphs: GraphTxnDbo[]|undefined, ldbUtxos: UtxoDbo[]|undefined;
+        ldbTokens = await Info.loadTokensState();
+        ldbAddresses = await Info.loadAddressState();
+        ldbGraphs = await Info.loadGraphsState();
+        ldbUtxos = await Info.loadUtxosState();
+        console.timeEnd("LDB STATE LOAD");
+
         // Instantiate all Token Graphs in memory
         for (let i = 0; i < tokens.length; i++) {
-            await this.initToken(tokens[i], reprocessFrom);
+            let token = ldbTokens ? ldbTokens.find((t: TokenDBObject) => t.tokenDetails.tokenIdHex === tokens[i].tokenIdHex) : undefined;
+            let addresses = ldbAddresses ? ldbAddresses.filter((t: AddressBalancesDbo) => t.tokenDetails.tokenIdHex === tokens[i].tokenIdHex) : undefined;
+            let graphs = ldbGraphs ? ldbGraphs.filter((t: GraphTxnDbo) => t.tokenDetails.tokenIdHex === tokens[i].tokenIdHex) : undefined;
+            let utxos = ldbUtxos ? ldbUtxos.filter((t: UtxoDbo) => t.tokenDetails.tokenIdHex === tokens[i].tokenIdHex) : undefined;
+            
+            if(!ldbTokens) {
+                console.log("No state found in LevelDB, loading state from mongodb")
+                await this.initToken(tokens[i], reprocessFrom);
+                continue;
+            }
+            await this.initToken(tokens[i], reprocessFrom, token, utxos, addresses, graphs);
         }
 
         console.log("[INFO] Init all tokens complete");
     }
 
-    private async initToken(token: SlpTransactionDetails, reprocessFrom?: number) {
+    private async initToken(token: SlpTransactionDetails, reprocessFrom?: number, tokenStateLdb?: TokenDBObject, utxosLdb?: UtxoDbo[], addressesLdb?: AddressBalancesDbo[], dagLdb?: GraphTxnDbo[]) {
         let graph: SlpTokenGraph;
         let throwMsg1 = "There is no db record for this token.";
         let throwMsg2 = "Outdated token graph detected for: ";
         try {
-            let tokenState = <TokenDBObject>await this.db.tokenFetch(token.tokenIdHex);
+            console.log("########################################################################################################");
+            console.log("LOAD FROM DB:", token.tokenIdHex);
+            console.log("########################################################################################################");
+            console.time("LOAD DBO")
+            let tokenState: TokenDBObject = tokenStateLdb ? tokenStateLdb : <TokenDBObject>await this.db.tokenFetch(token.tokenIdHex);
             if (!tokenState)
                 throw Error(throwMsg1);
 
             // Reprocess entire DAG if schema version is updated
-            if (!tokenState.schema_version || tokenState.schema_version !== Config.db.token_schema_version) {
+            if (!tokenState.schema_version || tokenState.schema_version !== Config.db.token_schema_version)
                 throw Error(throwMsg2 + token.tokenIdHex);
-            }
-
             // Reprocess entire DAG if reprocessFrom is before token's GENESIS
-            if(reprocessFrom && reprocessFrom <= tokenState.tokenStats.block_created!) {
+            if(reprocessFrom && reprocessFrom <= tokenState.tokenStats.block_created!)
                 throw Error(throwMsg2 + token.tokenIdHex);
-            }
 
-            console.log("########################################################################################################");
-            console.log("LOAD FROM DB:", token.tokenIdHex);
-            console.log("########################################################################################################");
-            let utxos: UtxoDbo[] = await this.db.utxoFetch(token.tokenIdHex);
-            let addresses: AddressBalancesDbo[] = await this.db.addressFetch(token.tokenIdHex);
-            let dag: GraphTxnDbo[] = await this.db.graphFetch(token.tokenIdHex);
+            let utxos = utxosLdb ? utxosLdb : await this.db.utxoFetch(token.tokenIdHex);
+            let addresses = addressesLdb ? addressesLdb : await this.db.addressFetch(token.tokenIdHex);
+            let dag = dagLdb ? dagLdb : await this.db.graphFetch(token.tokenIdHex);
+
             graph = await SlpTokenGraph.FromDbObjects(tokenState, dag, utxos, addresses, this.db, this);
-            
+            console.timeEnd("LOAD DBO")
+            console.time("OTHERSTUFF")
             // determine how far back the token graph should be reprocessed
             let potentialReorgFactor = 10;
             let updateFromHeight = graph._lastUpdatedBlock - potentialReorgFactor;
@@ -378,6 +411,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             }
             await this.setAndSaveTokenGraph(graph);
             await this.updateTxnCollectionsForTokenId(token.tokenIdHex);
+            console.timeEnd("OTHERSTUFF")
         }
         catch (err) {
             if (err.message.includes(throwMsg1) || err.message.includes(throwMsg2)) {
@@ -447,7 +481,7 @@ export class SlpGraphManager implements IZmqSubscriber {
         if(this.zmqPubSocket) {
             let tna: TNATxn | null = await this.db.db.collection('unconfirmed').findOne({ "tx.h": txid });
             if(tna) {
-                console.log("[ZMQ-PUB] SLP mempool notification", tna);
+                console.log("[ZMQ-PUB] SLP mempool notification sent");
                 this.zmqPubSocket.send(['mempool', JSON.stringify(tna)]);
             }
         }

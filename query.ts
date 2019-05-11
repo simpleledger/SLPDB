@@ -267,7 +267,7 @@ export class Query {
     }
 
     static async queryForTxnTokenId(txid: string): Promise<string|null> {
-        console.log("[Query] queryForTxoInputSourceTokenID(" + txid + ")");
+        console.log("[Query] queryForTxnTokenId(" + txid + ")");
         let q = {
             "v": 3,
             "q": {

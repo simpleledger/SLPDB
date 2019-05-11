@@ -3,20 +3,17 @@ import { Config, DbConfig } from './config';
 import { TNATxn, TNA } from './tna';
 import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from './SlpTokenGraph';
 import { Info } from './info';
-import { BitcoinRpc } from './vendor';
 
 export class Db {
     config: DbConfig;
     db!: MongoDb;
     mongo!: MongoClient;
-    _rpcClient!: BitcoinRpc.RpcClient;
 
     constructor() {
         this.config = Config.db;
     }
 
-    async init(rpc: BitcoinRpc.RpcClient) {
-        this._rpcClient = rpc;
+    async init() {
         let network = await Info.getNetwork();
         let client: MongoClient;
         console.log("[INFO] Initializing MongoDB...")

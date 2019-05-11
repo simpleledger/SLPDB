@@ -95,16 +95,18 @@ export class Bit {
         let BITBOX = this.network === 'mainnet' ? new BITBOXSDK({ restURL: `https://rest.bitcoin.com/v2/` }) : new BITBOXSDK({ restURL: `https://trest.bitcoin.com/v2/` });
         let isSyncd = false;
         let lastReportedSyncBlocks = 0;
-        while (!isSyncd) {
-            let syncdBlocks = (await this.rpc.getInfo()).blocks;
-            let networkBlocks = (await BITBOX.Blockchain.getBlockchainInfo()).blocks;
-            isSyncd = syncdBlocks === networkBlocks ? true : false;
-            if (syncdBlocks !== lastReportedSyncBlocks)
-                console.log("[INFO] Waiting for bitcoind to sync with network ( on block", syncdBlocks, "of", networkBlocks, ")");
-            else
-                console.log("[WARN] bitcoind sync status did not change, check your bitcoind network connection.");
-            lastReportedSyncBlocks = syncdBlocks;
-            await sleep(2000);
+        if(this.network === 'mainnet') {
+            while (!isSyncd) {
+                let syncdBlocks = (await this.rpc.getInfo()).blocks;
+                let networkBlocks = (await BITBOX.Blockchain.getBlockchainInfo()).blocks;
+                isSyncd = syncdBlocks === networkBlocks ? true : false;
+                if (syncdBlocks !== lastReportedSyncBlocks)
+                    console.log("[INFO] Waiting for bitcoind to sync with network ( on block", syncdBlocks, "of", networkBlocks, ")");
+                else
+                    console.log("[WARN] bitcoind sync status did not change, check your bitcoind network connection.");
+                lastReportedSyncBlocks = syncdBlocks;
+                await sleep(2000);
+            }
         }
     }
 

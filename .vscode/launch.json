@@ -27,5 +27,13 @@
             "args": ["run", "576630"],
             "console": "externalTerminal"
         },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Reset Token Collections",
+            "program": "${workspaceFolder}/index.js",
+            "args": ["reset"],
+            "console": "integratedTerminal"
+        }
     ]
 }
