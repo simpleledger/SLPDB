@@ -59,6 +59,7 @@ export class Bit {
     queue: pQueue<DefaultAddOptions>;
     slpMempool: Map<txid, txhex>;
     slpMempoolIgnoreList: string[]; 
+    blockHashIgnoreList: string[];
     _zmqSubscribers: IZmqSubscriber[];
     network!: string;
     //lastBlockProcessing!: number
@@ -71,6 +72,7 @@ export class Bit {
         //this.slpOrphanPool = new Map<txid, number>();
         this._zmqSubscribers = [];
         this.slpMempoolIgnoreList = [];
+        this.blockHashIgnoreList = [];
     }
 
     slp_txn_filter(txnhex: string): boolean {
@@ -259,12 +261,13 @@ export class Bit {
                     
                     // ******************
                     // NOTE: The SLP property will be set by the SlpGraphManager after processing is completed.
-                    //       Sometimes a block notification is received before processing is completed, therefore
+                    //       Sometimes a block notification is received while processing a transaction notification is completed, therefore
                     //       we must wait until processing has completed before the block processing can complete.
                         while(!t!.slp) {
                             await sleep(1000);
                             timeout++;
-                            if(timeout > 10) {
+                            // TODO: Can check the zmqSubscriber if SLP processing is underway
+                            if(timeout > 20) {
                                 console.log("[ERROR] SLP was not processed within timeout periods", block.txs[i].txid());
                                 process.exit();
                             }
@@ -321,6 +324,13 @@ export class Bit {
                     }
                 } else if (topic.toString() === 'hashblock') {
                     let hash = message.toString('hex');
+                    if(self.blockHashIgnoreList.includes(hash)) {
+                        if(self.blockHashIgnoreList.length > 10)
+                            self.blockHashIgnoreList.pop();
+                        console.log('[ZMQ-SUB] Block message ignored:', hash);
+                        return;
+                    }
+                    self.blockHashIgnoreList.push(hash);   
                     console.log('[ZMQ-SUB] New block found:', hash);
                     await sync(self, 'block', hash);
                     for (let i = 0; i < self._zmqSubscribers.length; i++) {
@@ -444,7 +454,6 @@ export class Bit {
             
                     if(content) {
                         let array = Array.from(content.values()).map(c => c.tnaTxn);
-                        let a = array.filter(i => i.tx.h === "a6fb72d5439d45accdaa07e570d6d9f02708f2a11284507f6f613ea616c79534");
                         await self.db.confirmedReplace(array, requireSlpData, index);
                     }
 

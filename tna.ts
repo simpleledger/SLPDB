@@ -2,7 +2,9 @@ require('dotenv').config()
 import { BitcoinRpc, Bitcore } from './vendor';
 import { SlpTransactionDetailsTnaDbo } from './SlpGraphManager';
 import { Utils } from 'slpjs';
+import BITBOXSDK from 'bitbox-sdk';
 
+const BITBOX = new BITBOXSDK();
 const bitcore = require('bitcore-lib-cash')
 
 export class TNA {
@@ -42,10 +44,19 @@ export class TNA {
                         xput.str = input.script.toASM()
                         let sender: Sender = {
                             h: input.prevTxId.toString('hex'),
-                            i: input.outputIndex
+                            i: input.outputIndex,
+                            s: input._scriptBuffer
                         }
                         let address;
                         try { address = Utils.toSlpAddress(input.script.toAddress(net).toString(bitcore.Address.CashAddrFormat)); } catch(_) { }
+                        if(!address)
+                            try { 
+                                // here we try to catch any p2sh which bitcore lib could not decode (eg. 0af38c6700000e44e6f878e7b53dd453df477672f6a8268d6d8bb28c0116fbe5:1)
+                                let scriptSigHexArray = input.script.toASM().split(' ')
+                                let redeemScriptHex = scriptSigHexArray[scriptSigHexArray.length-1]
+                                let redeemScriptHash160 = BITBOX.Crypto.hash160(Buffer.from(redeemScriptHex, 'hex'))
+                                address = Utils.slpAddressFromHash160(redeemScriptHash160, options.network, "p2sh") 
+                            } catch(_) { }
                         if (address && address.length > 0) {
                             sender.a = address;
                         }
@@ -81,7 +92,8 @@ export class TNA {
                         xput.str = output.script.toASM()
                         let receiver: Receiver = {
                             v: output.satoshis,
-                            i: output_index
+                            i: output_index,
+                            s: output._scriptBuffer
                         }
                         let address;
                         try { address = Utils.toSlpAddress(output.script.toAddress(net).toString(bitcore.Address.CashAddrFormat));} catch(_) { }
@@ -124,10 +136,12 @@ export interface Sender {
     h: string;
     i: number;
     a?: string;
+    s: Buffer;  // scriptSig
 }
 
 export interface Receiver {
     v: number;
     i: number;
     a?: string;
+    s: Buffer;  // scriptPubkey
 }

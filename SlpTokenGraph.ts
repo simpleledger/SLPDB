@@ -341,12 +341,6 @@ export class SlpTokenGraph implements TokenGraph {
         return Math.round(qty);
     }
 
-    async initStatistics(): Promise<void> {
-        if(this.IsValid) {
-
-        }
-    }
-
     async getBatonStatus(): Promise<TokenBatonStatus> {
         if(!this._tokenDetails.containsBaton)
             return TokenBatonStatus.NEVER_CREATED;
@@ -713,7 +707,6 @@ export interface TokenGraph {
     _addresses: Map<cashAddr, AddressBalance>;    
     queueTokenGraphUpdateFrom(txid: string, isParent: boolean): void;
     updateTokenGraphFrom(txid: string, isParent: boolean): Promise<boolean>;
-    initStatistics(): Promise<void>;
     searchForNonSlpBurnTransactions(): Promise<void>;
 }
 
