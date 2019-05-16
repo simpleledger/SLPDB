@@ -1,5 +1,5 @@
 require('dotenv').config()
-import { BitcoinRpc, Bitcore } from './vendor';
+import { Bitcore } from './vendor';
 import { SlpTransactionDetailsTnaDbo } from './SlpGraphManager';
 import { Utils } from 'slpjs';
 import BITBOXSDK from 'bitbox-sdk';
@@ -8,11 +8,6 @@ const BITBOX = new BITBOXSDK();
 const bitcore = require('bitcore-lib-cash')
 
 export class TNA {
-    rpc: BitcoinRpc.RpcClient;
-    constructor(rpcClient: BitcoinRpc.RpcClient) {
-        this.rpc = rpcClient;
-    }
-
     async fromTx(gene: Bitcore.Transaction, options?: any): Promise<TNATxn> {
         return await (async function(gene, options) {
             let net = options.network === 'testnet' ? bitcore.Networks.testnet : bitcore.Networks.livenet;

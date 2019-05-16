@@ -87,7 +87,7 @@ export class Bit {
         this.rpc = rpc;
         this.network = await Info.getNetwork();
         await this.waitForFullNodeSync();
-        this.tna = new TNA(this.rpc);
+        this.tna = new TNA();
         //this.lastBlockProcessing = (await Info.getBlockCheckpoint()).height;
     }
 
