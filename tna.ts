@@ -46,11 +46,21 @@ export class TNA {
                         try { address = Utils.toSlpAddress(input.script.toAddress(net).toString(bitcore.Address.CashAddrFormat)); } catch(_) { }
                         if(!address)
                             try { 
-                                // here we try to catch any p2sh which bitcore lib could not decode (eg. 0af38c6700000e44e6f878e7b53dd453df477672f6a8268d6d8bb28c0116fbe5:1)
-                                let scriptSigHexArray = input.script.toASM().split(' ')
-                                let redeemScriptHex = scriptSigHexArray[scriptSigHexArray.length-1]
-                                let redeemScriptHash160 = BITBOX.Crypto.hash160(Buffer.from(redeemScriptHex, 'hex'))
-                                address = Utils.slpAddressFromHash160(redeemScriptHash160, options.network, "p2sh") 
+                                // here we try to catch any transactions which bitcore lib could not decode (eg. 0af38c6700000e44e6f878e7b53dd453df477672f6a8268d6d8bb28c0116fbe5:1)
+                                const scriptSigHexArray = input.script.toASM().split(' ')
+                                const redeemScriptHex = scriptSigHexArray[scriptSigHexArray.length-1]
+                                const redeemScriptHash160 = BITBOX.Crypto.hash160(Buffer.from(redeemScriptHex, 'hex'))
+
+                                // attempt decode of schnorr TODO improve this hack
+                                if (scriptSigHexArray.length === 2 &&
+                                    scriptSigHexArray[0].length === 130 &&
+                                    scriptSigHexArray[1].length === 66
+                                ) {
+                                    address = Utils.slpAddressFromHash160(redeemScriptHash160, options.network, "p2pkh")
+                                } else {
+                                  // otherwise attempt decode of p2sh
+                                  address = Utils.slpAddressFromHash160(redeemScriptHash160, options.network, "p2sh")
+                                }
                             } catch(_) { }
                         if (address && address.length > 0) {
                             sender.a = address;
