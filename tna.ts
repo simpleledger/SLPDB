@@ -53,8 +53,8 @@ export class TNA {
 
                                 // attempt decode of schnorr TODO improve this hack
                                 if (scriptSigHexArray.length === 2 &&
-                                    scriptSigHexArray[0].length === 130 &&
-                                    scriptSigHexArray[1].length === 66
+                                    scriptSigHexArray[0].length === 130 && 
+                                    (scriptSigHexArray[1].length === 66 || scriptSigHexArray[1].length === 130)
                                 ) {
                                     address = Utils.slpAddressFromHash160(redeemScriptHash160, options.network, "p2pkh")
                                 } else {
