@@ -50,7 +50,7 @@
     "p-queue": "3.1.0",
     "slpjs": "^0.18.0",
     "traverse": "^0.6.6",
-    "zeromq": "^4.6.0"
+    "zeromq": "^5.1.0"
   },
   "devDependencies": {
     "eslint": "^5.6.1"
