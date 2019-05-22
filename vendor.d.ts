@@ -8,11 +8,11 @@ export module BitcoinRpc {
     export interface RpcClient {
         getBlockHash(block_index: number): Promise<string>;
         getBlock(hash: string): Promise<BlockDetailsResult>;
-        getBlock(hash: string, verbose: boolean): Promise<string>;
+        getBlock(hash: string, verbose: number): Promise<string>;
         getBlockCount(): Promise<number>;
         getRawTransaction(hash: string): Promise<string>;
         getRawTransaction(hash: string, verbose: number): Promise<VerboseRawTransactionResult>;
-        getRawMempool(): Promise<string[]>;
+        getRawMemPool(): Promise<string[]>;
         getTxOut(hash: string, vout: number, includemempool: boolean): Promise<TxOutResult|null>;
         getInfo(): Promise<NodeInfoResult>;
         getBlockchainInfo(): Promise<BlockchainInfoResult>;
