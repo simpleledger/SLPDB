@@ -33,7 +33,7 @@
     "bcash": "^1.1.1",
     "bignumber.js": "^8.1.0",
     "bitbox-sdk": "5.0.1",
-    "bitcoin-rpc-promise": "simpleledger/bitcoin-rpc-promise#master",
+    "bitcoin-rpc-promise": "gist:76183a7a7928dceb13d925f80b8b18d9",
     "bitcore-lib-cash": "^0.19.0",
     "bufio": "^1.0.4",
     "cashaddrjs-slp": "^0.2.11",

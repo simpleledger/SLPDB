@@ -193,7 +193,7 @@ export class Bit {
     }
 
     async syncSlpMempool() {
-        let currentBchMempoolList = await this.rpc.getRawMempool();
+        let currentBchMempoolList = await this.rpc.getRawMemPool();
         console.log('[INFO] BCH mempool txs =', currentBchMempoolList.length);
         
         // Remove cached txs not in the mempool.
@@ -219,7 +219,7 @@ export class Bit {
             const limit = pLimit(Config.rpc.limit);
             const self = this;
 
-            let blockHex: string = await this.rpc.getBlock(block_content.hash, false);
+            let blockHex: string = await this.rpc.getBlock(block_content.hash, 0);
             let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
             for(let i=0; i < block.txs.length; i++) {
                 let txnhex = block.txs[i].toRaw().toString('hex');
@@ -309,7 +309,7 @@ export class Bit {
             try {
                 if (topic.toString() === 'hashtx') {
                     let hash = message.toString('hex');
-                    if((await self.rpc.getRawMempool()).includes(hash) && (await self.handleMempoolTransaction(hash)).added) {
+                    if((await self.rpc.getRawMemPool()).includes(hash) && (await self.handleMempoolTransaction(hash)).added) {
                         console.log('[ZMQ-SUB] New unconfirmed transaction added:', hash);
                         let syncResult = await sync(self, 'mempool', hash);
                         for (let i = 0; i < self._zmqSubscribers.length; i++) {
@@ -379,7 +379,7 @@ export class Bit {
 
     async checkForMissingMempoolTxns(currentBchMempoolList?: string[], recursive=false, log=true) {
         if(!currentBchMempoolList)
-            currentBchMempoolList = await this.rpc.getRawMempool();
+            currentBchMempoolList = await this.rpc.getRawMemPool();
 
         // add missing SLP transactions and process
         await this.asyncForEach(currentBchMempoolList, async (txid: string) => {
@@ -390,13 +390,13 @@ export class Bit {
         });
 
         if(recursive) {
-            let residualMempoolList = (await this.rpc.getRawMempool()).filter(id => !this.slpMempoolIgnoreList.includes(id) && !Array.from(this.slpMempool.keys()).includes(id))
+            let residualMempoolList = (await this.rpc.getRawMemPool()).filter(id => !this.slpMempoolIgnoreList.includes(id) && !Array.from(this.slpMempool.keys()).includes(id))
             if(residualMempoolList.length > 0)
                 await this.checkForMissingMempoolTxns(residualMempoolList, true, false)
         }
 
         if(log) {
-            console.log('[INFO] BCH mempool txn count:', (await this.rpc.getRawMempool()).length);
+            console.log('[INFO] BCH mempool txn count:', (await this.rpc.getRawMemPool()).length);
             console.log("[INFO] SLP mempool txn count:", this.slpMempool.size);
         }
     }
@@ -410,7 +410,7 @@ export class Bit {
     // }
 
     async removeExtraneousMempoolTxns() {
-        let currentBchMempoolList = await this.rpc.getRawMempool();
+        let currentBchMempoolList = await this.rpc.getRawMemPool();
         
         // remove extraneous SLP transactions no longer in the mempool
         let cacheCopyForRemovals = new Map(this.slpMempool);
