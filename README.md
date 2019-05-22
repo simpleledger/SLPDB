@@ -96,7 +96,6 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 **1)** Run MongoDB (`config.ts` default port is 27017)
 
 **2)** Run Bitcoin Cash full node using `bitcoin.conf` settings from above.
-* [BCHD](https://github.com/gcash/bchd) (recommended with `--fastsync`)
 * [BitcoinABC](https://www.bitcoinabc.org)
 * [BitcoinBU](https://www.bitcoinunlimited.info)
 

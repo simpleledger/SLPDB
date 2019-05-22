@@ -6,11 +6,9 @@ import { Info, ChainSyncCheckpoint } from './info';
 import { Bit } from './bit';
 import { Db } from './db';
 import { SlpGraphManager } from './SlpGraphManager';
-import { BitcoinRpc } from './vendor';
 
-const RpcClient = require('bitcoin-rpc-promise');
-const connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port
-const rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString, console));
+import { RpcClient } from './rpc';
+const rpc = new RpcClient();
 
 const db = new Db();
 const bit = new Bit();
@@ -84,7 +82,7 @@ const daemon = {
 
 const util = {
     run: async function() {
-        const rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString, console));
+        const rpc = new RpcClient();
         await db.init(rpc)
         let cmd = process.argv[2]
         if (cmd === 'fix') {

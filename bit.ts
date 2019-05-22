@@ -1,5 +1,5 @@
 import { Info, ChainSyncCheckpoint } from './info';
-import { Bitcore, BitcoinRpc } from './vendor';
+import { Bitcore } from './vendor';
 import { TNA, TNATxn } from './tna';
 import { Config } from './config';
 import { Db } from './db';
@@ -13,6 +13,7 @@ import { BlockDetailsResult } from 'bitcoin-com-rest';
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { Slp, SlpTransactionType } from 'slpjs';
+import { RpcClient } from './rpc';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -54,7 +55,7 @@ export type txid = string;
 
 export class Bit {
     db!: Db;
-    rpc!: BitcoinRpc.RpcClient;
+    rpc!: RpcClient;
     tna!: TNA;
     outsock: zmq.Socket;
     queue: pQueue<DefaultAddOptions>;
@@ -83,7 +84,7 @@ export class Bit {
         return false;
     }
     
-    async init(db: Db, rpc: BitcoinRpc.RpcClient) {
+    async init(db: Db, rpc: RpcClient) {
         this.db = db;
         this.rpc = rpc;
         this.network = await Info.getNetwork();
@@ -112,7 +113,7 @@ export class Bit {
     async requestblock(block_index: number): Promise<BlockDetailsResult> {
         try {
             let hash = await this.rpc.getBlockHash(block_index);
-            return await this.rpc.getBlock(hash);
+            return <BlockDetailsResult>await this.rpc.getBlock(hash);
         } catch(err) {
             console.log('Check your JSON-RPC connection. Could not get block from full node rpc call.');
             throw err;
@@ -147,7 +148,7 @@ export class Bit {
             this.slpMempoolIgnoreList.pop();
 
         if(!txhex)
-            txhex = await this.rpc.getRawTransaction(txid);
+            txhex = <string>await this.rpc.getRawTransaction(txid);
         if(this.slp_txn_filter(txhex)) {
             this.slpMempool.set(txid, txhex);
             return { isSlp: true, added: true };
@@ -220,7 +221,7 @@ export class Bit {
             const limit = pLimit(Config.rpc.limit);
             const self = this;
 
-            let blockHex: string = await this.rpc.getBlock(block_content.hash, 0);
+            let blockHex = <string>await this.rpc.getBlock(block_content.hash, false);
             let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
             for(let i=0; i < block.txs.length; i++) {
                 let txnhex = block.txs[i].toRaw().toString('hex');
@@ -356,7 +357,7 @@ export class Bit {
         if(missing) {
             await this.asyncForEach(missing, async (txid:string) => {
                 let tx = await this.db.confirmedFetch(txid);
-                let txnhex = await this.rpc.getRawTransaction(txid);
+                let txnhex = <string>await this.rpc.getRawTransaction(txid);
                 let txn: bitcore.Transaction = new bitcore.Transaction(txnhex);
                 let slpParseError = "SLP transaction not in any graph; This transaction probably contains invalid inputs.";
                 let details: any = null;
@@ -538,7 +539,7 @@ export class Bit {
             while (lastCheckedHash !== actualHash && lastCheckedHeight > from) {
                 await Info.updateBlockCheckpoint(lastCheckedHeight, null);
                 lastCheckedHash = await Info.getCheckpointHash(--lastCheckedHeight);
-                actualHash = (await self.rpc.getBlock(actualHash)).previousblockhash;
+                actualHash = (<BlockDetailsResult>await self.rpc.getBlock(actualHash)).previousblockhash;
             }
             if(lastCheckpoint.hash !== lastCheckedHash)
                 await Info.updateBlockCheckpoint(lastCheckedHeight, lastCheckedHash);

@@ -1,6 +1,6 @@
 import { SlpTransactionDetails, SlpTransactionType, LocalValidator, Utils, Validation } from 'slpjs';
 import BigNumber from 'bignumber.js';
-import { Bitcore, BitcoinRpc } from './vendor';
+import { Bitcore } from './vendor';
 import { BITBOX } from 'bitbox-sdk';
 import { Config } from './config';
 import * as bitcore from 'bitcore-lib-cash';
@@ -8,15 +8,12 @@ import { SendTxnQueryResult, MintQueryResult, Query, MintTxnQueryResult } from '
 import { TxOutResult } from 'bitcoin-com-rest';
 import { Decimal128 } from 'mongodb';
 import { Db } from './db';
+import { RpcClient } from './rpc';
 import * as pQueue from 'p-queue';
 import { DefaultAddOptions } from 'p-queue';
 import { SlpGraphManager } from './SlpGraphManager';
-import { TNATxn } from './tna';
 
-const RpcClient = require('bitcoin-rpc-promise')
 const bitbox = new BITBOX();
-
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export class SlpTokenGraph implements TokenGraph {
     _lastUpdatedBlock!: number;
@@ -27,19 +24,17 @@ export class SlpTokenGraph implements TokenGraph {
     _graphTxns!: Map<string, GraphTxn>;
     _addresses!: Map<cashAddr, AddressBalance>;
     _slpValidator!: LocalValidator;
-    _rpcClient: BitcoinRpc.RpcClient;
+    _rpcClient: RpcClient;
     _network!: string;
     _db: Db;
     _waitingToUpdate: boolean = false;
-    //_lockGraphUpdates: boolean = false;
     _graphUpdateQueue: pQueue<DefaultAddOptions>;
     _manager: SlpGraphManager;
 
     constructor(db: Db, manager: SlpGraphManager) {
         this._manager = manager;
-        let connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port
-        this._rpcClient = <BitcoinRpc.RpcClient>(new RpcClient(connectionString, console));
-        this._slpValidator = new LocalValidator(bitbox, async (txids) => [ await this._rpcClient.getRawTransaction(txids[0]) ])
+        this._rpcClient = new RpcClient();
+        this._slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await this._rpcClient.getRawTransaction(txids[0]) ])
         this._db = db;
         this._graphUpdateQueue = new pQueue({ concurrency: 1 });
     }
@@ -162,7 +157,7 @@ export class SlpTokenGraph implements TokenGraph {
         let isValid = await this._slpValidator.isValidSlpTxid(txid, this._tokenDetails.tokenIdHex);
         let txnSlpDetails = this._slpValidator.cachedValidations[txid].details;
         if(!this._slpValidator.cachedRawTransactions[txid])
-            this._slpValidator.cachedRawTransactions[txid] = await this._rpcClient.getRawTransaction(txid);
+            this._slpValidator.cachedRawTransactions[txid] = <string>await this._rpcClient.getRawTransaction(txid);
         let txn: Bitcore.Transaction = new bitcore.Transaction(this._slpValidator.cachedRawTransactions[txid])
 
         if (!isValid) {

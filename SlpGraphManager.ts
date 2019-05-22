@@ -7,21 +7,21 @@ import * as bitcore from 'bitcore-lib-cash';
 import { Db } from './db';
 import { Config } from "./config";
 import { TNATxn, TNATxnSlpDetails } from "./tna";
-import { BitcoinRpc } from "./vendor";
 import { Decimal128 } from "mongodb";
 import * as zmq from 'zeromq';
 import { Info } from "./info";
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const RpcClient = require('bitcoin-rpc-promise');
+import { RpcClient } from './rpc';
+import { BlockDetailsResult, VerboseRawTransactionResult } from "bitcoin-com-rest";
 
 const bitcoin = new BITBOX();
 const slp = new Slp(bitcoin);
 
 export class SlpGraphManager implements IZmqSubscriber {
     db: Db;
-    _rpcClient: BitcoinRpc.RpcClient;
+    _rpcClient: RpcClient;
     zmqPubSocket?: zmq.Socket;
     _transaction_lock: boolean = false;
 
@@ -134,8 +134,7 @@ export class SlpGraphManager implements IZmqSubscriber {
     constructor(db: Db) {
         this.db = db;
         this._tokens = new Map<string, SlpTokenGraph>();
-        let connectionString = 'http://' + Config.rpc.user + ':' + Config.rpc.pass + '@' + Config.rpc.host + ':' + Config.rpc.port;
-        this._rpcClient = <BitcoinRpc.RpcClient>(new RpcClient(connectionString, console));
+        this._rpcClient = new RpcClient();
     }
 
     async fixMissingTokenTimestamps() {
@@ -172,8 +171,8 @@ export class SlpGraphManager implements IZmqSubscriber {
                 // Here we fix missing block data
                 if(collection === 'confirmed' && !tna.blk) {
                     console.log("[INFO] Updating", collection, "TNATxn block data for", txid);
-                    let txn = await this._rpcClient.getRawTransaction(txid, 1);
-                    let block = await this._rpcClient.getBlock(txn.blockhash);
+                    let txn = <VerboseRawTransactionResult>await this._rpcClient.getRawTransaction(txid, 1);
+                    let block = <BlockDetailsResult>await this._rpcClient.getBlock(txn.blockhash);
                     tna.blk = {
                         h: txn.blockhash, 
                         i: block.height, 
@@ -192,7 +191,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                     let tokenDetails: SlpTransactionDetails|null = null;
 
                     if(!tokenId) {
-                        let txhex = await this._rpcClient.getRawTransaction(tna.tx.h);
+                        let txhex = <string>await this._rpcClient.getRawTransaction(tna.tx.h);
                         let bt = new bitcore.Transaction(txhex);
                         try {
                             tokenDetails = slp.parseSlpOutputScript(bt.outputs[0]._scriptBuffer);
@@ -281,8 +280,8 @@ export class SlpGraphManager implements IZmqSubscriber {
             }
         });
         if(count === 0) {
-            let transaction = await this._rpcClient.getRawTransaction(txid, 1);
-            let blockindex = (await this._rpcClient.getBlock(transaction.blockhash)).height;
+            let transaction = <VerboseRawTransactionResult>await this._rpcClient.getRawTransaction(txid, 1);
+            let blockindex = (<BlockDetailsResult>await this._rpcClient.getBlock(transaction.blockhash)).height;
             Info.updateBlockCheckpoint(blockindex - 1, null);
             console.log("[ERROR] Transaction not found! Block checkpoint has been updated to ", (blockindex - 1))
             process.exit();
@@ -423,7 +422,7 @@ export class SlpGraphManager implements IZmqSubscriber {
     private async createNewTokenGraph(tokenId: string): Promise<SlpTokenGraph|null> {
         await this.deleteTokenFromDb(tokenId);
         let graph = new SlpTokenGraph(this.db, this);
-        let txn = await this._rpcClient.getRawTransaction(tokenId);
+        let txn = <string>await this._rpcClient.getRawTransaction(tokenId);
         let tokenDetails = this.parseTokenTransactionDetails(txn);
         if(tokenDetails) {
             console.log("########################################################################################################");
