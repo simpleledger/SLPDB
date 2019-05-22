@@ -1,22 +1,21 @@
-import { VerboseRawTransaction } from 'bitbox-sdk/lib/RawTransactions'
-import BITBOXSDK from 'bitbox-sdk';
-import { BlockchainInfo, TxOut } from 'bitbox-sdk/lib/Blockchain';
-import { NodeInfo } from 'bitbox-sdk/lib/Control';
-import { BlockDetails } from 'bitbox-sdk/lib/Block';
+import { VerboseRawTransactionResult } from 'bitcoin-com-rest'
+import { BITBOX } from 'bitbox-sdk';
+import { BlockchainInfoResult, TxOutResult } from 'bitcoin-com-rest';
+import { NodeInfoResult } from 'bitcoin-com-rest';
+import { BlockDetailsResult } from 'bitcoin-com-rest';
 
 export module BitcoinRpc {
     export interface RpcClient {
         getBlockHash(block_index: number): Promise<string>;
-        getBlock(hash: string): Promise<BlockDetails>;
+        getBlock(hash: string): Promise<BlockDetailsResult>;
         getBlock(hash: string, verbose: boolean): Promise<string>;
         getBlockCount(): Promise<number>;
         getRawTransaction(hash: string): Promise<string>;
-        getRawTransaction(hash: string, verbose: number): Promise<VerboseRawTransaction>;
+        getRawTransaction(hash: string, verbose: number): Promise<VerboseRawTransactionResult>;
         getRawMempool(): Promise<string[]>;
-        //getRawOrphanPool(): Promise<string[]>;  <-- Not available on some Full nodes
-        getTxOut(hash: string, vout: number, includemempool: boolean): Promise<TxOut|null>;
-        getInfo(): Promise<NodeInfo>;
-        getBlockchainInfo(): Promise<BlockchainInfo>;
+        getTxOut(hash: string, vout: number, includemempool: boolean): Promise<TxOutResult|null>;
+        getInfo(): Promise<NodeInfoResult>;
+        getBlockchainInfo(): Promise<BlockchainInfoResult>;
     }
 }
 

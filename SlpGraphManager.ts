@@ -2,22 +2,22 @@ import { SlpTokenGraph, TokenDBObject, UtxoDbo, AddressBalancesDbo, GraphTxnDbo 
 import { SlpTransactionType, Slp, SlpTransactionDetails, Utils } from "slpjs";
 import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes } from "./bit";
 import { Query } from "./query";
-import BITBOXSDK from 'bitbox-sdk';
+import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { Db } from './db';
 import { Config } from "./config";
 import { TNATxn, TNATxnSlpDetails } from "./tna";
 import { BitcoinRpc } from "./vendor";
 import { Decimal128 } from "mongodb";
-import zmq from 'zeromq';
+import * as zmq from 'zeromq';
 import { Info } from "./info";
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const RpcClient = require('bitcoin-rpc-promise');
 
-const BITBOX = new BITBOXSDK();
-const slp = new Slp(BITBOX);
+const bitcoin = new BITBOX();
+const slp = new Slp(bitcoin);
 
 export class SlpGraphManager implements IZmqSubscriber {
     db: Db;
@@ -135,7 +135,7 @@ export class SlpGraphManager implements IZmqSubscriber {
         this.db = db;
         this._tokens = new Map<string, SlpTokenGraph>();
         let connectionString = 'http://' + Config.rpc.user + ':' + Config.rpc.pass + '@' + Config.rpc.host + ':' + Config.rpc.port;
-        this._rpcClient = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
+        this._rpcClient = <BitcoinRpc.RpcClient>(new RpcClient(connectionString, console));
     }
 
     async fixMissingTokenTimestamps() {

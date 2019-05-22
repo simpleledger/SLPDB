@@ -2,10 +2,10 @@ require('dotenv').config()
 import { Bitcore } from './vendor';
 import { SlpTransactionDetailsTnaDbo } from './SlpGraphManager';
 import { Utils } from 'slpjs';
-import BITBOXSDK from 'bitbox-sdk';
+import { BITBOX } from 'bitbox-sdk';
 
-const BITBOX = new BITBOXSDK();
-const bitcore = require('bitcore-lib-cash')
+const bitbox = new BITBOX();
+const bitcore = require('bitcore-lib-cash');
 
 export class TNA {
     async fromTx(gene: Bitcore.Transaction, options?: any): Promise<TNATxn> {
@@ -49,7 +49,7 @@ export class TNA {
                                 // here we try to catch any transactions which bitcore lib could not decode (eg. 0af38c6700000e44e6f878e7b53dd453df477672f6a8268d6d8bb28c0116fbe5:1)
                                 const scriptSigHexArray = input.script.toASM().split(' ')
                                 const redeemScriptHex = scriptSigHexArray[scriptSigHexArray.length-1]
-                                const redeemScriptHash160 = BITBOX.Crypto.hash160(Buffer.from(redeemScriptHex, 'hex'))
+                                const redeemScriptHash160 = bitbox.Crypto.hash160(Buffer.from(redeemScriptHex, 'hex'))
 
                                 // attempt decode of schnorr TODO improve this hack
                                 if (scriptSigHexArray.length === 2 &&

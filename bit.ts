@@ -5,11 +5,12 @@ import { Config } from './config';
 import { Db } from './db';
 import { Query } from './query';
 
-import pLimit from 'p-limit';
-import pQueue, { DefaultAddOptions } from 'p-queue';
-import zmq from 'zeromq';
-import { BlockDetails } from 'bitbox-sdk/lib/Block';
-import BITBOXSDK from 'bitbox-sdk';
+import pLimit = require('p-limit');
+import * as pQueue from 'p-queue';
+import { DefaultAddOptions } from 'p-queue';
+import * as zmq from 'zeromq';
+import { BlockDetailsResult } from 'bitcoin-com-rest';
+import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { Slp, SlpTransactionType } from 'slpjs';
 
@@ -18,8 +19,8 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const Block = require('bcash/lib/primitives/block');
 const BufferReader = require('bufio/lib/reader');
 
-const BITBOX = new BITBOXSDK();
-const slp = new Slp(BITBOX);
+const bitbox = new BITBOX();
+const slp = new Slp(bitbox);
 
 export enum SyncType {
     "Mempool", "Block"
@@ -92,12 +93,12 @@ export class Bit {
     }
 
     private async waitForFullNodeSync() {
-        let BITBOX = this.network === 'mainnet' ? new BITBOXSDK({ restURL: `https://rest.bitcoin.com/v2/` }) : new BITBOXSDK({ restURL: `https://trest.bitcoin.com/v2/` });
+        let bitbox = this.network === 'mainnet' ? new BITBOX({ restURL: `https://rest.bitcoin.com/v2/` }) : new BITBOX({ restURL: `https://trest.bitcoin.com/v2/` });
         let isSyncd = false;
         let lastReportedSyncBlocks = 0;
         while (!isSyncd) {
             let syncdBlocks = (await this.rpc.getInfo()).blocks;
-            let networkBlocks = (await BITBOX.Blockchain.getBlockchainInfo()).blocks;
+            let networkBlocks = (await bitbox.Blockchain.getBlockchainInfo()).blocks;
             isSyncd = syncdBlocks === networkBlocks ? true : false;
             if (syncdBlocks !== lastReportedSyncBlocks)
                 console.log("[INFO] Waiting for bitcoind to sync with network ( on block", syncdBlocks, "of", networkBlocks, ")");
@@ -108,7 +109,7 @@ export class Bit {
         }
     }
 
-    async requestblock(block_index: number): Promise<BlockDetails> {
+    async requestblock(block_index: number): Promise<BlockDetailsResult> {
         try {
             let hash = await this.rpc.getBlockHash(block_index);
             return await this.rpc.getBlock(hash);

@@ -10,7 +10,7 @@ import { BitcoinRpc } from './vendor';
 
 const RpcClient = require('bitcoin-rpc-promise');
 const connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port
-const rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
+const rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString, console));
 
 const db = new Db();
 const bit = new Bit();
@@ -84,7 +84,7 @@ const daemon = {
 
 const util = {
     run: async function() {
-        const rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
+        const rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString, console));
         await db.init(rpc)
         let cmd = process.argv[2]
         if (cmd === 'fix') {

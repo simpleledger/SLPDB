@@ -1,19 +1,20 @@
 import { SlpTransactionDetails, SlpTransactionType, LocalValidator, Utils, Validation } from 'slpjs';
 import BigNumber from 'bignumber.js';
 import { Bitcore, BitcoinRpc } from './vendor';
-import BITBOXSDK from 'bitbox-sdk';
+import { BITBOX } from 'bitbox-sdk';
 import { Config } from './config';
 import * as bitcore from 'bitcore-lib-cash';
 import { SendTxnQueryResult, MintQueryResult, Query, MintTxnQueryResult } from './query';
-import { TxOut } from 'bitbox-sdk/lib/Blockchain';
+import { TxOutResult } from 'bitcoin-com-rest';
 import { Decimal128 } from 'mongodb';
 import { Db } from './db';
-import pQueue, { DefaultAddOptions } from 'p-queue';
+import * as pQueue from 'p-queue';
+import { DefaultAddOptions } from 'p-queue';
 import { SlpGraphManager } from './SlpGraphManager';
 import { TNATxn } from './tna';
 
 const RpcClient = require('bitcoin-rpc-promise')
-const BITBOX = new BITBOXSDK();
+const bitbox = new BITBOX();
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -37,8 +38,8 @@ export class SlpTokenGraph implements TokenGraph {
     constructor(db: Db, manager: SlpGraphManager) {
         this._manager = manager;
         let connectionString = 'http://'+ Config.rpc.user+':'+Config.rpc.pass+'@'+Config.rpc.host+':'+Config.rpc.port
-        this._rpcClient = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
-        this._slpValidator = new LocalValidator(BITBOX, async (txids) => [ await this._rpcClient.getRawTransaction(txids[0]) ])
+        this._rpcClient = <BitcoinRpc.RpcClient>(new RpcClient(connectionString, console));
+        this._slpValidator = new LocalValidator(bitbox, async (txids) => [ await this._rpcClient.getRawTransaction(txids[0]) ])
         this._db = db;
         this._graphUpdateQueue = new pQueue({ concurrency: 1 });
     }
@@ -215,7 +216,7 @@ export class SlpTokenGraph implements TokenGraph {
             if(graphTxn.details.genesisOrMintQuantity!.isGreaterThanOrEqualTo(0)) {
                 let spendDetails = await this.getSpendDetails(txid, 1, txn.outputs.length);
                 let address;
-                try { address = Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[1]._scriptBuffer, this._network))
+                try { address = Utils.toSlpAddress(bitbox.Address.fromOutputScript(txn.outputs[1]._scriptBuffer, this._network))
                 } catch(_) { address = "unknown address type or missing address output"; }
                 graphTxn.outputs.push({
                     address: address,
@@ -229,7 +230,7 @@ export class SlpTokenGraph implements TokenGraph {
                 if(txnSlpDetails.batonVout) {
                     let mintSpendDetails = await this.getMintBatonSpendDetails(txid, txnSlpDetails.batonVout, txn.outputs.length);
                     let address;
-                    try { address = Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[1]._scriptBuffer, this._network))
+                    try { address = Utils.toSlpAddress(bitbox.Address.fromOutputScript(txn.outputs[1]._scriptBuffer, this._network))
                     } catch(_) { address = "unknown address type or missing address output"; }
                     graphTxn.outputs.push({
                         address: address,
@@ -249,7 +250,7 @@ export class SlpTokenGraph implements TokenGraph {
                     if(slp_vout > 0) {
                         let spendDetails = await this.getSpendDetails(txid, slp_vout, txn.outputs.length);
                         let address;
-                        try { address = Utils.toSlpAddress(BITBOX.Address.fromOutputScript(txn.outputs[slp_vout]._scriptBuffer, this._network))
+                        try { address = Utils.toSlpAddress(bitbox.Address.fromOutputScript(txn.outputs[slp_vout]._scriptBuffer, this._network))
                         } catch(_) { address = "unknown address type or missing address output"; }
                         graphTxn.outputs.push({
                             address: address,
@@ -286,7 +287,7 @@ export class SlpTokenGraph implements TokenGraph {
         await this.asyncForEach(Array.from(this._tokenUtxos), async (utxo: string) => {
             let txid = utxo.split(':')[0];
             let vout = parseInt(utxo.split(':')[1]);
-            let txout = <TxOut>(await this._rpcClient.getTxOut(txid, vout, true))
+            let txout = <TxOutResult>(await this._rpcClient.getTxOut(txid, vout, true))
             if(txout) {
                 if(!this._graphTxns.get(txid)) {
                     await this.updateTokenGraphFrom(txid)
@@ -376,7 +377,7 @@ export class SlpTokenGraph implements TokenGraph {
         let vout = parseInt(txo.split(":")[1]);
         let txout = null;
         try {
-            txout = <TxOut>(await this._rpcClient.getTxOut(txid, vout, true))
+            txout = <TxOutResult>(await this._rpcClient.getTxOut(txid, vout, true))
         } catch(_) { }
         if(!txout) {
             console.log("[INFO] updateTxoIfSpent(): Updating token graph for TXO",txo);
@@ -582,8 +583,8 @@ export class SlpTokenGraph implements TokenGraph {
         let res: SlpTransactionDetailsDbo = {
             decimals: details.decimals,
             tokenIdHex: details.tokenIdHex,
-            timestamp: details.timestamp,
-            timestamp_unix: this.ConvertToUnixTime(details.timestamp),
+            timestamp: details.timestamp ? details.timestamp : null,
+            timestamp_unix: details.timestamp ? this.ConvertToUnixTime(details.timestamp) : null,
             transactionType: details.transactionType,
             versionType: details.versionType,
             documentUri: details.documentUri,
