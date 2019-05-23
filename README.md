@@ -62,7 +62,7 @@ The services `SlpServe` and `SlpSockServer` return query results as a JSON objec
 * Node.js 8.15+
 * TypeScript 3+ (`npm install -g typescript`)
 * MongoDB 4.0+
-* BCHD (recommended with "fastsync"), BitcoinABC, BitcoinUnlimited or other Bitcoin Cash full node with:
+* BitcoinABC, BitcoinUnlimited or other Bitcoin Cash full node with:
   * RPC-JSON and 
   * ZeroMQ event notifications
 

@@ -34,7 +34,7 @@ export class SlpTokenGraph implements TokenGraph {
     constructor(db: Db, manager: SlpGraphManager) {
         this._manager = manager;
         this._rpcClient = new RpcClient();
-        this._slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await this._rpcClient.getRawTransaction(txids[0]) ])
+        this._slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await this._rpcClient.getRawTransaction(txids[0]) ], console)
         this._db = db;
         this._graphUpdateQueue = new pQueue({ concurrency: 1 });
     }
@@ -283,7 +283,7 @@ export class SlpTokenGraph implements TokenGraph {
         await this.asyncForEach(Array.from(this._tokenUtxos), async (utxo: string) => {
             let txid = utxo.split(':')[0];
             let vout = parseInt(utxo.split(':')[1]);
-            let txout = <TxOutResult>(await this._rpcClient.getTxOut(txid, vout, true))
+            let txout = this._graphTxns.get(txid)!.outputs[vout-1]
             if(txout) {
                 if(!this._graphTxns.get(txid)) {
                     await this.updateTokenGraphFrom(txid)
@@ -291,11 +291,11 @@ export class SlpTokenGraph implements TokenGraph {
                         return
                 }
                 let txnDetails = this._graphTxns.get(txid)!.details
-                let addr = Utils.toSlpAddress(txout.scriptPubKey.addresses[0])
+                let addr = Utils.toSlpAddress(txout.address)
                 let bal;
                 if(this._addresses.has(addr)) {
                     bal = this._addresses.get(addr)!
-                    bal.satoshis_balance+=txout.value*10**8
+                    bal.satoshis_balance+=txout.bchSatoshis
                     if(txnDetails.transactionType === SlpTransactionType.SEND)
                         bal.token_balance = bal.token_balance.plus(txnDetails.sendOutputs![vout])
                     else if(vout === 1)
@@ -303,9 +303,9 @@ export class SlpTokenGraph implements TokenGraph {
                 }
                 else {
                     if(txnDetails.transactionType === SlpTransactionType.SEND)
-                        bal = { satoshis_balance: txout.value*10**8, token_balance: txnDetails.sendOutputs![vout] }
+                        bal = { satoshis_balance: txout.bchSatoshis, token_balance: txnDetails.sendOutputs![vout] }
                     else if(vout === 1)
-                        bal = { satoshis_balance: txout.value*10**8, token_balance: txnDetails.genesisOrMintQuantity! }
+                        bal = { satoshis_balance: txout.bchSatoshis, token_balance: txnDetails.genesisOrMintQuantity! }
                 }
 
                 if(bal) {
