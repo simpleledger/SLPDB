@@ -139,12 +139,13 @@ export class SlpTokenGraph implements TokenGraph {
             // Update the confirmed/unconfirmed collections with token details
             await self._manager.updateTxnCollections(txid, self._tokenDetails.tokenIdHex);
 
-            // Update token's statistics
-            await self.updateStatistics();
-
             // zmq publish mempool notifications
             if(!isParent)
                 await self._manager.publishZmqNotification(txid);
+
+            // Update token's statistics
+            if(self._graphUpdateQueue.pending === 1)
+                await self.updateStatistics();
         })
     }
 
