@@ -40,6 +40,7 @@ export interface IZmqSubscriber {
     onTransactionHash: undefined | ((syncInfo: SyncCompletionInfo) => Promise<void>);
     onBlockHash: undefined | ((blockhash: string) => Promise<void>);
     searchForNonSlpBurnTransactions: (() => Promise<void>);
+    searchBlockForBurnedSlpTxos: ((block_hash: string)=>Promise<void>);
     updateTxnCollections:((txid: string, tokenid?: string)=> Promise<void>);
     zmqPubSocket?: zmq.Socket; 
 }
@@ -467,9 +468,10 @@ export class Bit {
                     currentHeight = await self.requestheight();
                 }
 
-                if(self._zmqSubscribers.length > 0) {
+                if(hash && self._zmqSubscribers.length > 0) {
                     console.log('[INFO] Starting to look for any burned tokens resulting from non-SLP transactions');
-                    await self._zmqSubscribers[0].searchForNonSlpBurnTransactions();
+                    //await self._zmqSubscribers[0].searchForNonSlpBurnTransactions();
+                    await self._zmqSubscribers[0].searchBlockForBurnedSlpTxos(hash);
                     console.log('[INFO] Finished looking for burned tokens.');
                 }
 

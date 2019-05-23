@@ -133,6 +133,14 @@ export class Db {
         return await this.db.collection('utxos').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
     }
 
+    async singleUtxo(utxo: string): Promise<UtxoDbo|null> {
+        return await this.db.collection('utxos').findOne({ "utxo": utxo });
+    }
+
+    async singleMintUtxo(utxo: string): Promise<TokenDBObject|null> {
+        return await this.db.collection('tokens').findOne({ "mintBatonUtxo": utxo });
+    }
+
     async utxoReset() {
         await this.db.collection('utxos').deleteMany({})
         .catch(function(err) {

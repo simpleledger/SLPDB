@@ -11,10 +11,14 @@ import { Decimal128 } from "mongodb";
 import * as zmq from 'zeromq';
 import { Info } from "./info";
 
+const Block = require('bcash/lib/primitives/block');
+const BufferReader = require('bufio/lib/reader');
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 import { RpcClient } from './rpc';
 import { BlockDetailsResult, VerboseRawTransactionResult } from "bitcoin-com-rest";
+import { Bitcore } from "./vendor";
 
 const bitcoin = new BITBOX();
 const slp = new Slp(bitcoin);
@@ -159,6 +163,29 @@ export class SlpGraphManager implements IZmqSubscriber {
         await this.asyncForEach(Array.from(this._tokens), async (a: [string, SlpTokenGraph]) => {
             await a[1].searchForNonSlpBurnTransactions();
         })
+    }
+
+    async searchBlockForBurnedSlpTxos(block_hash: string) {
+        let blockHex = <string>await this._rpcClient.getBlock(block_hash, false);
+        let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
+        for(let i=0; i < block.txs.length; i++) {
+            let inputs: Bitcore.BlockTxnInput[] = block.txs[i].inputs;
+            for(let j=1; j < inputs.length; j++) {
+                let txid = inputs[j].prevout.hash.toString('hex');
+                let vout = inputs[j].prevout.index.toString();
+                let utxo = await this.db.singleUtxo(txid + ":" + vout)
+                if(utxo) {
+                    let tokenId = utxo.tokenDetails.tokenIdHex;
+                    this._tokens.get(tokenId)!.queueTokenGraphUpdateFrom(txid, true);
+                    continue;
+                } 
+                let token = await this.db.singleMintUtxo(txid + ":" + vout);
+                if(token) {
+                    let tokenId = token.tokenDetails.tokenIdHex;
+                    this._tokens.get(tokenId)!.queueTokenGraphUpdateFrom(txid, true);
+                }
+            }
+        }
     }
 
     async updateTxnCollections(txid: string, tokenId?: string): Promise<void> {

@@ -5,6 +5,13 @@ import { NodeInfoResult } from 'bitcoin-com-rest';
 import { BlockDetailsResult } from 'bitcoin-com-rest';
 
 export declare module Bitcore {
+
+    export interface BlockTxnInput {
+        script: { raw: Buffer; code: { value:number; data:Buffer }[]; }
+        prevout: { hash: Buffer; index: number; }
+        sequence: number;
+    }
+
     export interface TxnInput {
         script: Script;
         _scriptBuffer: Buffer;
