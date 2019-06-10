@@ -1,19 +1,40 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-05-23
+**Last Updated:** 2019-06-10
 
-**Current SLPDB Version:** 0.12.0 (beta)
+**Current SLPDB Version:** 0.13.0 (beta)
 
+* 1. [What is SLPDB?](#WhatisSLPDB)
+* 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)
+* 3. [How do I query for SLP data?](#HowdoIqueryforSLPdata)
+	* 3.1. [Working with Large Numbers (`Decimal128` and `BigNumber`)](#WorkingwithLargeNumbersDecimal128andBigNumber)
+* 4. [Installation Instructions](#InstallationInstructions)
+	* 4.1. [Prerequisites](#Prerequisites)
+	* 4.2. [Full Node Settings for `bitcoin.conf`](#FullNodeSettingsforbitcoin.conf)
+	* 4.3. [Testnet Support](#TestnetSupport)
+	* 4.4. [Running SLPDB](#RunningSLPDB)
+	* 4.5. [Updating SLPDB](#UpdatingSLPDB)
+* 5. [Token Stats](#TokenStats)
+	* 5.1. [Supply Stats](#SupplyStats)
+	* 5.2. [Summarized Usage Stats](#SummarizedUsageStats)
+	* 5.3. [Supply Event Stats](#SupplyEventStats)
+* 6. [Real-time Notifications](#Real-timeNotifications)
+	* 6.1. [ZeroMQ (ZMQ)](#ZeroMQZMQ)
+* 7. [MongoDB Collections & Data Schema](#MongoDBCollectionsDataSchema)
+	* 7.1. [DB Collections](#DBCollections)
+* 8. [Future Updates & Features](#FutureUpdatesFeatures)
+	* 8.1. [TokenID Filtering](#TokenIDFiltering)
+	* 8.2. [Make compatible with other Lokad IDs](#MakecompatiblewithotherLokadIDs)
+* 9. [Change Log](#ChangeLog)
 
-
-## What is SLPDB?
+##  1. <a name='WhatisSLPDB'></a>What is SLPDB?
 
 SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol to MongoDB.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store SLP data.  The application allows other processes to subscribe to real-time SLP events via ZeroMQ.
 
 
 
-## Do you need to <u>install</u> SLPDB?
+##  2. <a name='DoyouneedtouinstalluSLPDB'></a>Do you need to <u>install</u> SLPDB?
 
 Most likely you do <u>not</u> need to install SLPDB.  Most users will be better off using someone else's public SLPDB instance like https://slpdb.bitcoin.com or https://slpdb.fountainhead.cash.  You only need to install SLPDB, SlpServe, and/or SlpSockServe projects if any of the following is true:
 
@@ -25,7 +46,7 @@ NOTE: If you are going to operate a SLPDB instance you should join the telegram 
 
 
 
-## How do I query for SLP data?
+##  3. <a name='HowdoIqueryforSLPdata'></a>How do I query for SLP data?
 
 Queries into SLP data use the jq query language.  If you are not familiar with jq we recommend that you examine some of the examples below to get started:
 
@@ -44,11 +65,12 @@ Here are some example SLPDB queries:
 * Show invalid token transactions [example](https://slpdb.bitcoin.com/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYyIsICJ1Il0sCiAgICAiZmluZCI6IHsKICAgICAgInNscC52YWxpZCI6IGZhbHNlCiAgICB9LAogICAgImxpbWl0IjogMzAwLAogICAgInByb2plY3QiOiB7InR4LmgiOiAxfQogIH0sCiAgInIiOiB7CiAgICAiZiI6ICJbLltdIHwge3R4aWQ6IC50eC5ofV0iCiAgfQp9)
 * List transaction counts for each token [example](https://slpdb.bitcoin.com/explorer2/ewogICJ2IjogMywKICAicSI6IAogIHsiYWdncmVnYXRlIjoKICBbeyIkbWF0Y2giOnsiYmxrLnQiOnsgIiRndGUiOiAxNTUyODY3MjAwLCAiJGx0ZSI6IDE1NTI5NTM2MDB9fX0sCiAgeyIkZ3JvdXAiOnsiX2lkIjogIiRzbHAuZGV0YWlsLm5hbWUiLCAiY291bnQiOiB7IiRzdW0iOiAxfX19XSwibGltaXQiOjEwMH19)
 * List SLP usage per day [example](https://slpdb.bitcoin.com/explorer2/eyJ2IjozLCJxIjp7ImRiIjpbImMiXSwiYWdncmVnYXRlIjpbeyIkbWF0Y2giOnsic2xwLnZhbGlkIjp0cnVlLCJibGsudCI6eyIkZ3RlIjoxNTQzMTcyNTY4LjIwOCwiJGx0ZSI6MTU1MzU0MDU2OC4yMDh9fX0seyIkZ3JvdXAiOnsiX2lkIjoiJGJsay50IiwiY291bnQiOnsiJHN1bSI6MX19fV0sImxpbWl0IjoxMDAwMH0sInIiOnsiZiI6IlsgLltdIHwge2Jsb2NrX2Vwb2NoOiAuX2lkLCB0eHM6IC5jb3VudH0gXSJ9fQ==)
+* List input/output amount total for each valid transaction [example](https://slpdb.bitcoin.com/explorer2/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiZyJdLAogICAgImFnZ3JlZ2F0ZSI6IFsgCiAgICAgIHsgIiRwcm9qZWN0Ijp7ICJncmFwaFR4bi50eGlkIjogMSwgImdyYXBoVHhuLmRldGFpbHMudHJhbnNhY3Rpb25UeXBlIjogMSwgImlucHV0VG90YWwiOiB7ICIkc3VtIjoiJGdyYXBoVHhuLmlucHV0cy5zbHBBbW91bnQiIH0sICJvdXRwdXRUb3RhbCI6IHsiJHN1bSI6IiRncmFwaFR4bi5vdXRwdXRzLnNscEFtb3VudCJ9IH19XSwKICAgICJsaW1pdCI6IDEwMDAKICB9Cn0=)
 
 Users should utilize the [SlpServe](https://github.com/fountainhead-cash/slpserve) and [SlpSockServer](https://github.com/fountainhead-cash/slpsockserve) projects in order to conveniently query for the SLP data produced by SLPDB.
 
 
-### WARNING: Working with Large Numbers (`Decimal128` and `BigNumber`)
+###  3.1. <a name='WorkingwithLargeNumbersDecimal128andBigNumber'></a>Working with Large Numbers (`Decimal128` and `BigNumber`)
 
 Some of the values used in SLP require 64 or more bits of precision, which is more precision than `number` type can provide. To ensure value precision is maintained values are stored in collections using the `Decimal128` type.  `Decimal128` allows users to make database queries using query comparison operators like `$gte`.  
 
@@ -56,9 +78,9 @@ The services `SlpServe` and `SlpSockServer` return query results as a JSON objec
 
 
 
-## Installation Instructions
+##  4. <a name='InstallationInstructions'></a>Installation Instructions
 
-### Prerequisites
+###  4.1. <a name='Prerequisites'></a>Prerequisites
 * Node.js 8.15+
 * TypeScript 3+ (`npm install -g typescript`)
 * MongoDB 4.0+
@@ -66,7 +88,7 @@ The services `SlpServe` and `SlpSockServer` return query results as a JSON objec
   * RPC-JSON and 
   * ZeroMQ event notifications
 
-### Full Node Settings for `bitcoin.conf`
+###  4.2. <a name='FullNodeSettingsforbitcoin.conf'></a>Full Node Settings for `bitcoin.conf`
 
 The following settings should be applied to your full node's configuration.  NOTE: The settings presented here are matched up with the default settings presented in `config.ts`, you should modify these settings and use environment variables (shown in `config.ts`) if you need a custom setup.
 * `server=1`
@@ -81,7 +103,7 @@ The following settings should be applied to your full node's configuration.  NOT
 * `zmqpubrawblock=tcp://127.0.0.1:28332`
 * Optional: `testnet=1`
 
-### Testnet Support
+###  4.3. <a name='TestnetSupport'></a>Testnet Support
 
 To use SLPDB with Testnet simply set your full node to the testnet network (e.g., set `testnet=1` within `bitcoin.conf`) and SLPDB will automatically instantiate using proper databases names according to the network.  For informational purposes the database names are as follows:
 * **Mainnet**
@@ -91,7 +113,7 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
   * Mongo db name = `slpdb_testnet`
   * Testnet diectory = `./_leveldb_testnet`
 
-### Running SLPDB
+###  4.4. <a name='RunningSLPDB'></a>Running SLPDB
 
 **1)** Run MongoDB (`config.ts` default port is 27017)
 
@@ -109,7 +131,7 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 
 **5)** Install and run [slpserve](https://github.com/fountainhead-cash/slpserve) and/or [slpsocket](https://github.com/simpleledger/sockserve) to access SLP token data and statistics
 
-### Updating SLPDB
+###  4.5. <a name='UpdatingSLPDB'></a>Updating SLPDB
 
 **1)** Execute `git pull origin master` to update to latest version.
 
@@ -119,11 +141,11 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 
 **4)** Restart SLPDB.
 
-## Token Stats
+##  5. <a name='TokenStats'></a>Token Stats
 
 The following properties are maintained and updated for each token in real-time to provide state and usage information:
 
-### Supply Stats
+###  5.1. <a name='SupplyStats'></a>Supply Stats
   * `qty_token_minted` - Total token quantity created in GENESIS and MINT transactions 
   * `qty_token_burned` - Total token quantity burned in invalid SLP transactions or in transactions having lower token outputs than inputs.
   * `qty_token_circulating_supply` - Total quantity of tokens circulating (i.e., Genesis + Minting - Burned = Circulating Supply).
@@ -131,7 +153,7 @@ The following properties are maintained and updated for each token in real-time 
   * `mint_baton_address (NOT YET IMPLEMENTED)` - Address holding the minting baton or last address to hold.
   * `mint_baton_txid (NOT YET IMPLEMENTED)` - TXID where the minting baton exists or existed before being destroyed.
 
-### Summarized Usage Stats
+###  5.2. <a name='SummarizedUsageStats'></a>Summarized Usage Stats
   * `qty_valid_txns_since_genesis` - Number of valid SLP transactions made since Genesis (Includes GENESIS, SEND and MINT transactions)
   * `qty_valid_token_utxos` - Number of current unspent & valid SLP UTXOs
   * `qty_valid_token_addresses` - Number of unique address holders
@@ -141,15 +163,15 @@ The following properties are maintained and updated for each token in real-time 
   * `block_created` - The block containing the token's GENESIS transaction
   * `block_last_burn (NOT YET IMPLEMENTED)` - The block containing the last burn event
 
-### Supply Event Stats
+###  5.3. <a name='SupplyEventStats'></a>Supply Event Stats
   * `events_mint (NOT YET IMPLEMENTED)` - Events when the minting baton was moved and new tokens were created
   * `events_burn (NOT YET IMPLEMENTED)` - Events when tokens were burned (possible type of burn: `OUTS_LESS_THAN_INS` or `UTXO_DESTROYED`)
 
 
 
-## Real-time Notifications
+##  6. <a name='Real-timeNotifications'></a>Real-time Notifications
 
-### ZeroMQ (ZMQ)
+###  6.1. <a name='ZeroMQZMQ'></a>ZeroMQ (ZMQ)
 
 SLPDB publishes the following notifications via [ZMQ](http://zeromq.org/intro:read-the-manual) and can be subscribed to by binding to http://0.0.0.0:28339.  The following events can be subscribed to:
 * `mempool`
@@ -192,7 +214,7 @@ Each notification is published in the following data format:
 
 
 
-## MongoDB Collections & Data Schema
+##  7. <a name='MongoDBCollectionsDataSchema'></a>MongoDB Collections & Data Schema
 
 Three categories of information are stored in MongoDB:
 
@@ -202,7 +224,7 @@ Three categories of information are stored in MongoDB:
 
 
 
-### DB Collections
+###  7.1. <a name='DBCollections'></a>DB Collections
 
 Six MongoDB collections used to store these three categories of data, they are as follows:
 
@@ -346,12 +368,18 @@ Six MongoDB collections used to store these three categories of data, they are a
 	```
 
       
-## Future Updates & Features
+##  8. <a name='FutureUpdatesFeatures'></a>Future Updates & Features
 
-### TokenID Filtering
+###  8.1. <a name='TokenIDFiltering'></a>TokenID Filtering
 
 SLPDB will soon include a filtering configuration so that only user specified tokens (or ranges of tokens) will be included or excluded in the SLPDB instance.
 
-### Make compatible with other Lokad IDs
+###  8.2. <a name='MakecompatiblewithotherLokadIDs'></a>Make compatible with other Lokad IDs
 
 We want to make SLPDB more easily forkable for other OP_RETURN projects which may be unrelated to SLP tokens.
+
+## 9. <a name='ChangeLog'></a>Change Log
+
+* 0.13.0
+	* Breaking Change: This change may impact any application using `TokenUtxoStatus` or the Graph collection's `graphTxn.outputs.status` property. A new enum type was added to `TokenUtxoStatus` called "EXCESS_INPUT_BURNED".  This status is applied to any transaction that has an input SLP quantity that is greater than output SLP quantity.  This enum label is used within the Graphs collection's `graphTxn.outputs.status` property.
+	* A new startup script called "reprocess" was added for the pupose of debugging.  Usage is `node index.js reprocess <tokenId>`.
