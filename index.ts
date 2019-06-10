@@ -108,7 +108,15 @@ const util = {
             //await db.blockindex()
             process.exit()
         }
-    }//,
+    }, 
+    reprocess: async function(tokenId: string) {
+        await db.init(rpc);
+        let tokenManager = new SlpGraphManager(db);
+        await tokenManager.initAllTokens(0, [ tokenId ], false);
+        tokenManager._tokens.get(tokenId)!.updateStatistics();
+        process.exit();
+    }
+    //,
     //fix: async function(height: number) {
         // const rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
         // await bit.init(db, rpc)
@@ -131,8 +139,12 @@ const util = {
 
 const start = async function() {
     try {
-        if (process.argv.length > 3) {
-            await daemon.run(parseInt(process.argv[3]));
+        let args = process.argv;
+        if (args.length > 3) {
+            if(args[2] === "run")
+                await daemon.run(parseInt(process.argv[3]));
+            else if(args[2] === "reprocess")
+                await util.reprocess(process.argv[3]);
         } else if (process.argv.length > 2) {
             await util.run();
         } else {

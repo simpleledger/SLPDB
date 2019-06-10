@@ -132,17 +132,30 @@ export class Query {
         return a;
     }
 
-    static async queryTokensList(): Promise<SlpTransactionDetails[]> {
+    static async queryTokensList(tokenId?: string): Promise<SlpTransactionDetails[]> {
         console.log("[Query] queryTokensList()");
         let limit = 100000;
-        let q = {
-            "v": 3,
-            "q": {
-              "db": [ "c", "u" ],
-              "find": { "out.h1": "534c5000", "out.s3": "GENESIS" },
-              "limit": limit
-            },
-            "r": { "f": "[ .[] | { tokenIdHex: .tx.h, versionTypeHex: .out[0].h2, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end), symbol: .out[0].s4, name: .out[0].s5, documentUri: .out[0].s6, documentSha256Hex: .out[0].h7, decimalsHex: .out[0].h8, batonHex: .out[0].h9, quantityHex: .out[0].h10 } ]" }
+        let q;
+        if(tokenId) {
+            q = {
+                "v": 3,
+                "q": {
+                  "db": [ "c", "u" ],
+                  "find": { "tx.h": tokenId },
+                  "limit": limit
+                },
+                "r": { "f": "[ .[] | { tokenIdHex: .tx.h, versionTypeHex: .out[0].h2, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end), symbol: .out[0].s4, name: .out[0].s5, documentUri: .out[0].s6, documentSha256Hex: .out[0].h7, decimalsHex: .out[0].h8, batonHex: .out[0].h9, quantityHex: .out[0].h10 } ]" }
+            }
+        } else {
+            q = {
+                "v": 3,
+                "q": {
+                  "db": [ "c", "u" ],
+                  "find": { "out.h1": "534c5000", "out.s3": "GENESIS" },
+                  "limit": limit
+                },
+                "r": { "f": "[ .[] | { tokenIdHex: .tx.h, versionTypeHex: .out[0].h2, timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end), symbol: .out[0].s4, name: .out[0].s5, documentUri: .out[0].s6, documentSha256Hex: .out[0].h7, decimalsHex: .out[0].h8, batonHex: .out[0].h9, quantityHex: .out[0].h10 } ]" }
+            }
         }
 
         let response: GenesisQueryResult | any = await this.dbQuery.read(q);

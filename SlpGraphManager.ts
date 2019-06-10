@@ -344,22 +344,29 @@ export class SlpGraphManager implements IZmqSubscriber {
         return res;
     }
 
-    async initAllTokens(reprocessFrom?: number) {
+    async initAllTokens(reprocessFrom?: number, tokenIds?: string[], loadFromDb=true) {
         await Query.init();
-        let tokens = await Query.queryTokensList();
+        let tokens: SlpTransactionDetails[]; 
+        if(!tokenIds)
+            tokens = await Query.queryTokensList();
+        else {
+            let results = tokenIds.map(async id => { return await Query.queryTokensList(id) })
+            tokens = (await Promise.all(results)).flat()
+        }
 
         // Instantiate all Token Graphs in memory
         for (let i = 0; i < tokens.length; i++) {
-            await this.initToken(tokens[i], reprocessFrom);
+            await this.initToken(tokens[i], reprocessFrom, loadFromDb);
         }
 
         console.log("[INFO] Init all tokens complete");
     }
 
-    private async initToken(token: SlpTransactionDetails, reprocessFrom?: number) {
+    private async initToken(token: SlpTransactionDetails, reprocessFrom?: number, loadFromDb=true) {
         let graph: SlpTokenGraph;
         let throwMsg1 = "There is no db record for this token.";
         let throwMsg2 = "Outdated token graph detected for: ";
+        let throwMsg3 = "loadFromDb is false."
         try {
             let tokenState = <TokenDBObject>await this.db.tokenFetch(token.tokenIdHex);
             if (!tokenState)
@@ -375,6 +382,10 @@ export class SlpGraphManager implements IZmqSubscriber {
                 throw Error(throwMsg2 + token.tokenIdHex);
             }
 
+            if(!loadFromDb) {
+                throw Error(throwMsg3)
+            }
+
             console.log("########################################################################################################");
             console.log("LOAD FROM DB:", token.tokenIdHex);
             console.log("########################################################################################################");
@@ -386,7 +397,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             // determine how far back the token graph should be reprocessed
             let potentialReorgFactor = 10;
             let updateFromHeight = graph._lastUpdatedBlock - potentialReorgFactor;
-            if(reprocessFrom && reprocessFrom < updateFromHeight)
+            if(reprocessFrom !== undefined && reprocessFrom !== null && reprocessFrom < updateFromHeight)
                 updateFromHeight = reprocessFrom;
             console.log("[INFO] Checking for Graph Updates since:", updateFromHeight);
             let res = await Query.queryForRecentTokenTxns(graph._tokenDetails.tokenIdHex, updateFromHeight);
@@ -406,7 +417,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             await this.updateTxnCollectionsForTokenId(token.tokenIdHex);
         }
         catch (err) {
-            if (err.message.includes(throwMsg1) || err.message.includes(throwMsg2)) {
+            if (err.message.includes(throwMsg1) || err.message.includes(throwMsg2) || err.message.includes(throwMsg3)) {
                 await this.createNewTokenGraph(token.tokenIdHex);
             }
             else {
