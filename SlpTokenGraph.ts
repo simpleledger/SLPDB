@@ -207,7 +207,7 @@ export class SlpTokenGraph implements TokenGraph {
             });
         }
 
-        // Create SLP graph outputs for each new valid SLP output
+        // Create or update SLP graph outputs for each valid SLP output
         if(isValid && (graphTxn.details.transactionType === SlpTransactionType.GENESIS || graphTxn.details.transactionType === SlpTransactionType.MINT)) {
             if(graphTxn.details.genesisOrMintQuantity!.isGreaterThanOrEqualTo(0)) {
                 let spendDetails = await this.getSpendDetails(txid, 1, txn.outputs.length);
@@ -260,10 +260,22 @@ export class SlpTokenGraph implements TokenGraph {
                     }
                 }
             })
+            // check for possible inputs burned due to outputs < inputs
+            let inputQty = graphTxn.inputs.reduce((a, c) => a.plus(c.slpAmount), new BigNumber(0));
+            let outputQty = graphTxn.outputs.reduce((a, c) => a.plus(c.slpAmount), new BigNumber(0));
+            if(inputQty.isGreaterThan(outputQty)) {
+                graphTxn.outputs.push(<any>{
+                    slpAmount: inputQty.minus(outputQty),
+                    status: TokenUtxoStatus.EXCESS_INPUT_BURNED
+                })
+            }
         }
         else {
             console.log("[WARNING]: Transaction is not valid or is unknown token type!", txid);
         }
+
+        // adding graph to collection indicates it's valid
+        this._graphTxns.set(txid, graphTxn);
 
         // Continue to complete graph from output UTXOs
         if(!isParent) {
@@ -272,7 +284,6 @@ export class SlpTokenGraph implements TokenGraph {
             });
         }
 
-        this._graphTxns.set(txid, graphTxn);
         this._lastUpdatedBlock = await this._rpcClient.getBlockCount();   
         return true;
     }
@@ -846,7 +857,8 @@ enum TokenUtxoStatus {
     "SPENT_NOT_IN_SEND" = "SPENT_NOT_IN_SEND",
     "SPENT_NON_SLP" = "SPENT_NON_SLP",
     "SPENT_INVALID_SLP" = "SPENT_INVALID_SLP",
-    "MISSING_BCH_VOUT" = "MISSING_BCH_VOUT"
+    "MISSING_BCH_VOUT" = "MISSING_BCH_VOUT",
+    "EXCESS_INPUT_BURNED" = "EXCESS_INPUT_BURNED"
 }
 
 enum BatonUtxoStatus {
