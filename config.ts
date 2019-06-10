@@ -27,7 +27,7 @@ export class Config {
 		name_testnet: process.env.db_name ? process.env.db_name + "_test" : 'slpdb_testnet',
 		url: process.env.db_url ? process.env.db_url : 'mongodb://localhost:27017',
 		confirmed_schema_version: 1, 
-		token_schema_version: 70,
+		token_schema_version: 71,
 		index: {
 			tokens: {
 				keys: [ 'tokenDetails.tokenIdHex', 'tokenDetails.name', 'tokenDetails.symbol', 'tokenStats.qty_token_circulating_supply', 'tokenStats.qty_token_burned', 'tokenStats.qty_token_minted' ],
