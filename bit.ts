@@ -312,7 +312,9 @@ export class Bit {
             try {
                 if (topic.toString() === 'hashtx') {
                     let hash = message.toString('hex');
-                    if((await self.rpc.getRawMemPool()).includes(hash) && (await self.handleMempoolTransaction(hash)).added) {
+                    if(!self.slpMempoolIgnoreList.includes(hash) && 
+                        (await self.rpc.getRawMemPool()).includes(hash) && 
+                        (await self.handleMempoolTransaction(hash)).added) {
                         console.log('[ZMQ-SUB] New unconfirmed transaction added:', hash);
                         let syncResult = await sync(self, 'mempool', hash);
                         for (let i = 0; i < self._zmqSubscribers.length; i++) {
