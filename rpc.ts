@@ -7,12 +7,25 @@ const rpc = new _rpcClient(connectionString);
 
 import * as bchrpc from './pb/bchrpc_pb';
 import * as grpc from 'grpc';
+import * as loader from '@grpc/proto-loader';
+
+const PROTO_PATH = __dirname + '/pb/bchrpc.proto';
+
+const packageDefinition = loader.loadSync(
+    PROTO_PATH,
+    {
+        keepCase: true,
+        longs: String,
+        enums: String,
+        defaults: true,
+        oneofs: true
+    });
 
 //const grpc = require('grpc');
 //const services = require('./pb/bchrpc_grpc_pb');
 
-//const client = new services.bchrpcClient("0.0.0.0:8335", grpc.credentials.createInsecure())
-const client = new grpc.Client("https://0.0.0.0:8335", grpc.credentials.createInsecure())
+const pb: any = grpc.loadPackageDefinition(packageDefinition).pb;
+const grpcClient = new pb.bchrpc('0.0.0.0:8335', grpc.credentials.createInsecure()) //grpc.credentials.createSsl()
 
 export class RpcClient {
     useGrpc: any;
@@ -23,12 +36,23 @@ export class RpcClient {
     //     }
     // }
 
+    grpcGetMempoolInfo(): Promise<bchrpc.GetMempoolInfoResponse> {
+        return new Promise(function(resolve, reject){
+            grpcClient.GetMempoolInfo(pb.MempoolInfoRequest, function(err:any, data:any) {
+                if (err !== null) reject(err);
+                else resolve(data);
+            });
+        });
+    }
+
     async getRawTransaction(hash: string, verbose?: number): Promise<string|VerboseRawTransactionResult> { 
         console.log("[INFO] JSON RPC: getRawTransaction", hash, verbose);
 
         if(true) {
             let req = new bchrpc.GetRawTransactionRequest();
             let txn: any;
+
+            let mp = await this.grpcGetMempoolInfo();
 
             // await client.getRawTransaction(req, (error: any, res: any) => {
             //     console.log('Greeting:', res.getMessage())
