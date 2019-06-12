@@ -5,9 +5,37 @@ const _rpcClient = require('bitcoin-rpc-promise');
 const connectionString = 'http://' + Config.rpc.user + ':' + Config.rpc.pass + '@' + Config.rpc.host + ':' + Config.rpc.port
 const rpc = new _rpcClient(connectionString);
 
+import * as bchrpc from './pb/bchrpc_pb';
+import * as grpc from 'grpc';
+
+//const grpc = require('grpc');
+//const services = require('./pb/bchrpc_grpc_pb');
+
+//const client = new services.bchrpcClient("0.0.0.0:8335", grpc.credentials.createInsecure())
+const client = new grpc.Client("https://0.0.0.0:8335", grpc.credentials.createInsecure())
+
 export class RpcClient {
+    useGrpc: any;
+
+    // constructor(useGrpc?: boolean) {
+    //     if(true) {
+    //         this.useGrpc = useGrpc;
+    //     }
+    // }
+
     async getRawTransaction(hash: string, verbose?: number): Promise<string|VerboseRawTransactionResult> { 
         console.log("[INFO] JSON RPC: getRawTransaction", hash, verbose);
+
+        if(true) {
+            let req = new bchrpc.GetRawTransactionRequest();
+            let txn: any;
+
+            // await client.getRawTransaction(req, (error: any, res: any) => {
+            //     console.log('Greeting:', res.getMessage())
+            // });
+            return txn;
+        }
+
         if(verbose)
             return await rpc.getRawTransaction(hash, verbose);
         return await rpc.getRawTransaction(hash);
