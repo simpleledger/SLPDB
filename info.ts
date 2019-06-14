@@ -54,7 +54,8 @@ export module Info {
 	export const updateBlockCheckpoint = async function(index: number, hash: string|null): Promise<void> {
 		try {
 			await kv.put('tip', index);
-			await kv.put(index + '-hash', hash);
+			if(hash)
+				await kv.put(index + '-hash', hash);
 			console.log("[INFO] Block checkpoint updated to:", index, hash);
 		} catch (err) {
 			console.log('[ERROR] updateBlockCheckpoint error:', err)
