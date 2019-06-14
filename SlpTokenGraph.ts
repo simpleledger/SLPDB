@@ -213,7 +213,7 @@ export class SlpTokenGraph implements TokenGraph {
                 let spendDetails = await this.getSpendDetails(txid, 1, txn.outputs.length);
                 let address;
                 try { address = Utils.toSlpAddress(bitbox.Address.fromOutputScript(txn.outputs[1]._scriptBuffer, this._network))
-                } catch(_) { address = "unknown address type or missing address output"; }
+                } catch(_) { address = 'scriptPubKey:' + txn.outputs[1]._scriptBuffer.toString('hex'); }
                 graphTxn.outputs.push({
                     address: address,
                     vout: 1,
@@ -227,7 +227,7 @@ export class SlpTokenGraph implements TokenGraph {
                     let mintSpendDetails = await this.getMintBatonSpendDetails(txid, txnSlpDetails.batonVout, txn.outputs.length);
                     let address;
                     try { address = Utils.toSlpAddress(bitbox.Address.fromOutputScript(txn.outputs[1]._scriptBuffer, this._network))
-                    } catch(_) { address = "unknown address type or missing address output"; }
+                    } catch(_) { address = 'scriptPubKey:' + txn.outputs[1]._scriptBuffer.toString('hex'); }
                     graphTxn.outputs.push({
                         address: address,
                         vout: txnSlpDetails.batonVout,
@@ -302,7 +302,7 @@ export class SlpTokenGraph implements TokenGraph {
                         return
                 }
                 let txnDetails = this._graphTxns.get(txid)!.details
-                let addr = Utils.toSlpAddress(txout.address)
+                let addr = txout.address;
                 let bal;
                 if(this._addresses.has(addr)) {
                     bal = this._addresses.get(addr)!

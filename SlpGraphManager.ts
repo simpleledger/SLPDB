@@ -258,7 +258,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                                     try {
                                         if(o.e!.a)
                                             return o.e!.a;
-                                        else return null;
+                                        else return 'scriptPubKey:' + o.e!.s.toString('hex');
                                     } catch(_) { return null; }
                                 });
                             }
@@ -266,7 +266,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                                 try {
                                     if(tna.out[1]!.e!.a)
                                         addresses = [ tna.out[1]!.e!.a ];
-                                    else addresses = [ null ];
+                                    else addresses = [ 'scriptPubKey:' + tna.out[1]!.e!.s.toString('hex') ]; // For the case of P2PK and P2MS we allow null
                                 } catch(_) { return null; }
                             }
                             if(validation.details)
