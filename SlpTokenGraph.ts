@@ -211,9 +211,7 @@ export class SlpTokenGraph implements TokenGraph {
         if(isValid && (graphTxn.details.transactionType === SlpTransactionType.GENESIS || graphTxn.details.transactionType === SlpTransactionType.MINT)) {
             if(graphTxn.details.genesisOrMintQuantity!.isGreaterThanOrEqualTo(0)) {
                 let spendDetails = await this.getSpendDetails(txid, 1, txn.outputs.length);
-                let address;
-                try { address = Utils.toSlpAddress(bitbox.Address.fromOutputScript(txn.outputs[1]._scriptBuffer, this._network))
-                } catch(_) { address = 'scriptPubKey:' + txn.outputs[1]._scriptBuffer.toString('hex'); }
+                let address = this.getAddressStringFromTxnOutput(txn, 1);
                 graphTxn.outputs.push({
                     address: address,
                     vout: 1,
@@ -225,9 +223,7 @@ export class SlpTokenGraph implements TokenGraph {
                 })
                 if(txnSlpDetails.batonVout) {
                     let mintSpendDetails = await this.getMintBatonSpendDetails(txid, txnSlpDetails.batonVout, txn.outputs.length);
-                    let address;
-                    try { address = Utils.toSlpAddress(bitbox.Address.fromOutputScript(txn.outputs[1]._scriptBuffer, this._network))
-                    } catch(_) { address = 'scriptPubKey:' + txn.outputs[1]._scriptBuffer.toString('hex'); }
+                    let address = this.getAddressStringFromTxnOutput(txn, 1);
                     graphTxn.outputs.push({
                         address: address,
                         vout: txnSlpDetails.batonVout,
@@ -245,9 +241,7 @@ export class SlpTokenGraph implements TokenGraph {
                 if(output.isGreaterThanOrEqualTo(0)) {
                     if(slp_vout > 0) {
                         let spendDetails = await this.getSpendDetails(txid, slp_vout, txn.outputs.length);
-                        let address;
-                        try { address = Utils.toSlpAddress(bitbox.Address.fromOutputScript(txn.outputs[slp_vout]._scriptBuffer, this._network))
-                        } catch(_) { address = "unknown address type or missing address output"; }
+                        let address = this.getAddressStringFromTxnOutput(txn, slp_vout);
                         graphTxn.outputs.push({
                             address: address,
                             vout: slp_vout,
@@ -286,6 +280,22 @@ export class SlpTokenGraph implements TokenGraph {
 
         this._lastUpdatedBlock = await this._rpcClient.getBlockCount();   
         return true;
+    }
+
+    private getAddressStringFromTxnOutput(txn: Bitcore.Transaction, outputIndex: number) {
+        let address;
+        try {
+            address = Utils.toSlpAddress(bitbox.Address.fromOutputScript(txn.outputs[outputIndex]._scriptBuffer, this._network));
+        }
+        catch (_) {
+            try {
+                address = 'scriptPubKey:' + txn.outputs[outputIndex]._scriptBuffer.toString('hex');
+            }
+            catch (_) {
+                address = 'Missing transaction output.';
+            }
+        }
+        return address;
     }
 
     async updateAddressesFromScratch(): Promise<void> {
