@@ -15,8 +15,6 @@ const bit = new Bit();
 
 const daemon = {
     run: async function(start_height?: number) {
-        if(start_height)
-            await Info.updateBlockCheckpoint(start_height, null);
 
         // test RPC connection
         console.log("[INFO] Testing RPC connection...");
@@ -25,6 +23,10 @@ const daemon = {
 
         // set network
         await Info.setNetwork((await rpc.getInfo())!.testnet ? 'testnet' : 'mainnet');
+
+        // set start height override
+        if(start_height)
+            await Info.updateBlockCheckpoint(start_height, null);
 
         // check for confirmed collection schema update
         let schema = await Info.getConfirmedCollectionSchema();
