@@ -110,6 +110,7 @@ const util = {
         }
     }, 
     reprocess: async function(tokenId: string) {
+        await Info.setNetwork((await rpc.getInfo())!.testnet ? 'testnet' : 'mainnet');
         await db.init(rpc);
         let tokenManager = new SlpGraphManager(db);
         await tokenManager.initAllTokens(0, [ tokenId ], false);
