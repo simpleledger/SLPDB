@@ -74,7 +74,7 @@ Users should utilize the [SlpServe](https://github.com/fountainhead-cash/slpserv
 
 Some of the values used in SLP require 64 or more bits of precision, which is more precision than `number` type can provide. To ensure value precision is maintained values are stored in collections using the `Decimal128` type.  `Decimal128` allows users to make database queries using query comparison operators like `$gte`.  
 
-The services `SlpServe` and `SlpSockServer` return query results as a JSON object with `Decimal128` values converted to `string` type so that readability is improved for the query consumer, as opposed to being returned as an awqward `$DecimalNumber` JSON object.  The `string` type also maintains the original value precision.  If a user wants to perform math operations on these `string` values the user will need to first convert them to a large number type like `BigNumber` or `Decimal128` (e.g., `Decimal128.fromString("1000.123124")` or using [bignumber.js](https://github.com/MikeMcl/bignumber.js/) npm library via `new BigNumber("1000.00000001")`).
+The services `SlpServe` and `SlpSockServer` return query results as a JSON object with `Decimal128` values converted to `string` type so that readability is improved for the query consumer, as opposed to being returned as an awkward `$DecimalNumber` JSON object.  The `string` type also maintains the original value precision.  If a user wants to perform math operations on these `string` values the user will need to first convert them to a large number type like `BigNumber` or `Decimal128` (e.g., `Decimal128.fromString("1000.123124")` or using [bignumber.js](https://github.com/MikeMcl/bignumber.js/) npm library via `new BigNumber("1000.00000001")`).
 
 
 
