@@ -30,6 +30,7 @@
     "@types/node": "^10.12.21",
     "@types/p-limit": "2.0.0",
     "@types/p-queue": "3.1.0",
+    "@types/protobufjs": "^6.0.0",
     "@types/zeromq": "^4.6.1",
     "bcash": "^1.1.1",
     "bignumber.js": "^8.1.0",

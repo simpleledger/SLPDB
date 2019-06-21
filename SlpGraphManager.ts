@@ -292,7 +292,7 @@ export class SlpGraphManager {
                 // Here we fix missing block data
                 if(collection === 'confirmed' && !tna.blk) {
                     console.log("[INFO] Updating", collection, "TNATxn block data for", txid);
-                    let txn = <VerboseRawTransactionResult>await this._rpcClient.getRawTransaction(txid, 1);
+                    let txn = <VerboseRawTransactionResult>await this._rpcClient.getTransaction(txid);
                     let block = <BlockDetailsResult>await this._rpcClient.getBlock(txn.blockhash);
                     tna.blk = {
                         h: txn.blockhash, 
@@ -397,7 +397,7 @@ export class SlpGraphManager {
             }
         });
         if(count === 0) {
-            let transaction = <VerboseRawTransactionResult>await this._rpcClient.getRawTransaction(txid, 1);
+            let transaction = <VerboseRawTransactionResult>await this._rpcClient.getTransaction(txid);
             let blockindex = (<BlockDetailsResult>await this._rpcClient.getBlock(transaction.blockhash)).height;
             Info.updateBlockCheckpoint(blockindex - 1, null);
             console.log("[ERROR] Transaction not found! Block checkpoint has been updated to ", (blockindex - 1))
