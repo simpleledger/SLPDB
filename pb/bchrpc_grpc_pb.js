@@ -357,13 +357,6 @@ function deserialize_pb_TransactionNotification(buffer_arg) {
 }
 
 
-// grpc_tools_node_protoc --js_out=import_style=commonjs,binary:./ \
-// --ts_out=service=true:./ \
-// --grpc_out=./ \
-// --plugin=protoc-gen-grpc=./node_modules/grpc-tools/bin/grpc_node_plugin \                                                      
-// --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts \               
-// ./pb/bchrpc.proto
-//
 // bchrpc contains a set of RPCs that can be exposed publicly via
 // the command line options. This service could be authenticated or
 // unauthenticated.

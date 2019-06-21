@@ -24,19 +24,8 @@ client.getMempoolInfo(new bchrpc.GetMempoolInfoRequest(), (error: grpc.ServiceEr
 
 // Get a raw tx from tx hash
 
-const changeEndianness = (string: string) => {
-    const result = [];
-    let len = string.length - 2;
-    while (len >= 0) {
-      result.push(string.substr(len, 2));
-      len -= 2;
-    }
-    return result.join('');
-}
-
-
-var hex = changeEndianness("fe58d09c218d6ea1a0d1ce726d1c5aa6e9c01a9e760aab621484aa21b1f673fb")  //Buffer.from(changeEndianness("fe58d09c218d6ea1a0d1ce726d1c5aa6e9c01a9e760aab621484aa21b1f673fb"),'hex'); //changeEndianness("fe58d09c218d6ea1a0d1ce726d1c5aa6e9c01a9e760aab621484aa21b1f673fb")
-var bytes = new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)))
+var hex = "fe58d09c218d6ea1a0d1ce726d1c5aa6e9c01a9e760aab621484aa21b1f673fb";
+var bytes = new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))).reverse();
 
 var getRawTransactionRequest = new bchrpc.GetRawTransactionRequest()
 getRawTransactionRequest.setHash(bytes)
@@ -48,7 +37,7 @@ client.getRawTransaction(getRawTransactionRequest, function(error, resp) {
     } else {
     var tx = resp
     console.log("\nGetRawTransaction:")
-    console.log(tx.toObject())
+    console.log(Buffer.from(tx.getTransaction_asU8()).toString('hex'))
     }
 });
 
@@ -64,7 +53,7 @@ client.getTransaction(getTransactionRequest, function(error, resp) {
     } else {
     var tx = resp
     console.log("\nGetTransaction:")
-    console.log(tx.toObject())
+    console.log(tx.getTransaction()!.getInputsList()!.map(i => i.toObject()))
     }
 });
 
@@ -83,7 +72,8 @@ var stream = client.subscribeTransactions(subscribreTransactionsRequest)
 stream.on('data', function(message: bchrpc.TransactionNotification) {
     var tx = message
     console.log("\nSubscribeTransactions stream:")
-    console.log(tx.toObject().unconfirmedTransaction!.transaction!.hash.toString())
+    console.log(Buffer.from(tx.getUnconfirmedTransaction()!.getTransaction()!.serializeBinary()).toString('hex'))
+    console.log(Buffer.from(tx.getUnconfirmedTransaction()!.getTransaction()!.getHash_asU8().reverse()).toString('hex'))
 });
 stream.on('status', function(status: any) {
     console.log("\nSubscribeTransactions status:")
