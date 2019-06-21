@@ -59,6 +59,7 @@
   "devDependencies": {
     "eslint": "^5.6.1",
     "grpc-tools": "^1.7.3",
+    "grpc_tools_node_protoc_ts": "^2.5.3",
     "protobufjs": "^6.8.8",
     "ts-protoc-gen": "^0.10.0"
   }

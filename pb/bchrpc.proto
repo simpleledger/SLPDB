@@ -2,12 +2,20 @@ syntax = "proto3";
 
 package pb;
 
-// grpc_tools_node_protoc --js_out=import_style=commonjs,binary:./ \
-// --ts_out=service=true:./ \
-// --grpc_out=./ \
-// --plugin=protoc-gen-grpc=./node_modules/grpc-tools/bin/grpc_node_plugin \                                                      
-// --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts \               
-// ./pb/bchrpc.proto
+// npm install grpc_tools_node_protoc_ts --save-dev
+
+// grpc_tools_node_protoc \
+// --js_out=import_style=commonjs,binary:./pb \
+// --grpc_out=./pb \
+// --plugin=protoc-gen-grpc=`which grpc_tools_node_protoc_plugin` \
+// -I ./pb \
+// ./pb/*.proto
+
+// protoc \                                        
+// --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts \
+// --ts_out=./pb \
+// -I ./pb \
+// ./pb/*.proto
 
 
 // bchrpc contains a set of RPCs that can be exposed publicly via
