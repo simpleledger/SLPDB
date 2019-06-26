@@ -155,8 +155,8 @@ export class Bit {
         } else {
             this.slpMempoolIgnoreList.push(txid);
             this.slpMempoolIgnoreSet.add(txid);
-            if(this.slpMempoolIgnoreList.length > 10000) {
-                this.slpMempoolIgnoreSet.delete(this.slpMempoolIgnoreList.shift());
+            if(this.slpMempoolIgnoreList.length > Config.core.slp_mempool_ignore_length) {
+                this.slpMempoolIgnoreSet.delete(this.slpMempoolIgnoreList.shift()!);
             }
         }
         return { isSlp: false, added: false };
