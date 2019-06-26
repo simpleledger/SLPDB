@@ -1,7 +1,7 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-06-10
+**Last Updated:** 2019-06-26
 
 **Current SLPDB Version:** 0.13.0 (beta)
 
@@ -383,3 +383,7 @@ We want to make SLPDB more easily forkable for other OP_RETURN projects which ma
 * 0.13.0
 	* Breaking Change: This change may impact any application using `TokenUtxoStatus` or the Graph collection's `graphTxn.outputs.status` property. A new enum type was added to `TokenUtxoStatus` called "EXCESS_INPUT_BURNED".  This status is applied to any transaction that has an input SLP quantity that is greater than output SLP quantity.  This enum label is used within the Graphs collection's `graphTxn.outputs.status` property.
 	* A new startup script called "reprocess" was added for the pupose of debugging.  Usage is `node index.js reprocess <tokenId>`.
+	* Fixed issue with block and mempool item cache used to ignore duplicate zmq notifications
+	* Fixed testnet config starting block (off by one)
+	* P2MS and P2PK output addresses are stored as `scriptPubKey:<hex>`
+	* Other minor improvements
