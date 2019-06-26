@@ -62,6 +62,7 @@ export class Bit {
     queue: pQueue<DefaultAddOptions>;
     slpMempool: Map<txid, txhex>;
     slpMempoolIgnoreList: string[]; 
+    slpMempoolIgnoreSet: Set<string>;
     blockHashIgnoreList: string[];
     _zmqSubscribers: IZmqSubscriber[];
     network!: string;
@@ -75,6 +76,7 @@ export class Bit {
         //this.slpOrphanPool = new Map<txid, number>();
         this._zmqSubscribers = [];
         this.slpMempoolIgnoreList = [];
+        this.slpMempoolIgnoreSet = new Set();
         this.blockHashIgnoreList = [];
     }
 
@@ -141,7 +143,7 @@ export class Bit {
         if(this.slpMempool.has(txid))
             return { isSlp: true, added: false };  
 
-        if(this.slpMempoolIgnoreList.includes(txid))
+        if(this.slpMempoolIgnoreSet.has(txid))
             return { isSlp: false, added: false };
 
 
@@ -152,8 +154,10 @@ export class Bit {
             return { isSlp: true, added: true };
         } else {
             this.slpMempoolIgnoreList.push(txid);
-            if(this.slpMempoolIgnoreList.length > 10000)
-                this.slpMempoolIgnoreList.shift();
+            this.slpMempoolIgnoreSet.add(txid);
+            if(this.slpMempoolIgnoreList.length > 10000) {
+                this.slpMempoolIgnoreSet.delete(this.slpMempoolIgnoreList.shift());
+            }
         }
         return { isSlp: false, added: false };
     }
@@ -394,7 +398,7 @@ export class Bit {
         });
 
         if(recursive) {
-            let residualMempoolList = (await this.rpc.getRawMemPool()).filter(id => !this.slpMempoolIgnoreList.includes(id) && !Array.from(this.slpMempool.keys()).includes(id))
+            let residualMempoolList = (await this.rpc.getRawMemPool()).filter(id => !this.slpMempoolIgnoreSet.has(id) && !Array.from(this.slpMempool.keys()).includes(id))
             if(residualMempoolList.length > 0)
                 await this.checkForMissingMempoolTxns(residualMempoolList, true, false)
         }
@@ -497,7 +501,7 @@ export class Bit {
             result = { syncType: SyncType.Mempool, filteredContent: new Map<SyncFilterTypes, Map<txid, txhex>>() }
             if (hash) {
                 let txn: bitcore.Transaction|null = await self.getSlpMempoolTransaction(hash);
-                if(!txn && !self.slpMempoolIgnoreList.includes(hash)) {
+                if(!txn && !self.slpMempoolIgnoreSet.has(hash)) {
                     if(!txhex)
                         throw Error("Must provide 'txhex' if txid is not in the SLP mempool")
                     if(self.slp_txn_filter(txhex))
