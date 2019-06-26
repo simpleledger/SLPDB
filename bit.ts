@@ -143,17 +143,18 @@ export class Bit {
 
         if(this.slpMempoolIgnoreList.includes(txid))
             return { isSlp: false, added: false };
-            
-        this.slpMempoolIgnoreList.push(txid);
-        if(this.slpMempoolIgnoreList.length > 10000)
-            this.slpMempoolIgnoreList.pop();
+
 
         if(!txhex)
             txhex = <string>await this.rpc.getRawTransaction(txid);
         if(this.slp_txn_filter(txhex)) {
             this.slpMempool.set(txid, txhex);
             return { isSlp: true, added: true };
-        } 
+        } else {
+            this.slpMempoolIgnoreList.push(txid);
+            if(this.slpMempoolIgnoreList.length > 10000)
+                this.slpMempoolIgnoreList.shift();
+        }
         return { isSlp: false, added: false };
     }
 
@@ -312,9 +313,7 @@ export class Bit {
             try {
                 if (topic.toString() === 'hashtx') {
                     let hash = message.toString('hex');
-                    if(!self.slpMempoolIgnoreList.includes(hash) && 
-                        (await self.rpc.getRawMemPool()).includes(hash) && 
-                        (await self.handleMempoolTransaction(hash)).added) {
+                    if((await self.handleMempoolTransaction(hash)).added) {
                         console.log('[ZMQ-SUB] New unconfirmed transaction added:', hash);
                         let syncResult = await sync(self, 'mempool', hash);
                         for (let i = 0; i < self._zmqSubscribers.length; i++) {
@@ -331,7 +330,7 @@ export class Bit {
                     let hash = message.toString('hex');
                     if(self.blockHashIgnoreList.includes(hash)) {
                         if(self.blockHashIgnoreList.length > 10)
-                            self.blockHashIgnoreList.pop();
+                            self.blockHashIgnoreList.shift();
                         console.log('[ZMQ-SUB] Block message ignored:', hash);
                         return;
                     }
