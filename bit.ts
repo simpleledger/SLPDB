@@ -7,13 +7,13 @@ import { Query } from './query';
 
 import pLimit = require('p-limit');
 import * as pQueue from 'p-queue';
-import { DefaultAddOptions } from 'p-queue';
 import * as zmq from 'zeromq';
 import { BlockDetailsResult } from 'bitcoin-com-rest';
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { Slp, SlpTransactionType } from 'slpjs';
 import { RpcClient } from './rpc';
+import SetList from './SetList';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -58,27 +58,15 @@ export class Bit {
     db!: Db;
     rpc!: RpcClient;
     tna!: TNA;
-    outsock: zmq.Socket;
-    queue: pQueue<DefaultAddOptions>;
-    slpMempool: Map<txid, txhex>;
-    slpMempoolIgnoreList: string[]; 
-    slpMempoolIgnoreSet: Set<string>;
-    blockHashIgnoreList: string[];
-    _zmqSubscribers: IZmqSubscriber[];
+    outsock = zmq.socket('pub');
+    queue = new pQueue({ concurrency: Config.rpc.limit });
+    slpMempool = new Map<txid, txhex>();
+    slpMempoolIgnoreSetList = new SetList<string>(Config.core.slp_mempool_ignore_length);
+    blockHashIgnoreSetList = new SetList<string>(10);
+    _zmqSubscribers: IZmqSubscriber[] = [];
     network!: string;
-    //lastBlockProcessing!: number
-    //slpOrphanPool: Map<string, number>;
 
-    constructor() {
-        this.outsock = zmq.socket('pub');
-        this.queue = new pQueue({ concurrency: Config.rpc.limit });
-        this.slpMempool = new Map<txid, txhex>();
-        //this.slpOrphanPool = new Map<txid, number>();
-        this._zmqSubscribers = [];
-        this.slpMempoolIgnoreList = [];
-        this.slpMempoolIgnoreSet = new Set();
-        this.blockHashIgnoreList = [];
-    }
+    constructor() { }
 
     slp_txn_filter(txnhex: string): boolean {
         if(txnhex.includes('6a04534c5000')) {
@@ -143,7 +131,7 @@ export class Bit {
         if(this.slpMempool.has(txid))
             return { isSlp: true, added: false };  
 
-        if(this.slpMempoolIgnoreSet.has(txid))
+        if(this.slpMempoolIgnoreSetList.has(txid))
             return { isSlp: false, added: false };
 
 
@@ -153,11 +141,7 @@ export class Bit {
             this.slpMempool.set(txid, txhex);
             return { isSlp: true, added: true };
         } else {
-            this.slpMempoolIgnoreList.push(txid);
-            this.slpMempoolIgnoreSet.add(txid);
-            if(this.slpMempoolIgnoreList.length > Config.core.slp_mempool_ignore_length) {
-                this.slpMempoolIgnoreSet.delete(this.slpMempoolIgnoreList.shift()!);
-            }
+            this.slpMempoolIgnoreSetList.push(txid);
         }
         return { isSlp: false, added: false };
     }
@@ -332,13 +316,11 @@ export class Bit {
                     }
                 } else if (topic.toString() === 'hashblock') {
                     let hash = message.toString('hex');
-                    if(self.blockHashIgnoreList.includes(hash)) {
-                        if(self.blockHashIgnoreList.length > 10)
-                            self.blockHashIgnoreList.shift();
+                    if(self.blockHashIgnoreSetList.has(hash)) {
                         console.log('[ZMQ-SUB] Block message ignored:', hash);
                         return;
                     }
-                    self.blockHashIgnoreList.push(hash);   
+                    self.blockHashIgnoreSetList.push(hash);   
                     console.log('[ZMQ-SUB] New block found:', hash);
                     await sync(self, 'block', hash);
                     for (let i = 0; i < self._zmqSubscribers.length; i++) {
@@ -398,7 +380,7 @@ export class Bit {
         });
 
         if(recursive) {
-            let residualMempoolList = (await this.rpc.getRawMemPool()).filter(id => !this.slpMempoolIgnoreSet.has(id) && !Array.from(this.slpMempool.keys()).includes(id))
+            let residualMempoolList = (await this.rpc.getRawMemPool()).filter(id => !this.slpMempoolIgnoreSetList.has(id) && !Array.from(this.slpMempool.keys()).includes(id))
             if(residualMempoolList.length > 0)
                 await this.checkForMissingMempoolTxns(residualMempoolList, true, false)
         }
@@ -501,7 +483,7 @@ export class Bit {
             result = { syncType: SyncType.Mempool, filteredContent: new Map<SyncFilterTypes, Map<txid, txhex>>() }
             if (hash) {
                 let txn: bitcore.Transaction|null = await self.getSlpMempoolTransaction(hash);
-                if(!txn && !self.slpMempoolIgnoreSet.has(hash)) {
+                if(!txn && !self.slpMempoolIgnoreSetList.has(hash)) {
                     if(!txhex)
                         throw Error("Must provide 'txhex' if txid is not in the SLP mempool")
                     if(self.slp_txn_filter(txhex))
