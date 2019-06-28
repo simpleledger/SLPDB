@@ -130,11 +130,8 @@ export class Bit {
     async handleMempoolTransaction(txid: string, txhex?: string): Promise<{ isSlp: boolean, added: boolean }> {
         if(this.slpMempool.has(txid))
             return { isSlp: true, added: false };  
-
         if(this.slpMempoolIgnoreSetList.has(txid))
             return { isSlp: false, added: false };
-
-
         if(!txhex)
             txhex = <string>await this.rpc.getRawTransaction(txid);
         if(this.slp_txn_filter(txhex)) {
@@ -289,7 +286,7 @@ export class Bit {
     listenToZmq() {
         let sock = zmq.socket('sub');
         sock.connect('tcp://' + Config.zmq.incoming.host + ':' + Config.zmq.incoming.port);
-        sock.subscribe('hashtx');
+        sock.subscribe('rawtx');
         sock.subscribe('hashblock');
 
         this.outsock.bindSync('tcp://' + Config.zmq.outgoing.host + ':' + Config.zmq.outgoing.port);
@@ -299,9 +296,10 @@ export class Bit {
         let self = this;
         sock.on('message', async function(topic, message) {
             try {
-                if (topic.toString() === 'hashtx') {
-                    let hash = message.toString('hex');
-                    if((await self.handleMempoolTransaction(hash)).added) {
+                if (topic.toString() === 'rawtx') {
+                    let rawtx = message.toString('hex');
+                    let hash = Buffer.from(bitbox.Crypto.hash256(message).toJSON().data.reverse()).toString('hex');
+                    if((await self.handleMempoolTransaction(hash, rawtx)).added) {
                         console.log('[ZMQ-SUB] New unconfirmed transaction added:', hash);
                         let syncResult = await sync(self, 'mempool', hash);
                         for (let i = 0; i < self._zmqSubscribers.length; i++) {
