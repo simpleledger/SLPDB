@@ -1,7 +1,7 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-06-26
+**Last Updated:** 2019-06-28
 
 **Current SLPDB Version:** 0.13.0 (beta)
 
@@ -386,4 +386,5 @@ We want to make SLPDB more easily forkable for other OP_RETURN projects which ma
 	* Fixed issue with block and mempool item cache used to ignore duplicate zmq notifications
 	* Fixed testnet config starting block (off by one)
 	* P2MS and P2PK output addresses are stored as `scriptPubKey:<hex>`
+	* Reduced number of RPC calls by subscribing to zmq 'rawtx' instead of 'hashtx'
 	* Other minor improvements
