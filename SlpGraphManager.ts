@@ -18,7 +18,6 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 import { RpcClient } from './rpc';
 import { BlockDetailsResult, VerboseRawTransactionResult } from "bitcoin-com-rest";
-import { Bitcore } from "./vendor";
 
 const bitcoin = new BITBOX();
 const slp = new Slp(bitcoin);
@@ -169,7 +168,7 @@ export class SlpGraphManager implements IZmqSubscriber {
         let blockHex = <string>await this._rpcClient.getBlock(block_hash, false);
         let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
         for(let i=0; i < block.txs.length; i++) {
-            let inputs: Bitcore.BlockTxnInput[] = block.txs[i].inputs;
+            let inputs: bitcore.BlockTxnInput[] = block.txs[i].inputs;
             for(let j=1; j < inputs.length; j++) {
                 let txid = inputs[j].prevout.hash.toString('hex');
                 let vout = inputs[j].prevout.index.toString();

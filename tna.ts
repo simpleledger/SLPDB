@@ -1,11 +1,11 @@
 require('dotenv').config()
-import { Bitcore } from './vendor';
 import { SlpTransactionDetailsTnaDbo } from './SlpGraphManager';
 import { Utils } from 'slpjs';
 import { BITBOX } from 'bitbox-sdk';
+import * as Bitcore from 'bitcore-lib-cash';
 
 const bitbox = new BITBOX();
-const bitcore = require('bitcore-lib-cash');
+let bitcore = require('bitcore-lib-cash');
 
 export class TNA {
     async fromTx(gene: Bitcore.Transaction, options?: any): Promise<TNATxn> {

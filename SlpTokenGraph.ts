@@ -1,6 +1,5 @@
 import { SlpTransactionDetails, SlpTransactionType, LocalValidator, Utils, Validation } from 'slpjs';
 import BigNumber from 'bignumber.js';
-import { Bitcore } from './vendor';
 import { BITBOX } from 'bitbox-sdk';
 import { Config } from './config';
 import * as bitcore from 'bitcore-lib-cash';
@@ -159,7 +158,7 @@ export class SlpTokenGraph implements TokenGraph {
         let txnSlpDetails = this._slpValidator.cachedValidations[txid].details;
         if(!this._slpValidator.cachedRawTransactions[txid])
             this._slpValidator.cachedRawTransactions[txid] = <string>await this._rpcClient.getRawTransaction(txid);
-        let txn: Bitcore.Transaction = new bitcore.Transaction(this._slpValidator.cachedRawTransactions[txid])
+        let txn: bitcore.Transaction = new bitcore.Transaction(this._slpValidator.cachedRawTransactions[txid])
 
         if (!isValid) {
             console.log("[WARN] updateTokenGraphFrom: Not valid token transaction:", txid);        
@@ -282,7 +281,7 @@ export class SlpTokenGraph implements TokenGraph {
         return true;
     }
 
-    private getAddressStringFromTxnOutput(txn: Bitcore.Transaction, outputIndex: number) {
+    private getAddressStringFromTxnOutput(txn: bitcore.Transaction, outputIndex: number) {
         let address;
         try {
             address = Utils.toSlpAddress(bitbox.Address.fromOutputScript(txn.outputs[outputIndex]._scriptBuffer, this._network));
@@ -682,7 +681,7 @@ export class SlpTokenGraph implements TokenGraph {
         let txids = Array.from(tg._graphTxns.keys());
         //console.log(tg._slpValidator.cachedValidations);
         txids.forEach(txid => {
-            let validation = <Validation>{ validity: null, details: null, invalidReason: null, parents: [] }
+            let validation: any = { validity: null, details: null, invalidReason: null, parents: [], waiting: false }
             validation.validity = tg._graphTxns.get(txid) ? true : false;
             validation.details = tg._graphTxns.get(txid)!.details;
             if(!validation.details)

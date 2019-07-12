@@ -1,5 +1,4 @@
 import { Info, ChainSyncCheckpoint } from './info';
-import { Bitcore } from './vendor';
 import { TNA, TNATxn } from './tna';
 import { Config } from './config';
 import { Db } from './db';
@@ -120,7 +119,7 @@ export class Bit {
         }
     }
 
-    async getSlpMempoolTransaction(txid: string): Promise<Bitcore.Transaction|null> {
+    async getSlpMempoolTransaction(txid: string): Promise<bitcore.Transaction|null> {
         if(this.slpMempool.has(txid)) {
             return new bitcore.Transaction(this.slpMempool.get(txid)!);
         }
@@ -163,7 +162,7 @@ export class Bit {
             let self = this;
             this.slpMempool.forEach((txhex, txid, map) => {
                 tasks.push(limit(async function() {
-                    let content = <Bitcore.Transaction>(await self.getSlpMempoolTransaction(txid));
+                    let content = <bitcore.Transaction>(await self.getSlpMempoolTransaction(txid));
                     return self.tna.fromTx(content, { network: self.network });
                 }))
             })
@@ -225,7 +224,7 @@ export class Bit {
                     else {
                         tasks.push(limit(async function() {
                             try {
-                                let txn: Bitcore.Transaction = new bitcore.Transaction(txnhex);
+                                let txn: bitcore.Transaction = new bitcore.Transaction(txnhex);
                                 let t: TNATxn = await self.tna.fromTx(txn, { network: self.network });
                                 result.set(txn.hash, { txHex: txnhex, tnaTxn: t })
                                 t.blk = {
