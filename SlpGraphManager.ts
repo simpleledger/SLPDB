@@ -69,7 +69,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                     let inputTokenId = await Query.queryForTxnTokenId(txn.inputs[i].prevTxId.toString('hex'));
                     if(inputTokenId && inputTokenId !== tokenId && this._tokens.has(inputTokenId) && !inputTokenIds.includes(inputTokenId)) {
                         inputTokenIds.push(inputTokenId);
-                        this._tokens.get(inputTokenId)!.queueTokenGraphUpdateFrom(txPair[0]);
+                        this._tokens.get(inputTokenId)!.queueTokenGraphUpdateFrom(txn.inputs[i].prevTxId.toString('hex'), true);
                     }
                     else {
                         console.log("[INFO] SLP txn input:", i, "does not need updated for txid:", txPair[0]);
