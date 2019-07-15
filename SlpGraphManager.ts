@@ -1,5 +1,5 @@
 import { SlpTokenGraph, TokenDBObject, UtxoDbo, AddressBalancesDbo, GraphTxnDbo } from "./SlpTokenGraph";
-import { SlpTransactionType, Slp, SlpTransactionDetails, Utils } from "slpjs";
+import { SlpTransactionType, Slp, SlpTransactionDetails, Primatives } from "slpjs";
 import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes } from "./bit";
 import { Query } from "./query";
 import { BITBOX } from 'bitbox-sdk';
@@ -167,19 +167,24 @@ export class SlpGraphManager implements IZmqSubscriber {
     async searchBlockForBurnedSlpTxos(block_hash: string) {
         let blockHex = <string>await this._rpcClient.getBlock(block_hash, false);
         let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
-        for(let i=0; i < block.txs.length; i++) {
-            let inputs: bitcore.BlockTxnInput[] = block.txs[i].inputs;
-            for(let j=1; j < inputs.length; j++) {
-                let txid = inputs[j].prevout.hash.toString('hex');
-                let vout = inputs[j].prevout.index.toString();
+
+        for(let i=1; i < block.txs.length; i++) { // skip coinbase with i=1
+            let txnbuf: Buffer = block.txs[i].toRaw();
+            let txn: Primatives.Transaction = Primatives.Transaction.parseFromBuffer(txnbuf);
+            let inputs: Primatives.TransactionInput[] = txn.inputs;
+            for(let j=0; j < inputs.length; j++) {
+                var txid: string = inputs[j].previousTxHash!;
+                let vout = inputs[j].previousTxOutIndex.toString();
                 let utxo = await this.db.singleUtxo(txid + ":" + vout)
                 if(utxo) {
+                    console.log("Potential burned transaction found (" + txid + ":" + vout + ")");
                     let tokenId = utxo.tokenDetails.tokenIdHex;
                     this._tokens.get(tokenId)!.queueTokenGraphUpdateFrom(txid, true);
                     continue;
                 } 
                 let token = await this.db.singleMintUtxo(txid + ":" + vout);
                 if(token) {
+                    console.log("Potential burned minting transaction found (" + txid + ":" + vout + ")");
                     let tokenId = token.tokenDetails.tokenIdHex;
                     this._tokens.get(tokenId)!.queueTokenGraphUpdateFrom(txid, true);
                 }
@@ -245,7 +250,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                         try {
                             let tokenGraph = this._tokens.get(tokenId)!;
                             isValid = await tokenGraph._slpValidator.isValidSlpTxid(txid, tokenGraph._tokenDetails.tokenIdHex);                    
-                            let validation = tokenGraph._slpValidator.cachedValidations[txid];                        
+                            let validation = tokenGraph._slpValidator.cachedValidations[txid];
                             invalidReason = validation.invalidReason;
                             let addresses: (string|null)[] = [];
                             if(isValid && validation.details!.transactionType === SlpTransactionType.SEND) {
