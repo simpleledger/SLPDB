@@ -209,7 +209,7 @@ export class Bit {
 
             let blockHex = <string>await this.rpc.getBlock(block_content.hash, false);
             let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
-            for(let i=0; i < block.txs.length; i++) {
+            for(let i=1; i < block.txs.length; i++) { // skip coinbase with i=1
                 let txnhex = block.txs[i].toRaw().toString('hex');
 
                 if(this.slp_txn_filter(txnhex) && !this.slpMempool.has(block.txs[i].txid())) {
