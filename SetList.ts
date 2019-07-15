@@ -1,9 +1,9 @@
-export default class SetList<T> extends Set {
+export default class SetList<T> {
+    private set = new Set<T>()
     private list: T[] = [];
     private maxSize: number;
 
     constructor(maxSize: number) {
-        super();
         this.maxSize = maxSize;
     }
 
@@ -12,18 +12,22 @@ export default class SetList<T> extends Set {
     }
 
     push(item: T) {
-        this.add(item);
+        this.set.add(item);
         this.list.push(item);
 
-        if(this.size > this.maxSize) {
+        if(this.set.size > this.maxSize) {
             this.shift();
         }
+    }
+
+    has(item: T) {
+        return this.set.has(item);
     }
 
     shift(): T | undefined {
         let item = this.list.shift();
         if(item)
-            this.delete(item);
+            this.set.delete(item);
         return item;
     }
 }
