@@ -1,4 +1,4 @@
-import { SlpTransactionDetails, SlpTransactionType, LocalValidator, Utils, Validation } from 'slpjs';
+import { SlpTransactionDetails, SlpTransactionType, LocalValidator, Utils, Slp, SlpVersionType, Primatives  } from 'slpjs';
 import BigNumber from 'bignumber.js';
 import { BITBOX } from 'bitbox-sdk';
 import { Config } from './config';
@@ -20,6 +20,7 @@ export class SlpTokenGraph implements TokenGraph {
     _tokenStats!: TokenStats;
     _tokenUtxos!: Set<string>;
     _mintBatonUtxo!: string;
+    _nftParentId?: string;
     _graphTxns!: Map<string, GraphTxn>;
     _addresses!: Map<cashAddr, AddressBalance>;
     _slpValidator!: LocalValidator;
@@ -50,10 +51,29 @@ export class SlpTokenGraph implements TokenGraph {
 
         let valid = await this.updateTokenGraphFrom(tokenDetails.tokenIdHex);
         if(valid) {
-            let mints = await Query.getMintTransactions(tokenDetails.tokenIdHex);
-            if(mints && mints.length > 0)
-                await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom(m.txid!));
+            if(tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
+                await this.setNftParentId();
+            } else {
+                let mints = await Query.getMintTransactions(tokenDetails.tokenIdHex);
+                if(mints && mints.length > 0)
+                    await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom(m.txid!));
+            }
             await this.updateStatistics();
+        }
+    }
+
+    private async setNftParentId() {
+        let txnhex = (await this._slpValidator.getRawTransactions([this._tokenDetails.tokenIdHex]))[0];
+        let tx = Primatives.Transaction.parseFromBuffer(Buffer.from(txnhex, 'hex'));
+        let nftBurnTxnHex = (await this._slpValidator.getRawTransactions([tx.inputs[0].previousTxHash]))[0];
+        let nftBurnTxn = Primatives.Transaction.parseFromBuffer(Buffer.from(nftBurnTxnHex, 'hex'));
+        let slp = new Slp(bitbox);
+        let nftBurnSlp = slp.parseSlpOutputScript(Buffer.from(nftBurnTxn.outputs[0].scriptPubKey));
+        if (nftBurnSlp.transactionType === SlpTransactionType.GENESIS) {
+            this._nftParentId = tx.inputs[0].previousTxHash;
+        }
+        else {
+            this._nftParentId = nftBurnSlp.tokenIdHex;
         }
     }
 
@@ -491,12 +511,15 @@ export class SlpTokenGraph implements TokenGraph {
     toTokenDbObject(): TokenDBObject {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
 
-        let result = {
+        let result: TokenDBObject = {
             schema_version: Config.db.token_schema_version,
             lastUpdatedBlock: this._lastUpdatedBlock,
             tokenDetails: tokenDetails,
             mintBatonUtxo: this._mintBatonUtxo,
             tokenStats: this.mapTokenStatstoDbo(this._tokenStats),
+        }
+        if(this._nftParentId) {
+            result.nftParentId = this._nftParentId;
         }
         return result;
     }
@@ -657,7 +680,14 @@ export class SlpTokenGraph implements TokenGraph {
     static async FromDbObjects(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], addresses: AddressBalancesDbo[], db: Db, manager: SlpGraphManager): Promise<SlpTokenGraph> {
         let tg = new SlpTokenGraph(db, manager);
         await Query.init();
+
+        // add minting baton
         tg._mintBatonUtxo = token.mintBatonUtxo;
+
+        // add nft parent id
+        if(token.nftParentId)
+            tg._nftParentId = token.nftParentId;
+
         tg._network = (await tg._rpcClient.getInfo()).testnet ? 'testnet': 'mainnet';
 
         // Map _tokenDetails
@@ -720,6 +750,7 @@ export interface TokenGraph {
     _tokenStats: TokenStats;
     _tokenUtxos: Set<string>;
     _mintBatonUtxo: string;
+    _nftParentId?: string;
     _graphTxns: Map<txid, GraphTxn>;
     _addresses: Map<cashAddr, AddressBalance>;    
     queueTokenGraphUpdateFrom(txid: string, isParent: boolean): void;
@@ -738,6 +769,7 @@ export interface TokenDBObject {
     tokenStats: TokenStats | TokenStatsDbo;
     mintBatonUtxo: string;
     lastUpdatedBlock: number;
+    nftParentId?: string;
 }
 
 export interface GraphTxnDbo {
