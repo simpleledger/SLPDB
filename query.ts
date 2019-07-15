@@ -294,10 +294,10 @@ export class Query {
         let response: { c: any, u: any, errors?: any } = await this.dbQuery.read(q);
         
         if(!response.errors) {
-            let results: { type: string, sendTokenId: string }[] = ([].concat(<any>response.c).concat(<any>response.u));
+            let results: { type: string, sendOrMintTokenId: string }[] = ([].concat(<any>response.c).concat(<any>response.u));
             if(results.length > 0) {
-                if((results[0].type === "SEND" || results[0].type === "MINT") && results[0].sendTokenId) {
-                    return results[0].sendTokenId;
+                if((results[0].type === "SEND" || results[0].type === "MINT") && results[0].sendOrMintTokenId) {
+                    return results[0].sendOrMintTokenId;
                 }
                 else if(results[0].type === "GENESIS") {
                     return txid;
