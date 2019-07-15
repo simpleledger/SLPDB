@@ -18,6 +18,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 import { RpcClient } from './rpc';
 import { BlockDetailsResult, VerboseRawTransactionResult } from "bitcoin-com-rest";
+import SetList from "./SetList";
 
 const bitcoin = new BITBOX();
 const slp = new Slp(bitcoin);
@@ -27,6 +28,7 @@ export class SlpGraphManager implements IZmqSubscriber {
     _rpcClient: RpcClient;
     zmqPubSocket?: zmq.Socket;
     _transaction_lock: boolean = false;
+    _zmqMempoolPubSetList = new SetList<string>(1000);
 
     async onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
         if(syncResult && syncResult.filteredContent.size > 0) {
@@ -480,8 +482,9 @@ export class SlpGraphManager implements IZmqSubscriber {
         }
     }
 
-    async publishZmqNotification(txid: string){
-        if(this.zmqPubSocket) {
+    async publishZmqNotification(txid: string) {
+        if(this.zmqPubSocket && !this._zmqMempoolPubSetList.has(txid)) {
+            this._zmqMempoolPubSetList.push(txid);
             let tna: TNATxn | null = await this.db.db.collection('unconfirmed').findOne({ "tx.h": txid });
             if(tna) {
                 console.log("[ZMQ-PUB] SLP mempool notification", tna);
