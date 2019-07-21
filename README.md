@@ -1,9 +1,9 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-06-28
+**Last Updated:** 2019-07-21
 
-**Current SLPDB Version:** 0.13.0 (beta)
+**Current SLPDB Version:** 0.14.0 (beta)
 
 * 1. [What is SLPDB?](#WhatisSLPDB)
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)
@@ -379,6 +379,12 @@ SLPDB will soon include a filtering configuration so that only user specified to
 We want to make SLPDB more easily forkable for other OP_RETURN projects which may be unrelated to SLP tokens.
 
 ## 9. <a name='ChangeLog'></a>Change Log
+
+* 0.14.0
+	* Added NFT1 support
+	* Improved token burn detection on new block event
+	* Prevent duplicate zmq transaction publish notifications
+	* Various bug fixes and improvements
 
 * 0.13.0
 	* Breaking Change: This change may impact any application using `TokenUtxoStatus` or the Graph collection's `graphTxn.outputs.status` property. A new enum type was added to `TokenUtxoStatus` called "EXCESS_INPUT_BURNED".  This status is applied to any transaction that has an input SLP quantity that is greater than output SLP quantity.  This enum label is used within the Graphs collection's `graphTxn.outputs.status` property.
