@@ -110,7 +110,9 @@ export class SlpGraphManager implements IZmqSubscriber {
             let genesisBlockTxns = await Query.getGenesisTransactionsForBlock(hash);
             if(genesisBlockTxns) {
                 for(let i = 0; i < genesisBlockTxns.txns.length; i++) {
-                    this._tokens.get(genesisBlockTxns.txns[i])!._tokenDetails.timestamp = genesisBlockTxns.timestamp!;
+                    let token = this._tokens.get(genesisBlockTxns.txns[i])
+                    if(token)
+                        token._tokenDetails.timestamp = genesisBlockTxns.timestamp!;
                 }
             }
 
