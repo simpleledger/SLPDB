@@ -134,6 +134,11 @@ export class SlpGraphManager implements IZmqSubscriber {
             // fix any missed token timestamps 
             // await this.fixMissingTokenTimestamps();
         }
+
+        // Search for any burned transactions 
+        console.log('[INFO] Starting to look for any burned tokens resulting from non-SLP transactions');
+        await this.searchBlockForBurnedSlpTxos(hash);
+        console.log('[INFO] Finished looking for burned tokens.');
     }
 
     _tokens!: Map<string, SlpTokenGraph>;

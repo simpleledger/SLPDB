@@ -452,12 +452,6 @@ export class Bit {
                     currentHeight = await self.requestheight();
                 }
 
-                if(hash && self._zmqSubscribers.length > 0) {
-                    console.log('[INFO] Starting to look for any burned tokens resulting from non-SLP transactions');
-                    //await self._zmqSubscribers[0].searchForNonSlpBurnTransactions();
-                    await self._zmqSubscribers[0].searchBlockForBurnedSlpTxos(hash);
-                    console.log('[INFO] Finished looking for burned tokens.');
-                }
 
                 // clear mempool and synchronize
                 if (lastCheckpoint.height < currentHeight && hash) {
