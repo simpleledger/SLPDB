@@ -39,7 +39,7 @@ export class SlpTokenGraph implements TokenGraph {
         this._graphUpdateQueue = new pQueue({ concurrency: 1 });
     }
 
-    async initFromScratch(tokenDetails: SlpTransactionDetails) {
+    async initFromScratch({ tokenDetails, processUpToBlock }: { tokenDetails: SlpTransactionDetails; processUpToBlock?: number; }) {
         await Query.init();
         this._network = (await this._rpcClient.getInfo()).testnet ? 'testnet': 'mainnet';
         this._lastUpdatedBlock = 0;
@@ -49,14 +49,14 @@ export class SlpTokenGraph implements TokenGraph {
         this._graphTxns = new Map<string, GraphTxn>();
         this._addresses = new Map<cashAddr, AddressBalance>();
 
-        let valid = await this.updateTokenGraphFrom(tokenDetails.tokenIdHex);
+        let valid = await this.updateTokenGraphFrom({ txid: tokenDetails.tokenIdHex, processUpToBlock: processUpToBlock });
         if(valid) {
             if(tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
                 await this.setNftParentId();
             } else {
                 let mints = await Query.getMintTransactions(tokenDetails.tokenIdHex);
                 if(mints && mints.length > 0)
-                    await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom(m.txid!));
+                    await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom({ txid: m.txid! }));
             }
             await this.updateStatistics();
         }
@@ -87,7 +87,7 @@ export class SlpTokenGraph implements TokenGraph {
         }
     }
 
-    async getMintBatonSpendDetails(txid: string, vout: number, slpOutputLength: number): Promise<MintSpendDetails> {
+    async getMintBatonSpendDetails({ txid, vout, slpOutputLength, processUpTo }: { txid: string; vout: number; slpOutputLength: number; processUpTo?: number }): Promise<MintSpendDetails> {
         let txOut = await this._rpcClient.getTxOut(txid, vout, true);
         if(txOut === null) {
             this._mintBatonUtxo = "";
@@ -98,6 +98,10 @@ export class SlpTokenGraph implements TokenGraph {
                     if(vout < slpOutputLength)
                         return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: null };
                     return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
+                }
+                if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
+                    this._mintBatonUtxo = txid + ":" + vout;
+                    return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, queryResponse: null, invalidReason: null };
                 }
                 if(typeof spendTxnInfo!.txid === 'string') {
                     let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
@@ -119,7 +123,7 @@ export class SlpTokenGraph implements TokenGraph {
         return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, queryResponse: null, invalidReason: null };
     }
 
-    async getSpendDetails(txid: string, vout: number, slpOutputLength: number): Promise<SpendDetails> {
+    async getSpendDetails({ txid, vout, slpOutputLength, processUpTo }: { txid: string; vout: number; slpOutputLength: number; processUpTo?: number; }): Promise<SpendDetails> {
         let txOut = await this._rpcClient.getTxOut(txid, vout, true);
         if(txOut === null) {
             this._tokenUtxos.delete(txid + ":" + vout);
@@ -129,6 +133,10 @@ export class SlpTokenGraph implements TokenGraph {
                     if(vout < slpOutputLength)
                         return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: null };
                     return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
+                }
+                if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
+                    this._tokenUtxos.add(txid + ":" + vout);
+                    return { status: TokenUtxoStatus.UNSPENT, txid: null, queryResponse: null, invalidReason: null };
                 }
                 if(typeof spendTxnInfo!.txid === 'string') {
                     let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
@@ -150,10 +158,10 @@ export class SlpTokenGraph implements TokenGraph {
         return { status: TokenUtxoStatus.UNSPENT, txid: null, queryResponse: null, invalidReason: null };
     }
 
-    queueTokenGraphUpdateFrom(txid: string, isParent=false): void {
+    queueTokenGraphUpdateFrom({ txid, isParent = false, processUpToBlock }: { txid: string, isParent?: boolean, processUpToBlock?: number }): void {
         let self = this;
         this._graphUpdateQueue.add(async function() {
-            await self.updateTokenGraphFrom(txid, isParent)
+            await self.updateTokenGraphFrom({ txid, isParent, processUpToBlock })
 
             // Update the confirmed/unconfirmed collections with token details
             await self._manager.updateTxnCollections(txid, self._tokenDetails.tokenIdHex);
@@ -168,7 +176,13 @@ export class SlpTokenGraph implements TokenGraph {
         })
     }
 
-    async updateTokenGraphFrom(txid: string, isParent=false): Promise<boolean> {
+    async updateTokenGraphFrom({ txid, isParent = false, processUpToBlock }: { txid: string; isParent?:boolean; processUpToBlock?: number; }): Promise<boolean> {
+/**
+ * purpose for "isParent":
+ *      1) skips cached result, allow reprocessing/updating of a previously processed valid txn
+ *      2) prevents recursive reprocessing of a parent txn's inputs (since we only want to update output status for 1 group of parents)
+ *      3) prevents recursive processing of outputs (since the calling child will do this)
+ */
 
         if(this._graphTxns.has(txid) && !isParent) {   
             return true;
@@ -221,7 +235,7 @@ export class SlpTokenGraph implements TokenGraph {
             let parentIds = new Set<string>([...txn.inputs.map(i => i.prevTxId.toString('hex'))])
             await this.asyncForEach(Array.from(parentIds), async (txid: string) => {
                 if(this._graphTxns.get(txid)!) {
-                    await this.updateTokenGraphFrom(txid, true);
+                    await this.updateTokenGraphFrom({ txid, isParent: true });
                 }
             });
         }
@@ -229,7 +243,7 @@ export class SlpTokenGraph implements TokenGraph {
         // Create or update SLP graph outputs for each valid SLP output
         if(isValid && (graphTxn.details.transactionType === SlpTransactionType.GENESIS || graphTxn.details.transactionType === SlpTransactionType.MINT)) {
             if(graphTxn.details.genesisOrMintQuantity!.isGreaterThanOrEqualTo(0)) {
-                let spendDetails = await this.getSpendDetails(txid, 1, txn.outputs.length);
+                let spendDetails = await this.getSpendDetails({ txid, vout: 1, slpOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
                 let address = this.getAddressStringFromTxnOutput(txn, 1);
                 graphTxn.outputs.push({
                     address: address,
@@ -241,7 +255,7 @@ export class SlpTokenGraph implements TokenGraph {
                     invalidReason: spendDetails.invalidReason
                 })
                 if(txnSlpDetails.batonVout) {
-                    let mintSpendDetails = await this.getMintBatonSpendDetails(txid, txnSlpDetails.batonVout, txn.outputs.length);
+                    let mintSpendDetails = await this.getMintBatonSpendDetails({ txid, vout: txnSlpDetails.batonVout, slpOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
                     let address = this.getAddressStringFromTxnOutput(txn, 1);
                     graphTxn.outputs.push({
                         address: address,
@@ -259,7 +273,7 @@ export class SlpTokenGraph implements TokenGraph {
             await this.asyncForEach(graphTxn.details.sendOutputs!, async (output: BigNumber, slp_vout: number) => { 
                 if(output.isGreaterThanOrEqualTo(0)) {
                     if(slp_vout > 0) {
-                        let spendDetails = await this.getSpendDetails(txid, slp_vout, txn.outputs.length);
+                        let spendDetails = await this.getSpendDetails({ txid, vout: slp_vout, slpOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
                         let address = this.getAddressStringFromTxnOutput(txn, slp_vout);
                         graphTxn.outputs.push({
                             address: address,
@@ -292,12 +306,16 @@ export class SlpTokenGraph implements TokenGraph {
 
         // Continue to complete graph from output UTXOs
         if(!isParent) {
-            await this.asyncForEach(graphTxn.outputs.filter(o => o.spendTxid && (o.status === TokenUtxoStatus.SPENT_SAME_TOKEN || o.status === BatonUtxoStatus.BATON_SPENT_IN_MINT)), async (o: any) => {
-                await this.updateTokenGraphFrom(o.spendTxid!);
+            await this.asyncForEach(graphTxn.outputs.filter(o => o.spendTxid && (o.status === TokenUtxoStatus.SPENT_SAME_TOKEN || o.status === BatonUtxoStatus.BATON_SPENT_IN_MINT)), async (o: GraphTxnOutput) => {
+                await this.updateTokenGraphFrom({ txid: o.spendTxid!, processUpToBlock });
             });
         }
+        
+        if(!processUpToBlock)
+            this._lastUpdatedBlock = await this._rpcClient.getBlockCount();
+        else
+            this._lastUpdatedBlock = processUpToBlock;
 
-        this._lastUpdatedBlock = await this._rpcClient.getBlockCount();   
         return true;
     }
 
@@ -326,7 +344,7 @@ export class SlpTokenGraph implements TokenGraph {
             let txout = this._graphTxns.get(txid)!.outputs[vout-1]
             if(txout) {
                 if(!this._graphTxns.get(txid)) {
-                    await this.updateTokenGraphFrom(txid)
+                    await this.updateTokenGraphFrom({ txid })
                     if(!this._tokenUtxos.has(utxo))
                         return
                 }
@@ -417,7 +435,7 @@ export class SlpTokenGraph implements TokenGraph {
         } catch(_) { }
         if(!txout) {
             console.log("[INFO] updateTxoIfSpent(): Updating token graph for TXO",txo);
-            await this.queueTokenGraphUpdateFrom(txid, true);
+            await this.queueTokenGraphUpdateFrom({ txid, isParent:true });
         }
     }
 
@@ -753,8 +771,8 @@ export interface TokenGraph {
     _nftParentId?: string;
     _graphTxns: Map<txid, GraphTxn>;
     _addresses: Map<cashAddr, AddressBalance>;    
-    queueTokenGraphUpdateFrom(txid: string, isParent: boolean): void;
-    updateTokenGraphFrom(txid: string, isParent: boolean): Promise<boolean>;
+    queueTokenGraphUpdateFrom(config: {txid: string, isParent: boolean, processUpToBlock?: number}): void;
+    updateTokenGraphFrom(config: { txid: string, isParent?: boolean }): Promise<boolean>;
     searchForNonSlpBurnTransactions(): Promise<void>;
 }
 

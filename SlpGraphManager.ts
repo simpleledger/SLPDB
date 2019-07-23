@@ -25,6 +25,7 @@ const slp = new Slp(bitcoin);
 
 export class SlpGraphManager implements IZmqSubscriber {
     db: Db;
+    _tokens!: Map<string, SlpTokenGraph>;
     _rpcClient: RpcClient;
     zmqPubSocket?: zmq.Socket;
     _transaction_lock: boolean = false;
@@ -45,7 +46,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                     if(!this._tokens.has(tokenId)) {
                         if(tokenDetails) {
                             this._transaction_lock = true;
-                            await this.createNewTokenGraph(tokenId);
+                            await this.createNewTokenGraph({ tokenId });
                             this._transaction_lock = false;
                             await this.publishZmqNotification(txPair[0]);
                         }
@@ -59,7 +60,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                             console.log("[INFO] onTransactionHash update is locked until processing for new token graph is completed.")
                             await sleep(1000);
                         }
-                        this._tokens.get(tokenId)!.queueTokenGraphUpdateFrom(txPair[0]);
+                        this._tokens.get(tokenId)!.queueTokenGraphUpdateFrom({ txid: txPair[0]} );
                     }
                 } else {
                     await this.updateTxnCollections(txPair[0])
@@ -71,7 +72,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                     let inputTokenId = await Query.queryForTxnTokenId(txn.inputs[i].prevTxId.toString('hex'));
                     if(inputTokenId && inputTokenId !== tokenId && this._tokens.has(inputTokenId) && !inputTokenIds.includes(inputTokenId)) {
                         inputTokenIds.push(inputTokenId);
-                        this._tokens.get(inputTokenId)!.queueTokenGraphUpdateFrom(txn.inputs[i].prevTxId.toString('hex'), true);
+                        this._tokens.get(inputTokenId)!.queueTokenGraphUpdateFrom({txid: txn.inputs[i].prevTxId.toString('hex'), isParent: true});
                     }
                     else {
                         console.log("[INFO] SLP txn input:", i, "does not need updated for txid:", txPair[0]);
@@ -97,7 +98,7 @@ export class SlpGraphManager implements IZmqSubscriber {
         return tokenDetails;
     }
 
-    async onBlockHash(hash: string): Promise<void> {
+    async onBlockHash(hash: string, tokenIdFilter: string[] = []): Promise<void> {
 
         while(this._transaction_lock) {
             console.log("[INFO] onBlockHash update is locked until processing for new token graph is completed.")
@@ -117,7 +118,22 @@ export class SlpGraphManager implements IZmqSubscriber {
             }
 
             // update all statistics for tokens included in this block
-            let tokenIds = Array.from(new Set<string>([...blockTxns!.txns.filter(t => t.slp && t.slp.valid).map(t => t.slp.detail!.tokenIdHex)]));
+            let tokenIds: string[];
+            if(tokenIdFilter.length > 0) {
+                tokenIds = Array.from(new Set<string>([
+                    ...blockTxns!.txns
+                        .filter(t => t.slp && t.slp.valid && tokenIdFilter.includes(t.slp.detail!.tokenIdHex))
+                        .map(t => t.slp.detail!.tokenIdHex)
+                    ]));
+            }
+            else {
+                tokenIds = Array.from(new Set<string>(
+                    [...blockTxns!.txns
+                        .filter(t => t.slp && t.slp.valid)
+                        .map(t => t.slp.detail!.tokenIdHex)
+                    ]));
+            }
+
 
             // update statistics for each token
             for(let i = 0; i < tokenIds.length; i++) {
@@ -141,7 +157,6 @@ export class SlpGraphManager implements IZmqSubscriber {
         console.log('[INFO] Finished looking for burned tokens.');
     }
 
-    _tokens!: Map<string, SlpTokenGraph>;
 
     constructor(db: Db) {
         this.db = db;
@@ -152,15 +167,15 @@ export class SlpGraphManager implements IZmqSubscriber {
     async fixMissingTokenTimestamps() {
         let tokens = await Query.getNullTokenGenesisTimestamps();
         if(tokens) {
-            await this.asyncForEach(tokens, async (tokenid: string) => {
-                console.log("[INFO] Checking for missing timestamps for:", tokenid);
-                let timestamp = await Query.getConfirmedTxnTimestamp(tokenid);
-                if (timestamp && this._tokens.has(tokenid)) {
-                    let token = this._tokens.get(tokenid)!;
+            await this.asyncForEach(tokens, async (tokenId: string) => {
+                console.log("[INFO] Checking for missing timestamps for:", tokenId);
+                let timestamp = await Query.getConfirmedTxnTimestamp(tokenId);
+                if (timestamp && this._tokens.has(tokenId)) {
+                    let token = this._tokens.get(tokenId)!;
                     token._tokenDetails.timestamp = timestamp;
                     await this.db.tokenInsertReplace(token.toTokenDbObject());
-                } else if(!this._tokens.has(tokenid)) {
-                    await this.createNewTokenGraph(tokenid);
+                } else if(!this._tokens.has(tokenId)) {
+                    await this.createNewTokenGraph({ tokenId });
                 }
             })
         }
@@ -176,7 +191,7 @@ export class SlpGraphManager implements IZmqSubscriber {
     async searchBlockForBurnedSlpTxos(block_hash: string) {
         let blockHex = <string>await this._rpcClient.getBlock(block_hash, false);
         let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
-
+        let graphPromises: Promise<void>[] = [];
         for(let i=1; i < block.txs.length; i++) { // skip coinbase with i=1
             let txnbuf: Buffer = block.txs[i].toRaw();
             let txn: Primatives.Transaction = Primatives.Transaction.parseFromBuffer(txnbuf);
@@ -184,21 +199,34 @@ export class SlpGraphManager implements IZmqSubscriber {
             for(let j=0; j < inputs.length; j++) {
                 var txid: string = inputs[j].previousTxHash!;
                 let vout = inputs[j].previousTxOutIndex.toString();
-                let utxo = await this.db.singleUtxo(txid + ":" + vout)
-                if(utxo) {
+                let graph: SlpTokenGraph|undefined;
+                let send_txo = await this.db.singleUtxo(txid + ":" + vout)
+                if(send_txo) {
                     console.log("Potential burned transaction found (" + txid + ":" + vout + ")");
-                    let tokenId = utxo.tokenDetails.tokenIdHex;
-                    this._tokens.get(tokenId)!.queueTokenGraphUpdateFrom(txid, true);
+                    let tokenId = send_txo.tokenDetails.tokenIdHex;
+                    graph = this._tokens.get(tokenId);
+                    if(graph) {
+                        graph.queueTokenGraphUpdateFrom({ txid, isParent: true });
+                        graphPromises.push(graph._graphUpdateQueue.onIdle());
+                    }
                     continue;
                 } 
-                let token = await this.db.singleMintUtxo(txid + ":" + vout);
-                if(token) {
+                let mint_txo = await this.db.singleMintUtxo(txid + ":" + vout);
+                if(mint_txo) {
                     console.log("Potential burned minting transaction found (" + txid + ":" + vout + ")");
-                    let tokenId = token.tokenDetails.tokenIdHex;
-                    this._tokens.get(tokenId)!.queueTokenGraphUpdateFrom(txid, true);
+                    let tokenId = mint_txo.tokenDetails.tokenIdHex;
+                    graph = this._tokens.get(tokenId)
+                    if(graph) {
+                        graph.queueTokenGraphUpdateFrom({ txid, isParent: true });
+                        graphPromises.push(graph._graphUpdateQueue.onIdle());
+                    }
+                        continue;
                 }
             }
         }
+        console.time("GraphQueues-"+block_hash);
+        await Promise.all(graphPromises);
+        console.timeEnd("GraphQueues-"+block_hash);
     }
 
     async updateTxnCollections(txid: string, tokenId?: string): Promise<void> {
@@ -353,7 +381,7 @@ export class SlpGraphManager implements IZmqSubscriber {
         return res;
     }
 
-    async initAllTokens(reprocessFrom?: number, tokenIds?: string[], loadFromDb=true) {
+    async initAllTokens({ reprocessFrom, reprocessTo, tokenIds, loadFromDb = true, allowGraphUpdates = true }: { reprocessFrom?: number; reprocessTo?: number; tokenIds?: string[]; loadFromDb?: boolean; allowGraphUpdates?: boolean} = {}) {
         await Query.init();
         let tokens: SlpTransactionDetails[]; 
         if(!tokenIds)
@@ -365,17 +393,18 @@ export class SlpGraphManager implements IZmqSubscriber {
 
         // Instantiate all Token Graphs in memory
         for (let i = 0; i < tokens.length; i++) {
-            await this.initToken(tokens[i], reprocessFrom, loadFromDb);
+            await this.initToken({ token: tokens[i], reprocessFrom, reprocessTo, loadFromDb, allowGraphUpdates });
         }
 
         console.log("[INFO] Init all tokens complete");
     }
 
-    private async initToken(token: SlpTransactionDetails, reprocessFrom?: number, loadFromDb=true) {
+    private async initToken({ token, reprocessFrom, reprocessTo, loadFromDb = true, allowGraphUpdates = true }: { token: SlpTransactionDetails; reprocessFrom?: number; reprocessTo?: number; loadFromDb?: boolean; allowGraphUpdates?: boolean }) {
         let graph: SlpTokenGraph;
         let throwMsg1 = "There is no db record for this token.";
         let throwMsg2 = "Outdated token graph detected for: ";
         let throwMsg3 = "loadFromDb is false."
+        let throwMsg4 = "reprocessTo is set."
         try {
             let tokenState = <TokenDBObject>await this.db.tokenFetch(token.tokenIdHex);
             if (!tokenState)
@@ -395,6 +424,13 @@ export class SlpGraphManager implements IZmqSubscriber {
                 throw Error(throwMsg3)
             }
 
+            if(reprocessTo && reprocessTo >= tokenState.tokenStats.block_created!) {
+                throw Error(throwMsg4)
+            } else if (reprocessTo) {
+                await this.deleteTokenFromDb(token.tokenIdHex);
+                return;
+            }
+
             console.log("########################################################################################################");
             console.log("LOAD FROM DB:", token.tokenIdHex);
             console.log("########################################################################################################");
@@ -403,31 +439,34 @@ export class SlpGraphManager implements IZmqSubscriber {
             let dag: GraphTxnDbo[] = await this.db.graphFetch(token.tokenIdHex);
             graph = await SlpTokenGraph.FromDbObjects(tokenState, dag, utxos, addresses, this.db, this);
             
-            // determine how far back the token graph should be reprocessed
-            let potentialReorgFactor = 10;
-            let updateFromHeight = graph._lastUpdatedBlock - potentialReorgFactor;
-            if(reprocessFrom !== undefined && reprocessFrom !== null && reprocessFrom < updateFromHeight)
+            let res: string[] = [];
+            if(allowGraphUpdates) {
+                let potentialReorgFactor = 10; // determine how far back the token graph should be reprocessed
+                let updateFromHeight = graph._lastUpdatedBlock - potentialReorgFactor;
+                if(reprocessFrom !== undefined && reprocessFrom !== null && reprocessFrom < updateFromHeight)
                 updateFromHeight = reprocessFrom;
-            console.log("[INFO] Checking for Graph Updates since:", updateFromHeight);
-            let res = await Query.queryForRecentTokenTxns(graph._tokenDetails.tokenIdHex, updateFromHeight);
-            
-            // reprocess transactions
-            await this.asyncForEach(res, async (txid: string) => {
-                await graph.updateTokenGraphFrom(txid);
-                console.log("[INFO] Updated graph from", txid);
-            });
-            if (res.length === 0)
-                console.log("[INFO] No token transactions after block", updateFromHeight, "were found.");
-            else {
-                console.log("[INFO] Token's graph was updated.");
-                await graph.updateStatistics();
+                console.log("[INFO] Checking for Graph Updates since:", updateFromHeight);
+                res.push(...await Query.queryForRecentTokenTxns(graph._tokenDetails.tokenIdHex, updateFromHeight));
+                // update graph items
+                await this.asyncForEach(res, async (txid: string) => {
+                    await graph.updateTokenGraphFrom({txid: txid});
+                    console.log("[INFO] Updated graph from", txid);
+                });
+                if (res.length === 0)
+                    console.log("[INFO] No token transactions after block", updateFromHeight, "were found.");
+                else {
+                    console.log("[INFO] Token's graph was updated.");
+                    await graph.updateStatistics();
+                }
+            } else {
+                console.log("[WARN] Token's graph loaded using allowGraphUpdates=false.");
             }
             await this.setAndSaveTokenGraph(graph);
             await this.updateTxnCollectionsForTokenId(token.tokenIdHex);
         }
         catch (err) {
-            if (err.message.includes(throwMsg1) || err.message.includes(throwMsg2) || err.message.includes(throwMsg3)) {
-                await this.createNewTokenGraph(token.tokenIdHex);
+            if (err.message.includes(throwMsg1) || err.message.includes(throwMsg2) || err.message.includes(throwMsg3) || err.message.includes(throwMsg4)) {
+                await this.createNewTokenGraph({ tokenId: token.tokenIdHex, processUpToBlock: reprocessTo });
             }
             else {
                 console.log(err);
@@ -466,8 +505,8 @@ export class SlpGraphManager implements IZmqSubscriber {
         }
     }
 
-    private async createNewTokenGraph(tokenId: string): Promise<SlpTokenGraph|null> {
-        await this.deleteTokenFromDb(tokenId);
+    private async createNewTokenGraph({ tokenId, processUpToBlock }: { tokenId: string; processUpToBlock?: number; }): Promise<SlpTokenGraph|null> {
+        //await this.deleteTokenFromDb(tokenId);
         let graph = new SlpTokenGraph(this.db, this);
         let txn = <string>await this._rpcClient.getRawTransaction(tokenId);
         let tokenDetails = this.parseTokenTransactionDetails(txn);
@@ -475,7 +514,7 @@ export class SlpGraphManager implements IZmqSubscriber {
             console.log("########################################################################################################");
             console.log("NEW GRAPH FOR", tokenId);
             console.log("########################################################################################################");
-            await graph.initFromScratch(tokenDetails);
+            await graph.initFromScratch({ tokenDetails, processUpToBlock });
             await this.setAndSaveTokenGraph(graph);
             await this.updateTxnCollectionsForTokenId(tokenId);
             return graph;
