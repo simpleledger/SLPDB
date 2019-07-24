@@ -1,6 +1,6 @@
 import { SlpTokenGraph, TokenDBObject, UtxoDbo, AddressBalancesDbo, GraphTxnDbo } from "./SlpTokenGraph";
 import { SlpTransactionType, Slp, SlpTransactionDetails, Primatives } from "slpjs";
-import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes } from "./bit";
+import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes, txid, txhex, SyncType } from "./bit";
 import { Query } from "./query";
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
@@ -80,6 +80,16 @@ export class SlpGraphManager implements IZmqSubscriber {
                 }
             })
         }
+    }
+
+    async simulateOnTransactionHash(txid: string) {
+        let txhex = <txhex>await this._rpcClient.getRawTransaction(txid, 0);
+        let txmap = new Map<txid, txhex>();
+        txmap.set(txid, txhex);
+        let content = new Map<SyncFilterTypes, Map<txid, txhex>>();
+        content.set(SyncFilterTypes.SLP, txmap);
+        let syncRes = { syncType: SyncType.Mempool, filteredContent: content }
+        await this.onTransactionHash(syncRes);
     }
 
     private parseTokenTransactionDetails(txn_hex: string): SlpTransactionDetails|null {
