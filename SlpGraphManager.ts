@@ -192,6 +192,7 @@ export class SlpGraphManager implements IZmqSubscriber {
         let blockHex = <string>await this._rpcClient.getBlock(block_hash, false);
         let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
         let graphPromises: Promise<void>[] = [];
+        console.time("BlockSearchForBurn-"+block_hash);
         for(let i=1; i < block.txs.length; i++) { // skip coinbase with i=1
             let txnbuf: Buffer = block.txs[i].toRaw();
             let txn: Primatives.Transaction = Primatives.Transaction.parseFromBuffer(txnbuf);
@@ -200,7 +201,13 @@ export class SlpGraphManager implements IZmqSubscriber {
                 var txid: string = inputs[j].previousTxHash!;
                 let vout = inputs[j].previousTxOutIndex.toString();
                 let graph: SlpTokenGraph|undefined;
-                let send_txo = await this.db.singleUtxo(txid + ":" + vout)
+                let send_txo: UtxoDbo|undefined;
+                this._tokens.forEach(t => {
+                    if(t._tokenUtxos.has(txid + ":" + vout)) {
+                        send_txo = t.utxoToUtxoDbo(txid, vout);
+                        return;
+                    }
+                })
                 if(send_txo) {
                     console.log("Potential burned transaction found (" + txid + ":" + vout + ")");
                     let tokenId = send_txo.tokenDetails.tokenIdHex;
@@ -210,23 +217,30 @@ export class SlpGraphManager implements IZmqSubscriber {
                         graphPromises.push(graph._graphUpdateQueue.onIdle());
                     }
                     continue;
-                } 
-                let mint_txo = await this.db.singleMintUtxo(txid + ":" + vout);
+                }
+                let mint_txo: TokenDBObject|undefined;
+                this._tokens.forEach(t => {
+                    if(t._mintBatonUtxo === txid + ":" + vout) {
+                        mint_txo = t.toTokenDbObject();
+                        return;
+                    }
+                })
                 if(mint_txo) {
                     console.log("Potential burned minting transaction found (" + txid + ":" + vout + ")");
                     let tokenId = mint_txo.tokenDetails.tokenIdHex;
-                    graph = this._tokens.get(tokenId)
+                    graph = this._tokens.get(tokenId);
                     if(graph) {
                         graph.queueTokenGraphUpdateFrom({ txid, isParent: true });
                         graphPromises.push(graph._graphUpdateQueue.onIdle());
                     }
-                        continue;
+                    continue;
                 }
             }
         }
-        console.time("GraphQueues-"+block_hash);
+        console.timeEnd("BlockSearchForBurn-"+block_hash);
+        console.time("BlockBurnQueueWait-"+block_hash);
         await Promise.all(graphPromises);
-        console.timeEnd("GraphQueues-"+block_hash);
+        console.timeEnd("BlockBurnQueueWait-"+block_hash);
     }
 
     async updateTxnCollections(txid: string, tokenId?: string): Promise<void> {

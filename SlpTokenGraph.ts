@@ -32,10 +32,10 @@ export class SlpTokenGraph implements TokenGraph {
     _manager: SlpGraphManager;
 
     constructor(db: Db, manager: SlpGraphManager) {
+        this._db = db;
         this._manager = manager;
         this._rpcClient = new RpcClient();
         this._slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await this._rpcClient.getRawTransaction(txids[0]) ], console)
-        this._db = db;
         this._graphUpdateQueue = new pQueue({ concurrency: 1 });
     }
 
@@ -557,27 +557,33 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     toUtxosDbObject(): UtxoDbo[] {
-        let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
         let result: UtxoDbo[] = [];
-        Array.from(this._tokenUtxos).forEach(u => { 
-            let txid = u.split(":")[0]
-            let vout = parseInt(u.split(":")[1])
-            let output = this._graphTxns.get(txid)!.outputs.find(o => o.vout == vout)
-            if(output){
-                result.push({
-                    tokenDetails: {
-                        tokenIdHex: tokenDetails.tokenIdHex 
-                    },
-                    utxo: u,
-                    txid: txid,
-                    vout: vout,
-                    address: output.address,
-                    bchSatoshis: output.bchSatoshis,
-                    slpAmount: Decimal128.fromString(output.slpAmount.dividedBy(10**this._tokenDetails.decimals).toFixed())
-                })
-            }
+        Array.from(this._tokenUtxos).forEach(u => {
+            let txid = u.split(":")[0];
+            let vout = u.split(":")[1];
+            let output = this.utxoToUtxoDbo(txid, vout);
+            if(output)
+                result.push(output);
         });
         return result;
+    }
+
+    public utxoToUtxoDbo(txid: string, vout: string) {
+        let output = this._graphTxns.get(txid)!.outputs.find(o => o.vout == parseInt(vout));
+        if (output) {
+            return <UtxoDbo>{
+                tokenDetails: {
+                    tokenIdHex: this._tokenDetails.tokenIdHex
+                },
+                utxo: txid + ":" + vout,
+                txid: txid,
+                vout: parseInt(vout),
+                address: output.address,
+                bchSatoshis: output.bchSatoshis,
+                slpAmount: Decimal128.fromString(output.slpAmount.dividedBy(10 ** this._tokenDetails.decimals).toFixed())
+            };
+        }
+        return undefined;
     }
 
     toGraphDbObject(): GraphTxnDbo[] {
