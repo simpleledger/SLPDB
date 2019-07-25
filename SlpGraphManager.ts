@@ -275,7 +275,7 @@ export class SlpGraphManager implements IZmqSubscriber {
                 // Here we fix missing slp data (should only happen after block sync on startup)
                 if(!tna.slp)
                     tna.slp = {} as TNATxnSlpDetails;
-                if(tna.slp && tna.slp.schema_version !== Config.db.token_schema_version) {
+                if(tna.slp && (tna.slp.schema_version !== Config.db.token_schema_version || !tna.slp.valid)) {
                     console.log("[INFO] Updating", collection, "TNATxn SLP data for", txid);
                     let isValid: boolean|null = null;
                     let details: SlpTransactionDetailsTnaDbo|null = null;
