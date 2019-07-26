@@ -312,7 +312,7 @@ export class Query {
         throw Error("Mongo DB ERROR.");
     }
 
-    static async queryForTxoInputAsSlpMint(txid: string, vout: number): Promise<MintTxnQueryResult> {
+    static async queryForTxoInputAsSlpMint(txid: string, vout: number): Promise<MintTxnQueryResult|null> {
         console.log("[Query] queryForTxoInputSlpMint(" + txid + "," + vout + ")");
         let q = {
             "v": 3,
@@ -344,13 +344,14 @@ export class Query {
             }
             else {
                 console.log("[INFO] Assumed Token Burn: Could not find the spend transaction: " + txid + ":" + vout);
-                return { tokenid: null, txid: null, block: null, timestamp: null, batonHex: null, mintQty: null, mintBchQty: null }
+                return null;
             }
         }
+        console.log("[ERROR]",response.errors);
         throw Error("Mongo DB ERROR.")
     }
 
-    static async queryForTxoInputAsSlpSend(txid: string, vout: number): Promise<SendTxnQueryResult> {
+    static async queryForTxoInputAsSlpSend(txid: string, vout: number): Promise<SendTxnQueryResult|null> {
         console.log("[Query] queryForTxoInputAsSlpSend(" + txid + "," + vout + ")");
         let q = {
             "v": 3,
@@ -390,9 +391,10 @@ export class Query {
             }
             else {
                 console.log("[INFO] Assumed Token Burn: Could not find the spend transaction: " + txid + ":" + vout);
-                return { tokenid: null, txid: null, block: null, timestamp: null, sendOutputs: [ { tokenQty: new BigNumber(0), satoshis: 0} ] }
+                return null;
             }
         }
+        console.log("[ERROR]",response.errors);
         throw Error("Mongo DB ERROR.")
     }
 
