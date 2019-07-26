@@ -87,34 +87,34 @@ export class SlpTokenGraph implements TokenGraph {
         }
     }
 
-    async getMintBatonSpendDetails({ txid, vout, slpOutputLength, processUpTo }: { txid: string; vout: number; slpOutputLength: number; processUpTo?: number }): Promise<MintSpendDetails> {
+    async getMintBatonSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number; processUpTo?: number }): Promise<MintSpendDetails> {
         let txOut = await this._rpcClient.getTxOut(txid, vout, true);
         if(txOut === null) {
             this._mintBatonUtxo = "";
             try {
                 let spendTxnInfo = await Query.queryForTxoInputAsSlpMint(txid, vout);
-
-                if(spendTxnInfo.txid === null) {
-                    if(vout < slpOutputLength)
+                if(!spendTxnInfo) {
+                    if(vout < txnOutputLength)
                         return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: null };
                     return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
-                }
-                if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
-                    this._mintBatonUtxo = txid + ":" + vout;
-                    return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, queryResponse: null, invalidReason: null };
-                }
-                if(typeof spendTxnInfo!.txid === 'string') {
-                    let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
-                    if(!this._slpValidator.cachedValidations[spendTxnInfo.txid!])
-                        console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex)
-                    if(valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.MINT)
-                        return { status: BatonUtxoStatus.BATON_SPENT_IN_MINT, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null };
-                    else if(valid)
-                        return { status: BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: "Baton was spent in a non-mint SLP transaction." };
-                    return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null };
+                } else {
+                    if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
+                        this._mintBatonUtxo = txid + ":" + vout;
+                        return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, queryResponse: null, invalidReason: null };
+                    }
+                    if(typeof spendTxnInfo!.txid === 'string') {
+                        let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
+                        if(!this._slpValidator.cachedValidations[spendTxnInfo.txid!])
+                            console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex)
+                        if(valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.MINT)
+                            return { status: BatonUtxoStatus.BATON_SPENT_IN_MINT, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null };
+                        else if(valid)
+                            return { status: BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: "Baton was spent in a non-mint SLP transaction." };
+                        return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null };
+                    }
                 }
             } catch(_) {
-                if(vout < slpOutputLength)
+                if(vout < txnOutputLength)
                     return { status: BatonUtxoStatus.BATON_SPENT_INVALID_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
                 return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
             }
@@ -123,33 +123,34 @@ export class SlpTokenGraph implements TokenGraph {
         return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, queryResponse: null, invalidReason: null };
     }
 
-    async getSpendDetails({ txid, vout, slpOutputLength, processUpTo }: { txid: string; vout: number; slpOutputLength: number; processUpTo?: number; }): Promise<SpendDetails> {
+    async getSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number; processUpTo?: number; }): Promise<SpendDetails> {
         let txOut = await this._rpcClient.getTxOut(txid, vout, true);
         if(txOut === null) {
             this._tokenUtxos.delete(txid + ":" + vout);
             try {
                 let spendTxnInfo = await Query.queryForTxoInputAsSlpSend(txid, vout);
-                if(spendTxnInfo.txid === null) {
-                    if(vout < slpOutputLength)
-                        return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: null };
+                if(!spendTxnInfo) {
+                    if(vout < txnOutputLength)
+                       return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: null };
                     return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
-                }
-                if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
-                    this._tokenUtxos.add(txid + ":" + vout);
-                    return { status: TokenUtxoStatus.UNSPENT, txid: null, queryResponse: null, invalidReason: null };
-                }
-                if(typeof spendTxnInfo!.txid === 'string') {
-                    let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
-                    if(!this._slpValidator.cachedValidations[spendTxnInfo.txid!])
-                        console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex)
-                    if(valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.SEND)
-                        return { status: TokenUtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null };
-                    else if(valid)
-                        return { status: TokenUtxoStatus.SPENT_NOT_IN_SEND, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null }
-                    return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
+                } else {
+                    if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
+                        this._tokenUtxos.add(txid + ":" + vout);
+                        return { status: TokenUtxoStatus.UNSPENT, txid: null, queryResponse: null, invalidReason: null };
+                    }
+                    if(typeof spendTxnInfo!.txid === 'string') {
+                        let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
+                        if(!this._slpValidator.cachedValidations[spendTxnInfo.txid!])
+                            console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex)
+                        if(valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.SEND)
+                            return { status: TokenUtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null };
+                        else if(valid)
+                            return { status: TokenUtxoStatus.SPENT_NOT_IN_SEND, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: null }
+                        return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo!.txid, queryResponse: spendTxnInfo, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
+                    }
                 }
             } catch(_) {
-                if(vout < slpOutputLength)
+                if(vout < txnOutputLength)
                     return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: null, queryResponse: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
                 return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, queryResponse: null, invalidReason: "SLP output has no corresponding BCH output." };
             }
@@ -243,7 +244,7 @@ export class SlpTokenGraph implements TokenGraph {
         // Create or update SLP graph outputs for each valid SLP output
         if(isValid && (graphTxn.details.transactionType === SlpTransactionType.GENESIS || graphTxn.details.transactionType === SlpTransactionType.MINT)) {
             if(graphTxn.details.genesisOrMintQuantity!.isGreaterThanOrEqualTo(0)) {
-                let spendDetails = await this.getSpendDetails({ txid, vout: 1, slpOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
+                let spendDetails = await this.getSpendDetails({ txid, vout: 1, txnOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
                 let address = this.getAddressStringFromTxnOutput(txn, 1);
                 graphTxn.outputs.push({
                     address: address,
@@ -255,7 +256,7 @@ export class SlpTokenGraph implements TokenGraph {
                     invalidReason: spendDetails.invalidReason
                 })
                 if(txnSlpDetails.batonVout) {
-                    let mintSpendDetails = await this.getMintBatonSpendDetails({ txid, vout: txnSlpDetails.batonVout, slpOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
+                    let mintSpendDetails = await this.getMintBatonSpendDetails({ txid, vout: txnSlpDetails.batonVout, txnOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
                     let address = this.getAddressStringFromTxnOutput(txn, 1);
                     graphTxn.outputs.push({
                         address: address,
@@ -273,7 +274,7 @@ export class SlpTokenGraph implements TokenGraph {
             await this.asyncForEach(graphTxn.details.sendOutputs!, async (output: BigNumber, slp_vout: number) => { 
                 if(output.isGreaterThanOrEqualTo(0)) {
                     if(slp_vout > 0) {
-                        let spendDetails = await this.getSpendDetails({ txid, vout: slp_vout, slpOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
+                        let spendDetails = await this.getSpendDetails({ txid, vout: slp_vout, txnOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
                         let address = this.getAddressStringFromTxnOutput(txn, slp_vout);
                         graphTxn.outputs.push({
                             address: address,
@@ -923,7 +924,8 @@ enum TokenUtxoStatus {
     "SPENT_NON_SLP" = "SPENT_NON_SLP",
     "SPENT_INVALID_SLP" = "SPENT_INVALID_SLP",
     "MISSING_BCH_VOUT" = "MISSING_BCH_VOUT",
-    "EXCESS_INPUT_BURNED" = "EXCESS_INPUT_BURNED"
+    "EXCESS_INPUT_BURNED" = "EXCESS_INPUT_BURNED",
+    //"UNKNOWN_UNTIL_BLOCK_SYNC" = "UNKNOWN_UNTIL_BLOCK_SYNC"  // may resolve to anything
 }
 
 enum BatonUtxoStatus {
