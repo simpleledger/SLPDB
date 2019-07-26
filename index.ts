@@ -114,6 +114,13 @@ const util = {
     reprocess_token: async function(tokenId: string) {
         await Info.setNetwork((await rpc.getInfo())!.testnet ? 'testnet' : 'mainnet');
         await db.init(rpc);
+        await bit.init(db, rpc);
+        console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
+        console.time('[PERF] Initial Block Sync');
+        await bit.processBlocksForTNA();
+        await bit.processCurrentMempoolForTNA();
+        console.timeEnd('[PERF] Initial Block Sync');
+        console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
         let tokenManager = new SlpGraphManager(db);
         await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: [tokenId], loadFromDb: false });
         tokenManager._tokens.get(tokenId)!.updateStatistics();
