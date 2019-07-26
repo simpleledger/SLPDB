@@ -7,3 +7,5 @@ _leveldb
 _leveldb_testnet
 _mongo
 .env
+
+.DS_Store

@@ -1,9 +1,9 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-07-21
+**Last Updated:** 2019-07-26
 
-**Current SLPDB Version:** 0.14.0 (beta)
+**Current SLPDB Version:** 0.14.1 (beta)
 
 * 1. [What is SLPDB?](#WhatisSLPDB)
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)
@@ -379,6 +379,13 @@ SLPDB will soon include a filtering configuration so that only user specified to
 We want to make SLPDB more easily forkable for other OP_RETURN projects which may be unrelated to SLP tokens.
 
 ## 9. <a name='ChangeLog'></a>Change Log
+
+* 0.14.1
+	* Improved token burn detection after a new blocks is broadcast
+	* Updated to slpjs version 0.21.1 with caching bug fix.
+	* Updated updateTxnCollections() so that any valid transactions erroneously marked as "invalid" get updated.
+	* Refactored several methods to use destructured method parameters
+	* Other minor refactors and improvements
 
 * 0.14.0
 	* Added NFT1 support
