@@ -34,7 +34,7 @@ export class Config {
 				fulltext: [ 'tokenDetails.name', 'tokenDetails.symbol' ]
 			},
 			graphs: {
-				keys: [ 'tokenDetails.tokenIdHex', 'graphTxn.txid'],
+				keys: [ 'tokenDetails.tokenIdHex', 'graphTxn.txid', 'graphTxn.outputs.spendTxid'],
 				fulltext: [ ]
 			},
 			addresses: {
