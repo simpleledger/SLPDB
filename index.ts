@@ -62,13 +62,14 @@ const daemon = {
 
         console.log('[INFO] Starting to processing SLP Data.', new Date());
         let tokenManager = new SlpGraphManager(db);
-        bit._zmqSubscribers.push(tokenManager);
+        bit._slpGraphManager = tokenManager;
+        bit.listenToZmq();
+        await bit.checkForMissingMempoolTxns(undefined, true);
+
         await tokenManager.initAllTokens({ reprocessFrom });
         await bit.handleConfirmedTxnsMissingSlpMetadata();
         await tokenManager.fixMissingTokenTimestamps();
         await tokenManager.searchForNonSlpBurnTransactions();
-        await bit.checkForMissingMempoolTxns(undefined, true);
-        bit.listenToZmq();
 
         // Every minute - Check mempool transactions - ZMQ failsafe
         setInterval(async function() {

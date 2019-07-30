@@ -1,6 +1,6 @@
 import { SlpTokenGraph, TokenDBObject, UtxoDbo, AddressBalancesDbo, GraphTxnDbo } from "./SlpTokenGraph";
 import { SlpTransactionType, Slp, SlpTransactionDetails, Primatives } from "slpjs";
-import { IZmqSubscriber, SyncCompletionInfo, SyncFilterTypes, txid, txhex, SyncType } from "./bit";
+import { SyncCompletionInfo, SyncFilterTypes, txid, txhex, SyncType } from "./bit";
 import { Query } from "./query";
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
@@ -10,6 +10,7 @@ import { TNATxn, TNATxnSlpDetails } from "./tna";
 import { Decimal128 } from "mongodb";
 import * as zmq from 'zeromq';
 import { Info } from "./info";
+import * as pQueue from 'p-queue';
 
 const Block = require('bcash/lib/primitives/block');
 const BufferReader = require('bufio/lib/reader');
@@ -23,15 +24,38 @@ import SetList from "./SetList";
 const bitcoin = new BITBOX();
 const slp = new Slp(bitcoin);
 
-export class SlpGraphManager implements IZmqSubscriber {
+export class SlpGraphManager {
     db: Db;
     _tokens!: Map<string, SlpTokenGraph>;
     _rpcClient: RpcClient;
     zmqPubSocket?: zmq.Socket;
     _transaction_lock: boolean = false;
     _zmqMempoolPubSetList = new SetList<string>(1000);
+    _TnaQueue?: pQueue<pQueue.DefaultAddOptions>;
+    _updatesQueue = new pQueue<pQueue.DefaultAddOptions>({ concurrency: 1, autoStart: false })
 
-    async onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
+    get TnaSynced(): boolean {
+        if(this._TnaQueue)
+            return (this._TnaQueue.size === 0 && this._TnaQueue.pending === 0)
+        else 
+            return true;
+    }
+
+    onTransactionHash(syncResult: SyncCompletionInfo) {
+        let self = this;
+        this._updatesQueue.add(async function() {
+            await self._onTransactionHash(syncResult);
+        })
+    }
+
+    onBlockHash(hash: string, tokenIdFilter: string[] = []) {
+        let self = this;
+        this._updatesQueue.add(async function() {
+            await self._onBlockHash(hash, tokenIdFilter);
+        })
+    }
+
+    async _onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
         if(syncResult && syncResult.filteredContent.size > 0) {
             let txns = Array.from(syncResult.filteredContent.get(SyncFilterTypes.SLP)!)
             await this.asyncForEach(txns, async (txPair: [string, string], index: number) =>
@@ -108,10 +132,15 @@ export class SlpGraphManager implements IZmqSubscriber {
         return tokenDetails;
     }
 
-    async onBlockHash(hash: string, tokenIdFilter: string[] = []): Promise<void> {
+    async _onBlockHash(hash: string, tokenIdFilter: string[] = []): Promise<void> {
 
         while(this._transaction_lock) {
             console.log("[INFO] onBlockHash update is locked until processing for new token graph is completed.")
+            await sleep(1000);
+        }
+
+        while(!this.TnaSynced) {
+            console.log("[INFO] At _onBlockHash() - Waiting for TNA sync to complete before we update tokens included in block.")
             await sleep(1000);
         }
 
@@ -421,6 +450,9 @@ export class SlpGraphManager implements IZmqSubscriber {
         }
 
         console.log("[INFO] Init all tokens complete");
+
+        console.log("[INFO] Starting to process graph based on recent mempool and block activity")
+        this._updatesQueue.start()
     }
 
     private async initToken({ token, reprocessFrom, reprocessTo, loadFromDb = true, allowGraphUpdates = true }: { token: SlpTransactionDetails; reprocessFrom?: number; reprocessTo?: number; loadFromDb?: boolean; allowGraphUpdates?: boolean }) {

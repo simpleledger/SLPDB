@@ -12,6 +12,8 @@ import * as pQueue from 'p-queue';
 import { DefaultAddOptions } from 'p-queue';
 import { SlpGraphManager } from './SlpGraphManager';
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const bitbox = new BITBOX();
 
 export class SlpTokenGraph implements TokenGraph {
@@ -36,7 +38,7 @@ export class SlpTokenGraph implements TokenGraph {
         this._manager = manager;
         this._rpcClient = new RpcClient();
         this._slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await this._rpcClient.getRawTransaction(txids[0]) ], console)
-        this._graphUpdateQueue = new pQueue({ concurrency: 1 });
+        this._graphUpdateQueue = new pQueue({ concurrency: 1, autoStart: false });
     }
 
     async initFromScratch({ tokenDetails, processUpToBlock }: { tokenDetails: SlpTransactionDetails; processUpToBlock?: number; }) {
@@ -56,10 +58,11 @@ export class SlpTokenGraph implements TokenGraph {
             } else {
                 let mints = await Query.getMintTransactions(tokenDetails.tokenIdHex);
                 if(mints && mints.length > 0)
-                    await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom({ txid: m.txid! }));
+                    await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom({ txid: m.txid!, processUpToBlock: processUpToBlock }));
             }
             await this.updateStatistics();
         }
+        this._graphUpdateQueue.start();
     }
 
     private async setNftParentId() {
@@ -239,6 +242,12 @@ export class SlpTokenGraph implements TokenGraph {
                     await this.updateTokenGraphFrom({ txid, isParent: true });
                 }
             });
+        }
+
+        // Wait for mempool and block sync to complete before proceeding to update anything on graph.
+        while(!this._manager.TnaSynced) {
+            console.log("[INFO] At updateTokenGraphFrom() - Waiting for TNA sync to complete before starting graph updates.")
+            await sleep(500);
         }
 
         // Create or update SLP graph outputs for each valid SLP output
@@ -765,7 +774,7 @@ export class SlpTokenGraph implements TokenGraph {
         tg._tokenUtxos = new Set(utxos.map(u => u.utxo));
 
         await tg.updateStatistics();
-
+        tg._graphUpdateQueue.start();
         return tg;
     }
 }

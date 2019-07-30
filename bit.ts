@@ -13,6 +13,7 @@ import * as bitcore from 'bitcore-lib-cash';
 import { Slp, SlpTransactionType } from 'slpjs';
 import { RpcClient } from './rpc';
 import SetList from './SetList';
+import { SlpGraphManager } from './SlpGraphManager';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -35,14 +36,6 @@ export interface SyncCompletionInfo {
     filteredContent: Map<SyncFilterTypes, Map<txid, txhex>>;
 }
 
-export interface IZmqSubscriber {
-    onTransactionHash: undefined | ((syncInfo: SyncCompletionInfo) => Promise<void>);
-    onBlockHash: undefined | ((blockhash: string) => Promise<void>);
-    searchForNonSlpBurnTransactions: (() => Promise<void>);
-    searchBlockForBurnedSlpTxos: ((block_hash: string)=>Promise<void>);
-    updateTxnCollections:((txid: string, tokenid?: string)=> Promise<void>);
-    zmqPubSocket?: zmq.Socket; 
-}
 export type CrawlResult = Map<txid, CrawlTxnInfo>;
 
 export interface CrawlTxnInfo {
@@ -62,10 +55,13 @@ export class Bit {
     slpMempool = new Map<txid, txhex>();
     slpMempoolIgnoreSetList = new SetList<string>(Config.core.slp_mempool_ignore_length);
     blockHashIgnoreSetList = new SetList<string>(10);
-    _zmqSubscribers: IZmqSubscriber[] = [];
+    _slpGraphManager!: SlpGraphManager;
+    _zmqItemQueue: pQueue<pQueue.DefaultAddOptions>;
     network!: string;
 
-    constructor() { }
+    constructor() { 
+        this._zmqItemQueue = new pQueue({ concurrency: 1, autoStart: true });
+    }
 
     slp_txn_filter(txnhex: string): boolean {
         if(txnhex.includes('6a04534c5000')) {
@@ -218,7 +214,7 @@ export class Bit {
                         console.log("SLP transaction not in mempool:", block.txs[i].txid());
                         await this.handleMempoolTransaction(block.txs[i].txid(), txnhex);
                         let syncResult = await Bit.sync(this, 'mempool', block.txs[i].txid());
-                        await this._zmqSubscribers[0].onTransactionHash!(syncResult!);
+                        this._slpGraphManager.onTransactionHash!(syncResult!);
                     }
                     //This is used during startup block sync
                     else {
@@ -247,22 +243,22 @@ export class Bit {
                         let timeout = 0;
                         let t: TNATxn|null = await self.db.unconfirmedFetch(block.txs[i].txid());
                     
-                    // ******************
-                    // NOTE: The SLP property will be set by the SlpGraphManager after processing is completed.
-                    //       Sometimes a block notification is received while processing a transaction notification is completed, therefore
-                    //       we must wait until processing has completed before the block processing can complete.
-                        while(!t!.slp) {
-                            await sleep(1000);
-                            timeout++;
-                            // TODO: Can check the zmqSubscriber if SLP processing is underway
-                            if(timeout > 20) {
-                                console.log("[ERROR] SLP was not processed within timeout periods", block.txs[i].txid());
-                                process.exit();
-                            }
-                            t = await self.db.unconfirmedFetch(block.txs[i].txid());
-                        }
-                    // 
-                    // ******************
+                    // // ******************
+                    // // NOTE: The SLP property will be set by the SlpGraphManager after processing is completed.
+                    // //       Sometimes a block notification is received while processing a transaction notification is completed, therefore
+                    // //       we must wait until processing has completed before the block processing can complete.
+                    //     while(!t!.slp) {
+                    //         await sleep(1000);
+                    //         timeout++;
+                    //         // TODO: Can check the zmqSubscriber if SLP processing is underway
+                    //         if(timeout > 20) {
+                    //             console.log("[ERROR] SLP was not processed within timeout periods", block.txs[i].txid());
+                    //             process.exit();
+                    //         }
+                    //         t = await self.db.unconfirmedFetch(block.txs[i].txid());
+                    //     }
+                    // // 
+                    // // ******************
 
                         t!.blk = {
                             h: block_hash,
@@ -293,43 +289,46 @@ export class Bit {
         // Listen to ZMQ
         let sync = Bit.sync;
         let self = this;
+        this._slpGraphManager._TnaQueue = this._zmqItemQueue;
         sock.on('message', async function(topic, message) {
-            try {
-                if (topic.toString() === 'rawtx') {
-                    let rawtx = message.toString('hex');
-                    let hash = Buffer.from(bitbox.Crypto.hash256(message).toJSON().data.reverse()).toString('hex');
-                    if((await self.handleMempoolTransaction(hash, rawtx)).added) {
-                        console.log('[ZMQ-SUB] New unconfirmed transaction added:', hash);
-                        let syncResult = await sync(self, 'mempool', hash);
-                        for (let i = 0; i < self._zmqSubscribers.length; i++) {
-                            if(!self._zmqSubscribers[i].zmqPubSocket)
-                                self._zmqSubscribers[i].zmqPubSocket = self.outsock;
-                            if(syncResult && self._zmqSubscribers[i].onTransactionHash) {
-                                await self._zmqSubscribers[i].onTransactionHash!(syncResult);
+            if(['rawtx','hashblock'].includes(topic.toString())) {
+                //let rand = Math.floor(Math.random()*100000);
+                self._zmqItemQueue.add(async function() {
+                    //console.log("RUNNING QUEUE ITEM", rand)
+                    try {
+                        if (topic.toString() === 'rawtx') {
+                            let rawtx = message.toString('hex');
+                            let hash = Buffer.from(bitbox.Crypto.hash256(message).toJSON().data.reverse()).toString('hex');
+                            if((await self.handleMempoolTransaction(hash, rawtx)).added) {
+                                console.log('[ZMQ-SUB] New unconfirmed transaction added:', hash);
+                                let syncResult = await sync(self, 'mempool', hash);
+                                if(!self._slpGraphManager.zmqPubSocket)
+                                    self._slpGraphManager.zmqPubSocket = self.outsock;
+                                if(syncResult && self._slpGraphManager.onTransactionHash) {
+                                    self._slpGraphManager.onTransactionHash!(syncResult);
+                                }
+                            } else {
+                                console.log('[INFO] Transaction ignored:', hash);
                             }
+                        } else if (topic.toString() === 'hashblock') {
+                            let hash = message.toString('hex');
+                            if(self.blockHashIgnoreSetList.has(hash)) {
+                                console.log('[ZMQ-SUB] Block message ignored:', hash);
+                                return;
+                            }
+                            self.blockHashIgnoreSetList.push(hash);   
+                            console.log('[ZMQ-SUB] New block found:', hash);
+                            await sync(self, 'block', hash);
+                            if(!self._slpGraphManager.zmqPubSocket)
+                                self._slpGraphManager.zmqPubSocket = self.outsock;
+                            if(self._slpGraphManager.onBlockHash)
+                                self._slpGraphManager.onBlockHash!(hash!);
                         }
-                    } else {
-                        console.log('[INFO] Transaction ignored:', hash);
+                    } catch(err) {
+                        console.log(err);
+                        process.exit();
                     }
-                } else if (topic.toString() === 'hashblock') {
-                    let hash = message.toString('hex');
-                    if(self.blockHashIgnoreSetList.has(hash)) {
-                        console.log('[ZMQ-SUB] Block message ignored:', hash);
-                        return;
-                    }
-                    self.blockHashIgnoreSetList.push(hash);   
-                    console.log('[ZMQ-SUB] New block found:', hash);
-                    await sync(self, 'block', hash);
-                    for (let i = 0; i < self._zmqSubscribers.length; i++) {
-                        if(!self._zmqSubscribers[i].zmqPubSocket)
-                            self._zmqSubscribers[i].zmqPubSocket = self.outsock;
-                        if(self._zmqSubscribers[i].onBlockHash)
-                            await self._zmqSubscribers[i].onBlockHash!(hash!);
-                    }
-                }
-            } catch(err) {
-                console.log(err);
-                process.exit();
+                });
             }
         })
 
@@ -372,7 +371,7 @@ export class Bit {
         await this.asyncForEach(currentBchMempoolList, async (txid: string) => {
             if((await this.handleMempoolTransaction(txid)).added) {
                 let syncResult = await Bit.sync(this, 'mempool', txid, this.slpMempool.get(txid));
-                await this._zmqSubscribers[0].onTransactionHash!(syncResult!);
+                this._slpGraphManager.onTransactionHash!(syncResult!);
             }
         });
 
