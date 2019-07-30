@@ -367,7 +367,7 @@ export class SlpTokenGraph implements TokenGraph {
                         bal = { satoshis_balance: txout.bchSatoshis, token_balance: txnDetails.genesisOrMintQuantity! }
                 }
 
-                if(bal) {
+                if(bal && bal.token_balance.isGreaterThan(0)) {
                     this._addresses.set(addr, <any>bal);
                 }
             }
