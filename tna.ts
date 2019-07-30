@@ -110,13 +110,14 @@ export class TNA {
                     }
                 })
             }
-            return { tx: { h: t.hash }, in: inputs, out: outputs }   
+            // @ts-ignore
+            return { tx: { h: t.hash, raw: gene.toBuffer() }, in: inputs, out: outputs }   
         })(gene, options);
     }
 }
 
 export interface TNATxn {
-    tx: { h: string };
+    tx: { h: string, raw: Buffer };
     in: Xput[];
     out: Xput[];
     blk?: { h: string; i: number; t: number; };
