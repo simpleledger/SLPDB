@@ -235,7 +235,7 @@ export class Query {
         }
 
         let response: any = await this.dbQuery.read(q);
-        let tokens: any[] = [].concat(response.u).concat(response.c);
+        let tokens: any[] = [].concat(response.c);
         return tokens.length > 0 ? tokens[0].block : null;
     }
 
