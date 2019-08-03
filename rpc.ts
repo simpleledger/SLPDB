@@ -40,10 +40,11 @@ export class RpcClient {
         return await rpc.getTxOut(hash, vout, includemempool);
     }
 
-    async getInfo(): Promise<NodeInfoResult> {
-        console.log("[INFO] JSON RPC: getInfo")
-        return await rpc.getInfo();
-    }
+    // DO NOT USE, THIS IS DEPRECIATED ON SOME NODES
+    // async getInfo(): Promise<NodeInfoResult> {
+    //     console.log("[INFO] JSON RPC: getInfo")
+    //     return await rpc.getInfo();
+    // }
 
     async getBlockchainInfo(): Promise<BlockchainInfoResult> {
         console.log("[INFO] JSON RPC: getBlockchainInfo")

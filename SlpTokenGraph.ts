@@ -43,7 +43,7 @@ export class SlpTokenGraph implements TokenGraph {
 
     async initFromScratch({ tokenDetails, processUpToBlock }: { tokenDetails: SlpTransactionDetails; processUpToBlock?: number; }) {
         await Query.init();
-        this._network = (await this._rpcClient.getInfo()).testnet ? 'testnet': 'mainnet';
+        this._network = (await this._rpcClient.getBlockchainInfo()).chain === 'test' ? 'testnet': 'mainnet';
         this._lastUpdatedBlock = 0;
         this._tokenDetails = tokenDetails;
         this._tokenUtxos = new Set<string>();
@@ -722,7 +722,7 @@ export class SlpTokenGraph implements TokenGraph {
         if(token.nftParentId)
             tg._nftParentId = token.nftParentId;
 
-        tg._network = (await tg._rpcClient.getInfo()).testnet ? 'testnet': 'mainnet';
+        tg._network = (await tg._rpcClient.getBlockchainInfo()).chain === 'test' ? 'test': 'main';
 
         // Map _tokenDetails
         tg._tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);

@@ -22,7 +22,7 @@ const daemon = {
         console.log("[INFO] JSON-RPC is initialized.");
 
         // set network
-        await Info.setNetwork((await rpc.getInfo())!.testnet ? 'testnet' : 'mainnet');
+        await Info.setNetwork((await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet');
 
         // set start height override
         if(start_height)
@@ -113,7 +113,7 @@ const util = {
         }
     }, 
     reprocess_token: async function(tokenId: string) {
-        await Info.setNetwork((await rpc.getInfo())!.testnet ? 'testnet' : 'mainnet');
+        await Info.setNetwork((await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet');
         await db.init(rpc);
         await bit.init(db, rpc);
         console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
@@ -148,7 +148,7 @@ const util = {
             // "f35007140e40c4b6ce4ecc9ad166101ad94562b3e4f650a30de10b8a80c0b987",
             // "4abbea22956e7db07ac3ae7eb88b14f23ccc5dce4273728275cb17ec91e6f57c"
         ]
-        await Info.setNetwork((await rpc.getInfo())!.testnet ? 'testnet' : 'mainnet');
+        await Info.setNetwork((await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet');
         await db.init(rpc);
         let tokenManager = new SlpGraphManager(db);
         await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: tokenIdFilter, reprocessTo: block_height });
