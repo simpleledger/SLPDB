@@ -1,11 +1,11 @@
 {
   "name": "slpdb",
-  "version": "0.14.1",
-  "description": "Data storage layer for Simple Ledger Protocol",
+  "version": "0.15.0",
+  "description": "Token graph data layer for Simple Ledger Protocol",
   "main": "index.js",
   "scripts": {
     "test": "tsc && test",
-    "start": "tsc && node index",
+    "start": "tsc && node --max_old_space_size=8192 index",
     "lint": "./node_modules/.bin/eslint .",
     "migrate": "./node_modules/.bin/migrate-mongo"
   },
