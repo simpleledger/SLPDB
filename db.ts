@@ -213,7 +213,7 @@ export class Db {
         if(requireSlpMetadata) {
             if(items.filter(i => !i.slp).length > 0) {
                 console.log(items.filter(i => !i.slp).map(i => i.tx.h));
-                throw Error("Attempted to add items without SLP property.");
+                //throw Error("Attempted to add items without SLP property.");
             }
         }
 
@@ -263,7 +263,7 @@ export class Db {
         if(requireSlpMetadata) {
             if(items.filter(i => !i.slp).length > 0) {
                 console.log(items.filter(i => !i.slp).map(i => i.tx.h));
-                throw Error("Attempted to add items without SLP property.");
+                //throw Error("Attempted to add items without SLP property.");
             }
         }
 
