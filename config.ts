@@ -81,7 +81,7 @@ export class Config {
 	}
 	static core = {
 		from: Number.parseInt(process.env.core_from ? process.env.core_from : "543375"),
-		from_testnet: Number.parseInt(process.env.core_from ? process.env.core_from : "1253801"),
+		from_testnet: Number.parseInt(process.env.core_from_testnet ? process.env.core_from_testnet : "1253801"),
 		slp_mempool_ignore_length: Number.parseInt(process.env.core_slp_mempool_ignore_length ? process.env.core_slp_mempool_ignore_length : "1000000"),
 	}
 }
