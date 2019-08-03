@@ -185,26 +185,31 @@ export class SlpTokenGraph implements TokenGraph {
         let txnsNew = new Map<string, GraphTxn>();
         for(let i = 0; i < txns.size; i++) {
             txns.forEach((txn, txid) => {
-                if(txn.inputs.length === 0 && txid !== this._tokenDetails.tokenIdHex && this._slpValidator.cachedValidations[txid] && this._slpValidator.cachedValidations[txid].validity) {
-                    if(txn.outputs.map(o => o.slpAmount).reduce((p, c) => p.plus(c), new BigNumber(0)).isGreaterThan(0)){
-                        console.log("NO INPUTS!", txid);
-                        process.exit();
-                    } else if(txn.outputs.map(o => o.slpAmount).reduce((p, c) => p.plus(c), new BigNumber(0)).isEqualTo(0)) {
-                        this._graphTxns.delete(txid); // here we prune any valid transactions which have 0 inputs and 0 outputs 
-                    }
-                }
-                txn.inputs.forEach(input => {
-                    let previd = input.txid;
-                    if(this._slpValidator.cachedValidations[previd] && this._slpValidator.cachedValidations[previd].validity && !txCache.has(previd)) {
-                        if(this._graphTxns.has(previd)) {
-                            txnsNew.set(previd, this._graphTxns.get(previd)!);
-                            txCache.add(previd);
-                        } else {
-                            console.log("MISSING TXN INPUT");
+                if(txn.details.transactionType !== SlpTransactionType.GENESIS) {
+                    if(txn.inputs.length === 0 && 
+                        txid !== this._tokenDetails.tokenIdHex && 
+                        this._slpValidator.cachedValidations[txid] && 
+                        this._slpValidator.cachedValidations[txid].validity) {
+                        if(txn.outputs.map(o => o.slpAmount).reduce((p, c) => p.plus(c), new BigNumber(0)).isGreaterThan(0)){
+                            console.log("NO INPUTS!", txid);
                             process.exit();
+                        } else if(txn.outputs.map(o => o.slpAmount).reduce((p, c) => p.plus(c), new BigNumber(0)).isEqualTo(0)) {
+                            this._graphTxns.delete(txid); // here we prune any valid transactions which have 0 inputs and 0 outputs 
                         }
                     }
-                })
+                    txn.inputs.forEach(input => {
+                        let previd = input.txid;
+                        if(this._slpValidator.cachedValidations[previd] && this._slpValidator.cachedValidations[previd].validity && !txCache.has(previd)) {
+                            if(this._graphTxns.has(previd)) {
+                                txnsNew.set(previd, this._graphTxns.get(previd)!);
+                                txCache.add(previd);
+                            } else {
+                                console.log("MISSING TXN INPUT");
+                                process.exit();
+                            }
+                        }
+                    })
+                }
             })
         }
 
