@@ -181,7 +181,7 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     //recursive method to do breadth-first run toward genesis adding each txn to cache, and populating depthMap
-    buildGraphStats(txns: Map<string, GraphTxn>, txCache: Set<string>, depthMap: {[key:string]: number }, depth=0, txCount=0) {
+    buildGraphStats(txns: Map<string, GraphTxn>, txCache: Set<string>, depthMap: {[key:string]: [number, number]}, depth=0, txCount=0) {
         let txnsNew = new Map<string, GraphTxn>();
         for(let i = 0; i < txns.size; i++) {
             txns.forEach((txn, txid) => {
@@ -215,12 +215,21 @@ export class SlpTokenGraph implements TokenGraph {
 
         if(txCache.size > 0)
             depth++;
+        
+        let txCounts = [...Object.keys(depthMap)].map(i => parseInt(i)).sort((a,b)=>a-b); // [1000, 2000, 3000, 4000, 5000] 
+        let increment = 1000;
+        if(txCounts.length === 0) {
+            depthMap[increment] = [0, 0];
+            txCounts = [ increment ];
+        } else if(txCache.size > txCounts[txCounts.length-1]) {
+            depthMap[txCounts[txCounts.length-1]+increment] = [0, 0];
+            txCounts = [...Object.keys(depthMap)].map(i => parseInt(i)).sort((a,b)=>a-b); 
+        }
 
-        let txCounts = [...Object.keys(depthMap)].map(i => parseInt(i)).sort((a,b)=>a-b); // [10, 50, 100, 200, 500, 1000, 2000] 
         let selectedTxnIndex = txCounts.filter(i => i >= txCache.size)[0]; 
         if(selectedTxnIndex) {
             txCounts.filter(i => i >= selectedTxnIndex).forEach(i => {
-                depthMap[i.toString()] = depth;
+                depthMap[i.toString()] = [depth, txCache.size];
             })
         }
 
@@ -372,7 +381,7 @@ export class SlpTokenGraph implements TokenGraph {
         // compute node's graph search stats once all inputs have been mapped
         if(!isParent && !graphTxn.stats) {
             console.time("GRAPH STATS");
-            let depthMap: {[key:string]: number } = { "10": 0, "50": 0, "100": 0, "200": 0, "500": 0, "1000": 0, "2000": 0 };
+            let depthMap: {[key:string]: [number, number] } = {};
             let init_cache = new Set<string>();
             let parentGraphTxns = new Map<string, GraphTxn>();
             for(let i = 0; i < graphTxn.inputs.length; i++) {
@@ -942,7 +951,7 @@ interface GraphTxnDetailsDbo {
     stats?: {                                  // temporarily allow undefined
         depth: number;
         txcount: number;
-        depthMap: {[key:string]: number}
+        depthMap: {[key:string]: [number, number]}
     }
 }
 
@@ -972,7 +981,7 @@ interface GraphTxn {
     stats?: {
         depth: number;
         txcount: number;
-        depthMap: {[key:string]: number}
+        depthMap: {[key:string]: [number, number]}
     }
 }
 
