@@ -58,7 +58,7 @@ export class SlpTokenGraph implements TokenGraph {
             } else {
                 let mints = await Query.getMintTransactions(tokenDetails.tokenIdHex);
                 if(mints && mints.length > 0)
-                    await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom({ txid: m.txid!, processUpToBlock: processUpToBlock }));
+                    await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom({ txid: m.txid!, processUpToBlock: processUpToBlock, isParent:true }));
             }
             await this.updateStatistics();
         }

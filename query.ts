@@ -430,6 +430,7 @@ export class Query {
             "q": {
                 "db": ["c","u"],
                 "find": { "out.h1": "534c5000", "out.s3": "MINT", "out.h4": tokenId }, 
+                "sort": {"blk.i": 1},
                 "limit": limit
             },
             "r": { "f": "[ .[] | { slp: .slp, txid: .tx.h, versionTypeHex: .out[0].h2, block: (if .blk? then .blk.i else null end), timestamp: (if .blk? then (.blk.t | strftime(\"%Y-%m-%d %H:%M:%S\")) else null end), batonHex: .out[0].h5, quantityHex: .out[0].h6 } ]" }
