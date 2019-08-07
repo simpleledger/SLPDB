@@ -575,6 +575,7 @@ export class SlpTokenGraph implements TokenGraph {
             else {
                 let minted = await this.getTotalMintQuantity();
                 let addressesTotal = this.getTotalHeldByAddresses()
+                this._tokenStats.block_created = await Query.queryTokenGenesisBlock(this._tokenDetails.tokenIdHex),
                 this._tokenStats.block_last_active_mint = await Query.blockLastMinted(this._tokenDetails.tokenIdHex),
                 this._tokenStats.block_last_active_send = await Query.blockLastSent(this._tokenDetails.tokenIdHex),
                 this._tokenStats.qty_valid_token_addresses = this._addresses.size;
