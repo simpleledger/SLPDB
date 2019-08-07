@@ -3,7 +3,7 @@
 # SLPDB Readme
 **Last Updated:** 2019-08-7
 
-**Current SLPDB Version:** 0.15.0 (beta)
+**Current SLPDB Version:** 0.15.1 (beta)
 
 * 1. [What is SLPDB?](#WhatisSLPDB)
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)
@@ -381,6 +381,9 @@ SLPDB will soon include a filtering configuration so that only user specified to
 We want to make SLPDB more easily forkable for other OP_RETURN projects which may be unrelated to SLP tokens.
 
 ## 9. <a name='ChangeLog'></a>Change Log
+
+* 0.15.1
+	* Fix issue with minting baton status update on initiating token from scratch
 
 * 0.15.0
 	* Add Graph Search metadata (see example queries above for search examples)
