@@ -1,9 +1,9 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-07-26
+**Last Updated:** 2019-08-7
 
-**Current SLPDB Version:** 0.14.1 (beta)
+**Current SLPDB Version:** 0.15.0 (beta)
 
 * 1. [What is SLPDB?](#WhatisSLPDB)
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)
@@ -384,9 +384,10 @@ We want to make SLPDB more easily forkable for other OP_RETURN projects which ma
 
 * 0.15.0
 	* Add Graph Search metadata (see example queries above for search examples)
-	* Start listen to blockchain updates before the startup process to improve data integrity
+	* Start listening to blockchain updates before the startup process for improved data integrity during long startup periods
 	* Fixed bug where not all inputs were showing up in graph transactions
-	* Removed getinfo RPC in favor of getBlockchainInfo
+	* Replaced getinfo RPC in favor of getBlockchainInfo
+	* Fixed issue with tokens collection items missing "block_created" data
 
 * 0.14.1
 	* Improved token burn detection after a new blocks is broadcast
