@@ -838,9 +838,14 @@ export class SlpTokenGraph implements TokenGraph {
         tg._tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
 
         // Map _txnGraph
-        tg._graphTxns = new Map<txid, GraphTxn>();
         dag.forEach((item, idx) => {
-            dag[idx].graphTxn.outputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)) 
+            dag[idx].graphTxn.outputs.map(o => {
+                if(o.address && o.address.includes("slptest")) {
+                    let decoded = cashaddr.decode(o.address);
+                    o.address = Utils.slpAddressFromHash160(decoded.hash, tg._network);
+                }
+                o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)
+            }) 
             dag[idx].graphTxn.inputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals))
 
             let gt: GraphTxn = {
