@@ -868,19 +868,13 @@ export class SlpTokenGraph implements TokenGraph {
             tg._slpValidator.cachedValidations[txid] = validation;
         });
 
-        // Map _addresses
-        tg._addresses = new Map<string, AddressBalance>();
-        addresses.forEach((item, idx) => {
-            if(item.address.includes("slptest")) {
-                let decoded = cashaddr.decode(item.address);
-                item.address = Utils.slpAddressFromHash160(decoded.hash, tg._network);
-            }
-            tg._addresses.set(item.address, {
-                satoshis_balance: addresses[idx].satoshis_balance, 
-                token_balance: (new BigNumber(addresses[idx].token_balance.toString())).multipliedBy(10**tg._tokenDetails.decimals)
-            });
-        });
-
+        // Map _addresses -- Can comment out since this is reconstructed in call to "updateStatistics()"
+        // addresses.forEach((item, idx) => {
+        //     tg._addresses.set(item.address, {
+        //         satoshis_balance: addresses[idx].satoshis_balance, 
+        //         token_balance: (new BigNumber(addresses[idx].token_balance.toString())).multipliedBy(10**tg._tokenDetails.decimals)
+        //     });
+        // });
 
         // Map _lastUpdatedBlock
         tg._lastUpdatedBlock = token.lastUpdatedBlock;
