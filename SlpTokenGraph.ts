@@ -41,6 +41,8 @@ export class SlpTokenGraph implements TokenGraph {
         this._rpcClient = new RpcClient();
         this._slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await this._rpcClient.getRawTransaction(txids[0]) ], console)
         this._graphUpdateQueue = new pQueue({ concurrency: 1, autoStart: false });
+        this._graphTxns = new Map<string, GraphTxn>();
+        this._addresses = new Map<cashAddr, AddressBalance>();
     }
 
     async initFromScratch({ tokenDetails, processUpToBlock }: { tokenDetails: SlpTransactionDetails; processUpToBlock?: number; }) {
@@ -50,8 +52,6 @@ export class SlpTokenGraph implements TokenGraph {
         this._tokenDetails = tokenDetails;
         this._tokenUtxos = new Set<string>();
         this._mintBatonUtxo = "";
-        this._graphTxns = new Map<string, GraphTxn>();
-        this._addresses = new Map<cashAddr, AddressBalance>();
 
         let valid = await this.updateTokenGraphFrom({ txid: tokenDetails.tokenIdHex, processUpToBlock: processUpToBlock });
         if(valid) {
