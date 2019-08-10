@@ -825,7 +825,7 @@ export class SlpTokenGraph implements TokenGraph {
         if(token.nftParentId)
             tg._nftParentId = token.nftParentId;
 
-        tg._network = (await tg._rpcClient.getBlockchainInfo()).chain === 'test' ? 'test': 'main';
+        tg._network = (await tg._rpcClient.getBlockchainInfo()).chain === 'test' ? 'testnet': 'mainnet';
 
         // Map _tokenDetails
         tg._tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
