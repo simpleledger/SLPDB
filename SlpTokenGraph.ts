@@ -859,6 +859,8 @@ export class SlpTokenGraph implements TokenGraph {
         // Map _addresses
         tg._addresses = new Map<string, AddressBalance>();
         addresses.forEach((item, idx) => {
+            let decoded = cashaddr.decode(item.address);
+            item.address = Utils.slpAddressFromHash160(decoded.hash, tg._network);
             tg._addresses.set(item.address, {
                 satoshis_balance: addresses[idx].satoshis_balance, 
                 token_balance: (new BigNumber(addresses[idx].token_balance.toString())).multipliedBy(10**tg._tokenDetails.decimals)
