@@ -12,6 +12,8 @@ import * as pQueue from 'p-queue';
 import { DefaultAddOptions } from 'p-queue';
 import { SlpGraphManager } from './SlpGraphManager';
 
+let cashaddr = require('cashaddrjs-slp');
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const bitbox = new BITBOX();
@@ -461,9 +463,14 @@ export class SlpTokenGraph implements TokenGraph {
                     if(!this._tokenUtxos.has(utxo))
                         return
                 }
-                let txnDetails = this._graphTxns.get(txid)!.details
+                let graph = this._graphTxns.get(txid)!
+                let txnDetails = graph.details;
                 let addr = txout.address;
                 let bal;
+                if(graph.outputs[vout-1].status !== TokenUtxoStatus.UNSPENT && graph.outputs[vout-1].status !== BatonUtxoStatus.BATON_UNSPENT) {
+                    console.log("UTXO is not unspent!");
+                    process.exit();
+                }
                 if(this._addresses.has(addr)) {
                     bal = this._addresses.get(addr)!
                     bal.satoshis_balance+=txout.bchSatoshis
@@ -859,8 +866,10 @@ export class SlpTokenGraph implements TokenGraph {
         // Map _addresses
         tg._addresses = new Map<string, AddressBalance>();
         addresses.forEach((item, idx) => {
-            let decoded = cashaddr.decode(item.address);
-            item.address = Utils.slpAddressFromHash160(decoded.hash, tg._network);
+            if(item.address.includes("slptest")) {
+                let decoded = cashaddr.decode(item.address);
+                item.address = Utils.slpAddressFromHash160(decoded.hash, tg._network);
+            }
             tg._addresses.set(item.address, {
                 satoshis_balance: addresses[idx].satoshis_balance, 
                 token_balance: (new BigNumber(addresses[idx].token_balance.toString())).multipliedBy(10**tg._tokenDetails.decimals)
