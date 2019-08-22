@@ -22,6 +22,10 @@ export class Config {
 		'port': process.env.rpc_port ? process.env.rpc_port : '8332',
 		'limit': Number.parseInt(process.env.rpc_limit ? process.env.rpc_limit : "150")
 	}
+	static grpc = {
+		url: process.env.grpc_url ? process.env.grpc_url : 'localhost:8335', 
+		certPath: process.env.grpc_certPath ? process.env.grpc_certPath : null
+	}
 	static db: DbConfig = {
 		name: process.env.db_name ? process.env.db_name : 'slpdb',
 		name_testnet: process.env.db_name ? process.env.db_name + "_test" : 'slpdb_testnet',

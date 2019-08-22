@@ -7,7 +7,7 @@ import { Query } from './query';
 import pLimit = require('p-limit');
 import * as pQueue from 'p-queue';
 import * as zmq from 'zeromq';
-import { BlockDetailsResult } from 'bitcoin-com-rest';
+import { BlockHeaderResult } from 'bitcoin-com-rest';
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { Slp, SlpTransactionType } from 'slpjs';
@@ -93,16 +93,6 @@ export class Bit {
                 console.log("[WARN] bitcoind sync status did not change, check your bitcoind network connection.");
             lastReportedSyncBlocks = syncdBlocks;
             await sleep(2000);
-        }
-    }
-
-    async requestblock(block_index: number): Promise<BlockDetailsResult> {
-        try {
-            let hash = await this.rpc.getBlockHash(block_index);
-            return <BlockDetailsResult>await this.rpc.getBlock(hash);
-        } catch(err) {
-            console.log('Check your JSON-RPC connection. Could not get block from full node rpc call.');
-            throw err;
         }
     }
     
@@ -192,18 +182,17 @@ export class Bit {
 
     async crawl(block_index: number, triggerSlpProcessing: boolean): Promise<CrawlResult|null> {
         let result = new Map<txid, CrawlTxnInfo>();
-        let block_content = await this.requestblock(block_index);
+        let block_content = await this.rpc.getBlockInfo({ index: block_index });
         let block_hash = block_content.hash;
         let block_time = block_content.time;
         
         if (block_content) {
-            let txs: string[] = block_content.tx;
-            console.log('[INFO] Crawling block', block_index, 'txs:', txs.length, 'hash:', block_hash);
+            console.log('[INFO] Crawling block', block_index, 'hash:', block_hash);
             let tasks: Promise<any>[] = [];
             const limit = pLimit(Config.rpc.limit);
             const self = this;
 
-            let blockHex = <string>await this.rpc.getBlock(block_content.hash, false);
+            let blockHex = <string>await this.rpc.getRawBlock(block_content.hash);
             let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
             for(let i=1; i < block.txs.length; i++) { // skip coinbase with i=1
                 let txnhex = block.txs[i].toRaw().toString('hex');
@@ -271,7 +260,7 @@ export class Bit {
                 }
             }
             let btxs = (await Promise.all(tasks)).filter(i => i);
-            console.log('[INFO] Block', block_index, 'processed :', txs.length, 'BCH txs |', btxs.length, 'SLP txs');
+            console.log('[INFO] Block', block_index, 'processed :', block.txs.length, 'BCH txs |', btxs.length, 'SLP txs');
             return result;
         } else {
             return null;
@@ -518,7 +507,7 @@ export class Bit {
             while (lastCheckedHash !== actualHash && lastCheckedHeight > from) {
                 await Info.updateBlockCheckpoint(lastCheckedHeight, null);
                 lastCheckedHash = await Info.getCheckpointHash(--lastCheckedHeight);
-                actualHash = (<BlockDetailsResult>await self.rpc.getBlock(actualHash)).previousblockhash;
+                actualHash = (<BlockHeaderResult>await self.rpc.getBlockInfo({hash: actualHash})).previousblockhash;
             }
             if(lastCheckpoint.hash !== lastCheckedHash)
                 await Info.updateBlockCheckpoint(lastCheckedHeight, lastCheckedHash);

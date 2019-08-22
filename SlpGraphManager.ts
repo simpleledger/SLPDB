@@ -18,7 +18,7 @@ const BufferReader = require('bufio/lib/reader');
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 import { RpcClient } from './rpc';
-import { BlockDetailsResult, VerboseRawTransactionResult } from "bitcoin-com-rest";
+import { BlockHeaderResult } from "bitcoin-com-rest";
 import SetList from "./SetList";
 
 const bitcoin = new BITBOX();
@@ -107,7 +107,7 @@ export class SlpGraphManager {
     }
 
     async simulateOnTransactionHash(txid: string) {
-        let txhex = <txhex>await this._rpcClient.getRawTransaction(txid, 0);
+        let txhex = <txhex>await this._rpcClient.getRawTransaction(txid);
         let txmap = new Map<txid, txhex>();
         txmap.set(txid, txhex);
         let content = new Map<SyncFilterTypes, Map<txid, txhex>>();
@@ -228,7 +228,7 @@ export class SlpGraphManager {
     }
 
     async searchBlockForBurnedSlpTxos(block_hash: string) {
-        let blockHex = <string>await this._rpcClient.getBlock(block_hash, false);
+        let blockHex = <string>await this._rpcClient.getRawBlock(block_hash);
         let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
         let graphPromises: Promise<void>[] = [];
         console.time("BlockSearchForBurn-"+block_hash);
@@ -292,10 +292,10 @@ export class SlpGraphManager {
                 // Here we fix missing block data
                 if(collection === 'confirmed' && !tna.blk) {
                     console.log("[INFO] Updating", collection, "TNATxn block data for", txid);
-                    let txn = <VerboseRawTransactionResult>await this._rpcClient.getTransaction(txid);
-                    let block = <BlockDetailsResult>await this._rpcClient.getBlock(txn.blockhash);
+                    let txnBlockhash = <string>await this._rpcClient.getTransactionBlockHash(txid);
+                    let block = <BlockHeaderResult>await this._rpcClient.getBlockInfo({ hash: txnBlockhash});
                     tna.blk = {
-                        h: txn.blockhash, 
+                        h: txnBlockhash, 
                         i: block.height, 
                         t: block.time
                     }
@@ -397,8 +397,8 @@ export class SlpGraphManager {
             }
         });
         if(count === 0) {
-            let transaction = <VerboseRawTransactionResult>await this._rpcClient.getTransaction(txid);
-            let blockindex = (<BlockDetailsResult>await this._rpcClient.getBlock(transaction.blockhash)).height;
+            let txbBlockHash = <string>await this._rpcClient.getTransactionBlockHash(txid);
+            let blockindex = (<BlockHeaderResult>await this._rpcClient.getBlockInfo({ hash: txbBlockHash})).height;
             Info.updateBlockCheckpoint(blockindex - 1, null);
             console.log("[ERROR] Transaction not found! Block checkpoint has been updated to ", (blockindex - 1))
             process.exit();
