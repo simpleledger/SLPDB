@@ -19,7 +19,7 @@ const daemon = {
         // test RPC connection
         console.log("[INFO] Testing RPC connection...");
         await rpc.getBlockCount();
-        console.log("[INFO] JSON-RPC is initialized.");
+        console.log("[INFO] RPC is initialized.");
 
         // set network
         await Info.setNetwork((await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet');

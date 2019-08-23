@@ -100,7 +100,7 @@ export class Bit {
         try{
             return await this.rpc.getBlockCount();
         } catch(err) {
-            console.log('Check your JSON-RPC connection. Could not get height from full node rpc call.')
+            console.log('Check your RPC connection. Could not get height from full node rpc call.')
             throw err;
         }
     }
