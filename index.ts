@@ -8,7 +8,7 @@ import { Db } from './db';
 import { SlpGraphManager } from './SlpGraphManager';
 
 import { RpcClient } from './rpc';
-const rpc = new RpcClient();
+const rpc = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
 
 const db = new Db();
 const bit = new Bit();
@@ -85,7 +85,7 @@ const daemon = {
 
 const util = {
     run: async function() {
-        const rpc = new RpcClient();
+        const rpc = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
         await db.init(rpc)
         let cmd = process.argv[2]
         if (cmd === 'fix') {
@@ -161,7 +161,7 @@ const util = {
     }
     //,
     //fix: async function(height: number) {
-        // const rpc = <BitcoinRpc.RpcClient>(new RpcClient(connectionString));
+        // const rpc = <BitcoinRpc.RpcClient>(new RpcClient({useGrpc: Boolean(Config.grpc.url) }));
         // await bit.init(db, rpc)
         // let tokenManager = new SlpGraphManager(db);
         // bit._zmqSubscribers.push(tokenManager);

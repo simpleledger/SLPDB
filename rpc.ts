@@ -1,25 +1,25 @@
 import { Config } from "./config";
-import { TxOutResult, BlockchainInfoResult, BlockDetailsResult, BlockHeaderResult } from "bitcoin-com-rest";
-import { GrpcClient, GetBlockFilterRequest, BlockInfo, GetUnspentOutputResponse } from "grpc-bchrpc-node";
+import { TxOutResult, BlockchainInfoResult, BlockHeaderResult } from "bitcoin-com-rest";
+import { GrpcClient, BlockInfo, GetUnspentOutputResponse } from "grpc-bchrpc-node";
 
 const _rpcClient = require('bitcoin-rpc-promise');
 const connectionString = 'http://' + Config.rpc.user + ':' + Config.rpc.pass + '@' + Config.rpc.host + ':' + Config.rpc.port
-const rpc = new _rpcClient(connectionString);
 
 let grpc: GrpcClient;
-if(Config.grpc.certPath)
-    grpc = new GrpcClient({ url: Config.grpc.url, rootCertPath: Config.grpc.certPath })
-else
-    grpc = new GrpcClient({ url: Config.grpc.url })
+let rpc: any;
 
 export class RpcClient {
-    useGrpc: any;
-
-    constructor(useGrpc?: boolean) {
+    useGrpc: boolean | undefined;
+    constructor({ useGrpc }: { useGrpc?: boolean }) {
         if(useGrpc) {
             this.useGrpc = useGrpc;
+                if(Boolean(Config.grpc.url) && Config.grpc.certPath)
+                    grpc = new GrpcClient({ url: Config.grpc.url, rootCertPath: Config.grpc.certPath })
+                else
+                    grpc = new GrpcClient({ url: Config.grpc.url })
+        } else {
+            rpc = new _rpcClient(connectionString);
         }
-        this.useGrpc = true;
     }
 
     async getBlockCount(): Promise<number> {

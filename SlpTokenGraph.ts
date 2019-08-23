@@ -38,7 +38,7 @@ export class SlpTokenGraph implements TokenGraph {
     constructor(db: Db, manager: SlpGraphManager) {
         this._db = db;
         this._manager = manager;
-        this._rpcClient = new RpcClient();
+        this._rpcClient = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
         this._slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await this._rpcClient.getRawTransaction(txids[0]) ], console)
         this._graphUpdateQueue = new pQueue({ concurrency: 1, autoStart: false });
         this._graphTxns = new Map<string, GraphTxn>();

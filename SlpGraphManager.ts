@@ -200,7 +200,7 @@ export class SlpGraphManager {
     constructor(db: Db) {
         this.db = db;
         this._tokens = new Map<string, SlpTokenGraph>();
-        this._rpcClient = new RpcClient();
+        this._rpcClient = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
     }
 
     async fixMissingTokenTimestamps() {
