@@ -14,6 +14,7 @@ import { Slp, SlpTransactionType } from 'slpjs';
 import { RpcClient } from './rpc';
 import SetList from './SetList';
 import { SlpGraphManager } from './SlpGraphManager';
+import { Notifications } from './notifications';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -58,9 +59,11 @@ export class Bit {
     _slpGraphManager!: SlpGraphManager;
     _zmqItemQueue: pQueue<pQueue.DefaultAddOptions>;
     network!: string;
+    notifications!: Notifications;
 
     constructor() { 
         this._zmqItemQueue = new pQueue({ concurrency: 1, autoStart: true });
+        this.outsock.bindSync('tcp://' + Config.zmq.outgoing.host + ':' + Config.zmq.outgoing.port);
     }
 
     slp_txn_filter(txnhex: string): boolean {
@@ -135,8 +138,6 @@ export class Bit {
         let tna = await this.db.unconfirmedFetch(txid);
         if(tna) {
             await this.db.unconfirmedDelete(txid);
-            //await this.db.confirmedReplace([ tna! ], true);
-            //await this._zmqSubscribers[0].updateTxnCollections(tna!.tx.h);
         }
     }
 
@@ -268,57 +269,58 @@ export class Bit {
     }
 
     listenToZmq() {
-        let sock = zmq.socket('sub');
-        sock.connect('tcp://' + Config.zmq.incoming.host + ':' + Config.zmq.incoming.port);
-        sock.subscribe('rawtx');
-        sock.subscribe('hashblock');
-
-        this.outsock.bindSync('tcp://' + Config.zmq.outgoing.host + ':' + Config.zmq.outgoing.port);
-        
         // Listen to ZMQ
         let sync = Bit.sync;
-        let self = this;
         this._slpGraphManager._TnaQueue = this._zmqItemQueue;
-        sock.on('message', async function(topic, message) {
-            if(['rawtx','hashblock'].includes(topic.toString())) {
-                //let rand = Math.floor(Math.random()*100000);
-                self._zmqItemQueue.add(async function() {
-                    //console.log("RUNNING QUEUE ITEM", rand)
-                    try {
-                        if (topic.toString() === 'rawtx') {
-                            let rawtx = message.toString('hex');
-                            let hash = Buffer.from(bitbox.Crypto.hash256(message).toJSON().data.reverse()).toString('hex');
-                            if((await self.handleMempoolTransaction(hash, rawtx)).added) {
-                                console.log('[ZMQ-SUB] New unconfirmed transaction added:', hash);
-                                let syncResult = await sync(self, 'mempool', hash);
-                                if(!self._slpGraphManager.zmqPubSocket)
-                                    self._slpGraphManager.zmqPubSocket = self.outsock;
-                                if(syncResult && self._slpGraphManager.onTransactionHash) {
-                                    self._slpGraphManager.onTransactionHash!(syncResult);
-                                }
-                            } else {
-                                console.log('[INFO] Transaction ignored:', hash);
-                            }
-                        } else if (topic.toString() === 'hashblock') {
-                            let hash = message.toString('hex');
-                            if(self.blockHashIgnoreSetList.has(hash)) {
-                                console.log('[ZMQ-SUB] Block message ignored:', hash);
-                                return;
-                            }
-                            self.blockHashIgnoreSetList.push(hash);   
-                            console.log('[ZMQ-SUB] New block found:', hash);
-                            await sync(self, 'block', hash);
-                            if(!self._slpGraphManager.zmqPubSocket)
-                                self._slpGraphManager.zmqPubSocket = self.outsock;
-                            if(self._slpGraphManager.onBlockHash)
-                                self._slpGraphManager.onBlockHash!(hash!);
-                        }
-                    } catch(err) {
-                        console.log(err);
-                        process.exit();
+        let self = this;
+        let onBlockHash = function(blockHash: Buffer) {
+            self._zmqItemQueue.add(async function() {
+                try {
+                    let hash = blockHash.toString('hex');
+                    if(self.blockHashIgnoreSetList.has(hash)) {
+                        console.log('[ZMQ-SUB] Block message ignored:', hash);
+                        return;
                     }
-                });
-            }
+                    self.blockHashIgnoreSetList.push(hash);   
+                    console.log('[ZMQ-SUB] New block found:', hash);
+                    await sync(self, 'block', hash);
+                    if(!self._slpGraphManager.zmqPubSocket)
+                        self._slpGraphManager.zmqPubSocket = self.outsock;
+                    if(self._slpGraphManager.onBlockHash)
+                        self._slpGraphManager.onBlockHash!(hash!);
+                } catch(err) {
+                    console.log(err);
+                    process.exit();
+                }
+            })
+        }
+
+        let onRawTxn = function(message: Buffer) {
+            self._zmqItemQueue.add(async function() {
+                try {
+                    let rawtx = message.toString('hex');
+                    let hash = Buffer.from(bitbox.Crypto.hash256(message).toJSON().data.reverse()).toString('hex');
+                    if((await self.handleMempoolTransaction(hash, rawtx)).added) {
+                        console.log('[ZMQ-SUB] New unconfirmed transaction added:', hash);
+                        let syncResult = await sync(self, 'mempool', hash);
+                        if(!self._slpGraphManager.zmqPubSocket)
+                            self._slpGraphManager.zmqPubSocket = self.outsock;
+                        if(syncResult && self._slpGraphManager.onTransactionHash) {
+                            self._slpGraphManager.onTransactionHash!(syncResult);
+                        }
+                    } else {
+                        console.log('[INFO] Transaction ignored:', hash);
+                    }
+                } catch(err) {
+                    console.log(err);
+                    process.exit();
+                }
+            })
+        }
+        this.notifications = new Notifications({ 
+            onRawTxnCb: onRawTxn, 
+            onBlockHashCb: onBlockHash, 
+            useGrpc: Boolean(Config.grpc.url) 
         })
 
         console.log('[INFO] Listening for blockchain events...');
