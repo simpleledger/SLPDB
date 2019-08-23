@@ -456,13 +456,18 @@ export class SlpTokenGraph implements TokenGraph {
         await this.asyncForEach(Array.from(this._tokenUtxos), async (utxo: string) => {
             let txid = utxo.split(':')[0];
             let vout = parseInt(utxo.split(':')[1]);
-            let txout = this._graphTxns.get(txid)!.outputs[vout-1]
+
+            let txout: GraphTxnOutput|undefined;
+            try {
+                txout = this._graphTxns.get(txid)!.outputs[vout-1]
+            } catch(_) {
+                await this.updateTokenGraphFrom({ txid })
+                if(!this._tokenUtxos.has(utxo))
+                    return
+                txout = this._graphTxns.get(txid)!.outputs[vout-1]
+            }
+            
             if(txout) {
-                if(!this._graphTxns.get(txid)) {
-                    await this.updateTokenGraphFrom({ txid })
-                    if(!this._tokenUtxos.has(utxo))
-                        return
-                }
                 let graph = this._graphTxns.get(txid)!
                 let txnDetails = graph.details;
                 let addr = txout.address;
