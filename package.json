@@ -39,7 +39,7 @@
     "cashaddrjs-slp": "^0.2.11",
     "dotenv": "^6.0.0",
     "fountainhead-core": "0.0.4",
-    "grpc-bchrpc-node": "0.6.1",
+    "grpc-bchrpc-node": "0.6.2",
     "iconv-lite": "^0.4.24",
     "ip": "^1.1.5",
     "level": "^5.0.1",
