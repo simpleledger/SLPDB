@@ -31,7 +31,7 @@ export class SlpTokenGraph implements TokenGraph {
     _rpcClient: RpcClient;
     _network!: string;
     _db: Db;
-    _waitingToUpdate: boolean = false;
+    _statsNeedUpdated = false;
     _graphUpdateQueue: pQueue<DefaultAddOptions>;
     _manager: SlpGraphManager;
 
@@ -40,9 +40,9 @@ export class SlpTokenGraph implements TokenGraph {
         this._manager = manager;
         this._rpcClient = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
         this._slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await this._rpcClient.getRawTransaction(txids[0]) ], console)
-        this._graphUpdateQueue = new pQueue({ concurrency: 1, autoStart: false });
         this._graphTxns = new Map<string, GraphTxn>();
         this._addresses = new Map<cashAddr, AddressBalance>();
+        this._graphUpdateQueue = new pQueue({ concurrency: 1, autoStart: false });
     }
 
     async initFromScratch({ tokenDetails, processUpToBlock }: { tokenDetails: SlpTransactionDetails; processUpToBlock?: number; }) {
@@ -601,12 +601,41 @@ export class SlpTokenGraph implements TokenGraph {
             }
 
             if(this._tokenStats.qty_token_circulating_supply.isGreaterThan(this._tokenStats.qty_token_minted)) {
-                console.log("[ERROR] Cannot have circulating supply larger than mint quantity.");
-                console.log("[INFO] Statistics will be recomputed after transaction queue is cleared.");
+                console.log("[ERROR] Cannot have circulating supply larger than total minted quantity.");
+                console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
+                if(!this._statsNeedUpdated) {
+                    this._statsNeedUpdated = true;
+                    let self = this;
+                    (async function() {
+                        await self._graphUpdateQueue.onIdle();
+                        if(self._statsNeedUpdated) {
+                            console.log("[INFO] Rerunning update statistics (caused by circ_supply_qty > mint_qty)")
+                            await self.updateStatistics();
+                        }
+                    })();
+                }
+                return;
+            } else {
+                this._statsNeedUpdated = false;
             }
 
             if(!this._tokenStats.qty_token_circulating_supply.isEqualTo(this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_burned))) {
                 console.log("[WARN] Circulating supply minus burn quantity does not equal minted quantity");
+                console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
+                if(!this._statsNeedUpdated) {
+                    this._statsNeedUpdated = true;
+                    let self = this;
+                    (async function() {
+                        await self._graphUpdateQueue.onIdle();
+                        if(self._statsNeedUpdated) {
+                            console.log("[INFO] Rerunning update statistics (caused by mint_qty - burn_qty !== circulating_supply)")
+                            await self.updateStatistics();
+                        }
+                    })();
+                }
+                return;
+            } else {
+                this._statsNeedUpdated = false;
             }
 
             await this._db.tokenInsertReplace(this.toTokenDbObject());
