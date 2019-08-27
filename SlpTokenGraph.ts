@@ -38,7 +38,7 @@ export class SlpTokenGraph implements TokenGraph {
     constructor(db: Db, manager: SlpGraphManager) {
         this._db = db;
         this._manager = manager;
-        this._rpcClient = new RpcClient();
+        this._rpcClient = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
         this._slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await this._rpcClient.getRawTransaction(txids[0]) ], console)
         this._graphUpdateQueue = new pQueue({ concurrency: 1, autoStart: false });
         this._graphTxns = new Map<string, GraphTxn>();
@@ -93,7 +93,7 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async getMintBatonSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number; processUpTo?: number }): Promise<MintSpendDetails> {
-        let txOut = await this._rpcClient.getTxOut(txid, vout, true);
+        let txOut = await this._rpcClient.getTxOut(txid, vout);
         if(txOut === null) {
             this._mintBatonUtxo = "";
             try {
@@ -129,7 +129,7 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async getSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number; processUpTo?: number; }): Promise<SpendDetails> {
-        let txOut = await this._rpcClient.getTxOut(txid, vout, true);
+        let txOut = await this._rpcClient.getTxOut(txid, vout);
         if(txOut === null) {
             this._tokenUtxos.delete(txid + ":" + vout);
             try {
@@ -556,11 +556,11 @@ export class SlpTokenGraph implements TokenGraph {
         let vout = parseInt(txo.split(":")[1]);
         let txout = null;
         try {
-            txout = <TxOutResult>(await this._rpcClient.getTxOut(txid, vout, true))
+            txout = await this._rpcClient.getTxOut(txid, vout);
         } catch(_) { }
         if(!txout) {
             console.log("[INFO] updateTxoIfSpent(): Updating token graph for TXO",txo);
-            await this.queueTokenGraphUpdateFrom({ txid, isParent:true });
+            await this.queueTokenGraphUpdateFrom({ txid, isParent: true });
         }
     }
 
