@@ -361,10 +361,12 @@ export class SlpTokenGraph implements TokenGraph {
                 if(!this._slpValidator.cachedValidations[previd]) {
                     await this._slpValidator.isValidSlpTxid(previd, this._tokenDetails.tokenIdHex);
                 }
-                if(this._slpValidator.cachedValidations[previd] && this._slpValidator.cachedValidations[previd].validity) {
+                if(this._slpValidator.cachedValidations[previd] && 
+                    this._slpValidator.cachedValidations[previd].validity && 
+                    this._slpValidator.cachedValidations[previd].details!.tokenIdHex === this._tokenDetails.tokenIdHex) {
                     if(!this._graphTxns.has(previd)) {
                         await this.updateTokenGraphFrom({ txid: previd, isParent: true, updateOutputs: false });
-                    } 
+                    }
                     let input = this._graphTxns.get(i.prevTxId.toString('hex'))!
                     let o = input.outputs.find(o => o.vout === i.outputIndex);
                     if(o) {
