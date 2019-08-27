@@ -566,10 +566,16 @@ export class SlpGraphManager {
         let graph = new SlpTokenGraph(this.db, this);
         let txn = <string>await this._rpcClient.getRawTransaction(tokenId);
         let tokenDetails = this.parseTokenTransactionDetails(txn);
+
         if(tokenDetails) {
             console.log("########################################################################################################");
             console.log("NEW GRAPH FOR", tokenId);
             console.log("########################################################################################################");
+            
+            // add timestamp if token is already confirmed
+            let timestamp = await Query.getConfirmedTxnTimestamp(tokenId);
+            tokenDetails.timestamp = timestamp ? timestamp : undefined;
+            
             await graph.initFromScratch({ tokenDetails, processUpToBlock });
             await this.setAndSaveTokenGraph(graph);
             await this.updateTxnCollectionsForTokenId(tokenId);
