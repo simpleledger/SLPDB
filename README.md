@@ -12,9 +12,10 @@
 * 4. [Installation Instructions](#InstallationInstructions)
 	* 4.1. [Prerequisites](#Prerequisites)
 	* 4.2. [Full Node Settings for `bitcoin.conf`](#FullNodeSettingsforbitcoin.conf)
-	* 4.3. [Testnet Support](#TestnetSupport)
-	* 4.4. [Running SLPDB](#RunningSLPDB)
-	* 4.5. [Updating SLPDB](#UpdatingSLPDB)
+    * 4.3  [BCHD & gRPC Support](#BCHDgRPCSupport)
+	* 4.4. [Testnet Support](#TestnetSupport)
+	* 4.5. [Running SLPDB](#RunningSLPDB)
+	* 4.6. [Updating SLPDB](#UpdatingSLPDB)
 * 5. [Token Stats](#TokenStats)
 	* 5.1. [Supply Stats](#SupplyStats)
 	* 5.2. [Summarized Usage Stats](#SummarizedUsageStats)
@@ -105,7 +106,11 @@ The following settings should be applied to your full node's configuration.  NOT
 * `zmqpubrawblock=tcp://127.0.0.1:28332`
 * Optional: `testnet=1`
 
-###  4.3. <a name='TestnetSupport'></a>Testnet Support
+###  4.3. <a name='BCHDgRPCSupport'></a>BCHD & gRPC Support
+
+High speed gRPC is supported with BCHD full nodes in place of JSON RPC and incomming ZMQ notifications.  To enable, add the environment variables `grpc_url` and `grpc_certPath`.  See the `example.env` file in this project and the [BCHD documentation](https://github.com/gcash/bchd/tree/master/docs) for more details.
+
+###  4.4. <a name='TestnetSupport'></a>Testnet Support
 
 To use SLPDB with Testnet simply set your full node to the testnet network (e.g., set `testnet=1` within `bitcoin.conf`) and SLPDB will automatically instantiate using proper databases names according to the network.  For informational purposes the database names are as follows:
 * **Mainnet**
@@ -115,7 +120,7 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
   * Mongo db name = `slpdb_testnet`
   * Testnet diectory = `./_leveldb_testnet`
 
-###  4.4. <a name='RunningSLPDB'></a>Running SLPDB
+###  4.5. <a name='RunningSLPDB'></a>Running SLPDB
 
 **1)** Run MongoDB (`config.ts` default port is 27017)
 
@@ -133,7 +138,7 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 
 **5)** Install and run [slpserve](https://github.com/fountainhead-cash/slpserve) and/or [slpsocket](https://github.com/simpleledger/sockserve) to access SLP token data and statistics
 
-###  4.5. <a name='UpdatingSLPDB'></a>Updating SLPDB
+###  4.6. <a name='UpdatingSLPDB'></a>Updating SLPDB
 
 **1)** Execute `git pull origin master` to update to latest version.
 
