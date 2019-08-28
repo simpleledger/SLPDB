@@ -308,11 +308,11 @@ export class SlpGraphManager {
                 // Here we fix missing slp data (should only happen after block sync on startup)
                 if(!tna.slp)
                     tna.slp = {} as TNATxnSlpDetails;
-                if(tna.slp && (tna.slp.schema_version !== Config.db.token_schema_version || !tna.slp.valid)) {
+                if(tna.slp.schema_version !== Config.db.token_schema_version || !tna.slp.valid) {
                     console.log("[INFO] Updating", collection, "TNATxn SLP data for", txid);
                     let isValid: boolean|null = null;
                     let details: SlpTransactionDetailsTnaDbo|null = null;
-                    let invalidReason: string|null = null;
+                    let invalidReason: string|null = "SLP transaction not in any graph, transaction may have invalid inputs or SLPDB is still syncing.";
                     let tokenDetails: SlpTransactionDetails|null = null;
 
                     if(!tokenId) {
@@ -326,10 +326,8 @@ export class SlpGraphManager {
                         }
                         if(tokenDetails) {
                             try {
-                                if(tokenDetails.transactionType === SlpTransactionType.GENESIS || tokenDetails.transactionType === SlpTransactionType.MINT)
+                                if([SlpTransactionType.GENESIS, SlpTransactionType.MINT, SlpTransactionType.SEND].includes(tokenDetails.transactionType))
                                     tokenId = tokenDetails.tokenIdHex;
-                                else if(tokenDetails.transactionType !== SlpTransactionType.SEND)
-                                    tokenId = tna.tx.h;
                                 else
                                     throw Error("updateTxnCollections: Unknown SLP transaction type")
                             } catch(err) {
@@ -381,8 +379,6 @@ export class SlpGraphManager {
                         }
                     } else if(tokenId) {
                         isValid = false;
-                        details = null;
-                        invalidReason = "TokenId specified is not valid.";
                     }
 
                     tna.slp.valid = isValid;
