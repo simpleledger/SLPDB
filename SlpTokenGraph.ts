@@ -832,6 +832,11 @@ export class SlpTokenGraph implements TokenGraph {
         return null;
     }
 
+    static FormatUnixToDateString(unix_time: number): string {
+        var date = new Date(unix_time*1000);
+        return date.toISOString().replace("T", " ").replace(".000Z", "")
+    }
+
     static MapDbTokenDetailsFromDbo(details: SlpTransactionDetailsDbo, decimals: number): SlpTransactionDetails {
 
         let genesisMintQty = new BigNumber(0);

@@ -20,30 +20,6 @@ export class Query {
         return Query.dbQuery;
     }
 
-    static async getNullTokenGenesisTimestamps(): Promise<string[]|null> {
-        console.log("[Query] getNullTokenGenesisTimestamps()")
-        let limit = 100000;
-        let q = {
-            "v": 3,
-            "q": {
-                "db": "t",
-                "find": { "tokenDetails.timestamp": null, "tokenDetails.timestamp_unix": null },
-                "limit": limit, 
-                "project": { "tokenDetails.tokenIdHex": 1 }
-            },
-            "r": { "f": "[ .[] | { txid: .tokenDetails.tokenIdHex } ]" }
-        }
-
-        let res: TokenCollectionQueryResponse = await this.dbQuery.read(q);
-        if(res.t.length === 0)
-            return null;
-        let response: { txid: string }[] = [].concat(<any>res.t);
-        let a = response.map((r: { txid: string }) => { return r.txid }) as string[];
-        if(a.length === limit)
-            throw Error("Query limit is reached, implementation error");
-        return a;
-    }
-
     static async getConfirmedTxnTimestamp(txid: string): Promise<string|null> {
         console.log("[Query] getConfirmedTxnTimestamp()")
         let q = {
@@ -222,12 +198,35 @@ export class Query {
         return tokens.length > 0 ? tokens : null;
     }
 
+    static async queryForConfirmedTokensMissingTimestamps(): Promise<{txid: string, blk: any }[]|null> {
+        console.log("[Query] queryForConfirmedTokensMissingTimestamps()");
+        let q = {
+            "v": 3,
+            "q": {
+                "db": ["t"],
+                "aggregate": [
+                    { "$match": { "$or": [{ "tokenStats.block_created": null }, { "tokenDetails.timestamp": null }]} }, 
+                    { "$project": { "txid": "$tokenDetails.tokenIdHex", "_id": 0 }},
+                    { "$lookup": { "from": "confirmed", "localField": "txid", "foreignField": "tx.h", "as": "txn" }},
+                    { "$project": { "txid": "$txn.tx.h", "blk": "$txn.blk" }}, 
+                    { "$unwind": "$txid" },
+                    { "$unwind": "$blk" }
+                ],
+                "limit": 10000
+            }
+        }
+
+        let res: any = await this.dbQuery.read(q);
+        let tokens: {txid: string, blk: object }[] = [].concat(res.t);
+        return tokens.length > 0 ? tokens : null;
+    }
+
     static async queryTokenGenesisBlock(tokenIdHex: string): Promise<number|null> {
         console.log("[Query] queryTokenGenesisBlock(" + tokenIdHex + ")");
         let q = {
             "v": 3,
             "q": {
-                "db": ["c","u"],
+                "db": ["c"],
                 "find": { "tx.h": tokenIdHex, "out.h1": "534c5000", "out.s3": "GENESIS" },
                 "limit": 1
             },
