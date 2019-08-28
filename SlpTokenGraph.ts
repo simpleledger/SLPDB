@@ -183,7 +183,7 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     //recursive method to do breadth-first run toward genesis adding each txn to cache, and populating depthMap
-    buildGraphStats(txns: Map<string, GraphTxn>, txCache: Set<string>, depthMap: {[key:string]: [number, number]}, depth=0, txCount=0) {
+    buildGraphStats(txns: Map<string, GraphTxn>, txCache: Set<string>, depthMap: {[key:string]: [number, number]}, depth=0, txCount=0): number {
         let txnsNew = new Map<string, GraphTxn>();
         for(let i = 0; i < txns.size; i++) {
             txns.forEach((txn, txid) => {
@@ -192,9 +192,11 @@ export class SlpTokenGraph implements TokenGraph {
                         txid !== this._tokenDetails.tokenIdHex && 
                         this._slpValidator.cachedValidations[txid] && 
                         this._slpValidator.cachedValidations[txid].validity) {
-                        if(txn.outputs.map(o => o.slpAmount).reduce((p, c) => p.plus(c), new BigNumber(0)).isGreaterThan(0)){
-                            console.log("NO INPUTS!", txid);
-                            process.exit();
+                        if(txn.outputs.map(o => o.slpAmount).reduce((p, c) => p.plus(c), new BigNumber(0)).isGreaterThan(0)) {
+                            // NO INPUTS!
+                            depthMap = {};
+                            txCache.clear();
+                            return -1
                         } else if(txn.outputs.map(o => o.slpAmount).reduce((p, c) => p.plus(c), new BigNumber(0)).isEqualTo(0)) {
                             this._graphTxns.delete(txid); // here we prune any valid transactions which have 0 inputs and 0 outputs 
                         }
@@ -206,8 +208,10 @@ export class SlpTokenGraph implements TokenGraph {
                                 txnsNew.set(previd, this._graphTxns.get(previd)!);
                                 txCache.add(previd);
                             } else {
-                                console.log("MISSING TXN INPUT");
-                                process.exit();
+                                // MISSING TXN INPUT!
+                                depthMap = {};
+                                txCache.clear();
+                                return -1
                             }
                         }
                     })
