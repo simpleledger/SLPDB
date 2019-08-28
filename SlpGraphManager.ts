@@ -93,17 +93,17 @@ export class SlpGraphManager {
                 }
 
                 // Based on the spent inputs, look for associated tokenIDs of those inputs and update those token graphs also
-                let inputTokenIds: string[] = [];
-                for(let i = 0; i < txn.inputs.length; i++) {
-                    let inputTokenId = await Query.queryForTxnTokenId(txn.inputs[i].prevTxId.toString('hex'));
-                    if(inputTokenId && inputTokenId !== tokenId && this._tokens.has(inputTokenId) && !inputTokenIds.includes(inputTokenId)) {
-                        inputTokenIds.push(inputTokenId);
-                        this._tokens.get(inputTokenId)!.queueTokenGraphUpdateFrom({txid: txn.inputs[i].prevTxId.toString('hex'), isParent: true});
-                    }
-                    else {
-                        console.log("[INFO] SLP txn input:", i, "does not need updated for txid:", txPair[0]);
-                    }
-                }
+                // let inputTokenIds: string[] = [];
+                // for(let i = 0; i < txn.inputs.length; i++) {
+                //     let inputTokenId = await Query.queryForTxnTokenId(txn.inputs[i].prevTxId.toString('hex'));
+                //     if(inputTokenId && inputTokenId !== tokenId && this._tokens.has(inputTokenId) && !inputTokenIds.includes(inputTokenId)) {
+                //         inputTokenIds.push(inputTokenId);
+                //         this._tokens.get(inputTokenId)!.queueTokenGraphUpdateFrom({txid: txn.inputs[i].prevTxId.toString('hex'), isParent: true});
+                //     }
+                //     else {
+                //         console.log("[INFO] SLP txn input:", i, "does not need updated for txid:", txPair[0]);
+                //     }
+                // }
             })
         }
     }

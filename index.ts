@@ -67,19 +67,9 @@ const daemon = {
         await bit.checkForMissingMempoolTxns(undefined, true);
 
         await tokenManager.initAllTokens({ reprocessFrom });
-        await bit.handleConfirmedTxnsMissingSlpMetadata();
         await tokenManager.fixMissingTokenTimestamps();
-        await tokenManager.searchForNonSlpBurnTransactions();
-
-        // Every minute - Check mempool transactions - ZMQ failsafe
-        setInterval(async function() {
-            await bit.checkForMissingMempoolTxns();
-        }, 60000);
-
-        // Every minute - Check ZMQ block count - ZMQ failsafe
-        // setInterval(async function() {
-        //     await bit.checkCurrentBlockHeight();
-        // }, 60000);
+        await bit.handleConfirmedTxnsMissingSlpMetadata();
+        //await tokenManager.searchForNonSlpBurnTransactions();
     }
 }
 
