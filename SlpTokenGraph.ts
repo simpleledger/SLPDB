@@ -241,7 +241,7 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
         if(txnsNew.size > 0) {
-            if(txCache.size % 1000 === 0) {
+            if(txCache.size % 500 === 0) {
                 let self = this;
                 setTimeout(function() {
                     depth = self.buildGraphStats(txnsNew, txCache, depthMap, depth, txCount);
