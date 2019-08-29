@@ -395,11 +395,18 @@ export class SlpGraphManager {
             }
         });
         if(count === 0) {
-            let txbBlockHash = <string>await this._rpcClient.getTransactionBlockHash(txid);
-            let blockindex = (<BlockHeaderResult>await this._rpcClient.getBlockInfo({ hash: txbBlockHash})).height;
-            Info.updateBlockCheckpoint(blockindex - 1, null);
-            console.log("[ERROR] Transaction not found! Block checkpoint has been updated to ", (blockindex - 1))
-            process.exit();
+            try {
+                if(tokenId) {
+                    let token = this._tokens.get(tokenId);
+                    if(token)
+                        token._graphTxns.delete(txid);
+                }
+            } catch(err) {
+                console.log(err);
+            }
+            let checkpoint = await Info.getBlockCheckpoint();
+            Info.updateBlockCheckpoint(checkpoint.height - 1, checkpoint.hash);
+            console.log("[ERROR] Transaction not found! Block checkpoint has been updated to ", (checkpoint.height - 1), checkpoint.hash)
         }
     }
 
@@ -515,8 +522,8 @@ export class SlpGraphManager {
             } else {
                 console.log("[WARN] Token's graph loaded using allowGraphUpdates=false.");
             }
-            await this.setAndSaveTokenGraph(graph);
             await this.updateTxnCollectionsForTokenId(token.tokenIdHex);
+            await this.setAndSaveTokenGraph(graph);
         }
         catch (err) {
             if (err.message.includes(throwMsg1) || err.message.includes(throwMsg2) || err.message.includes(throwMsg3) || err.message.includes(throwMsg4)) {
