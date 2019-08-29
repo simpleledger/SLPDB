@@ -324,7 +324,7 @@ export class Bit {
         console.log('[INFO] Listening for blockchain events...');
     }
 
-    // This method should only be used after initial startup phase is done building Token Graphs, to clean up unused / invalid SLP txns
+    // This method is called at the end of processing each block
     async handleConfirmedTxnsMissingSlpMetadata() {
         let missing = await Query.queryForConfirmedMissingSlpMetadata();
         if(missing) {

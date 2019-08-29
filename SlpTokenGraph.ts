@@ -4,7 +4,6 @@ import { BITBOX } from 'bitbox-sdk';
 import { Config } from './config';
 import * as bitcore from 'bitcore-lib-cash';
 import { SendTxnQueryResult, MintQueryResult, Query, MintTxnQueryResult } from './query';
-import { TxOutResult } from 'bitcoin-com-rest';
 import { Decimal128 } from 'mongodb';
 import { Db } from './db';
 import { RpcClient } from './rpc';
@@ -358,7 +357,7 @@ export class SlpTokenGraph implements TokenGraph {
             }
         }
 
-        // Add contributing SLP inputs
+        // Add contributing SLP inputs - do not use !isParent here to support Graph Search
         if(graphTxn.inputs.length === 0) {
             await this.asyncForEach(txn.inputs, async (i: bitcore.TxnInput) => {
                 let previd = i.prevTxId.toString('hex');
@@ -422,7 +421,7 @@ export class SlpTokenGraph implements TokenGraph {
             graphTxn.stats = { depth: -2, txcount: 0, depthMap: {} }
         }
         
-        // update the status of each input txn's UTXO parents
+        // update the status of each input txn's outputs
         if(!isParent) {
             let parentIds = new Set<string>([...txn.inputs.map(i => i.prevTxId.toString('hex'))])
             await this.asyncForEach(Array.from(parentIds), async (txid: string) => {
@@ -617,39 +616,39 @@ export class SlpTokenGraph implements TokenGraph {
             if(this._tokenStats.qty_token_circulating_supply.isGreaterThan(this._tokenStats.qty_token_minted)) {
                 console.log("[ERROR] Cannot have circulating supply larger than total minted quantity.");
                 console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
-                if(!this._statsNeedUpdated) {
-                    this._statsNeedUpdated = true;
-                    let self = this;
-                    (async function() {
-                        await self._graphUpdateQueue.onIdle();
-                        if(self._statsNeedUpdated) {
-                            console.log("[INFO] Rerunning update statistics (caused by circ_supply_qty > mint_qty)")
-                            await self.updateStatistics();
-                        }
-                    })();
-                }
-                return;
+                // if(!this._statsNeedUpdated) {
+                //     this._statsNeedUpdated = true;
+                //     let self = this;
+                //     (async function() {
+                //         await self._graphUpdateQueue.onIdle();
+                //         if(self._statsNeedUpdated) {
+                //             console.log("[INFO] Rerunning update statistics (caused by circ_supply_qty > mint_qty)")
+                //             await self.updateStatistics();
+                //         }
+                //     })();
+                // }
+                // return;
             } else {
-                this._statsNeedUpdated = false;
+                //this._statsNeedUpdated = false;
             }
 
             if(!this._tokenStats.qty_token_circulating_supply.isEqualTo(this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_burned))) {
                 console.log("[WARN] Circulating supply minus burn quantity does not equal minted quantity");
                 console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
-                if(!this._statsNeedUpdated) {
-                    this._statsNeedUpdated = true;
-                    let self = this;
-                    (async function() {
-                        await self._graphUpdateQueue.onIdle();
-                        if(self._statsNeedUpdated) {
-                            console.log("[INFO] Rerunning update statistics (caused by mint_qty - burn_qty !== circulating_supply)")
-                            await self.updateStatistics();
-                        }
-                    })();
-                }
-                return;
+                // if(!this._statsNeedUpdated) {
+                //     this._statsNeedUpdated = true;
+                //     let self = this;
+                //     (async function() {
+                //         await self._graphUpdateQueue.onIdle();
+                //         if(self._statsNeedUpdated) {
+                //             console.log("[INFO] Rerunning update statistics (caused by mint_qty - burn_qty !== circulating_supply)")
+                //             await self.updateStatistics();
+                //         }
+                //     })();
+                // }
+                // return;
             } else {
-                this._statsNeedUpdated = false;
+                //this._statsNeedUpdated = false;
             }
 
             await this._db.tokenInsertReplace(this.toTokenDbObject());
