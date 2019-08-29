@@ -84,7 +84,7 @@ The services `SlpServe` and `SlpSockServer` return query results as a JSON objec
 ##  4. <a name='InstallationInstructions'></a>Installation Instructions
 
 ###  4.1. <a name='Prerequisites'></a>Prerequisites
-* Node.js 8.15+
+* Node.js 11+
 * TypeScript 3+ (`npm install -g typescript`)
 * MongoDB 4.0+
 * BitcoinABC, BitcoinUnlimited or other Bitcoin Cash full node with:
