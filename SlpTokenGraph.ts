@@ -94,7 +94,8 @@ export class SlpTokenGraph implements TokenGraph {
     async getMintBatonSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number; processUpTo?: number }): Promise<MintSpendDetails> {
         let txOut = await this._rpcClient.getTxOut(txid, vout);
         if(txOut === null) {
-            this._mintBatonUtxo = "";
+            if(this._mintBatonUtxo === txid + ":" + vout)
+                this._mintBatonUtxo = "";
             try {
                 let spendTxnInfo = await Query.queryForTxoInputAsSlpMint(txid, vout);
                 if(!spendTxnInfo) {
@@ -197,7 +198,8 @@ export class SlpTokenGraph implements TokenGraph {
                             txCache.clear();
                             return -1
                         } else if(txn.outputs.map(o => o.slpAmount).reduce((p, c) => p.plus(c), new BigNumber(0)).isEqualTo(0)) {
-                            this._graphTxns.delete(txid); // here we prune any valid transactions which have 0 inputs and 0 outputs 
+                            if(txn.details.transactionType !== SlpTransactionType.MINT)
+                                this._graphTxns.delete(txid); // here we prune any valid transactions which have 0 inputs and 0 outputs, don't prune MINT 
                         }
                     }
                     txn.inputs.forEach(input => {
