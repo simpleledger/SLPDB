@@ -96,12 +96,14 @@ export class RpcClient {
               }
         }
 
-        if(index)
+        if(index) {
+            console.log("[INFO] JSON RPC: getBlockInfo/getBlockHash", index);
             hash = await rpc.getBlockHash(index);
+        }
         else if(!hash)
             throw Error("No index or hash provided for block")
 
-        console.log("[INFO] JSON RPC: getBlock", hash, true);
+        console.log("[INFO] JSON RPC: getBlockInfo/getBlockHeader", hash, true);
         return <BlockHeaderResult>await rpc.getBlockHeader(hash);
     }
 
