@@ -312,7 +312,7 @@ export class SlpGraphManager {
                     console.log("[INFO] Updating", collection, "TNATxn SLP data for", txid);
                     let isValid: boolean|null = null;
                     let details: SlpTransactionDetailsTnaDbo|null = null;
-                    let invalidReason: string|null = "SLP transaction not in any graph, transaction may have invalid inputs or SLPDB is still syncing.";
+                    let invalidReason: string|null = null;
                     let tokenDetails: SlpTransactionDetails|null = null;
 
                     if(!tokenId) {
@@ -325,15 +325,13 @@ export class SlpGraphManager {
                             invalidReason = "SLP Parsing Error: " + err.message;
                         }
                         if(tokenDetails) {
-                            try {
-                                if([SlpTransactionType.GENESIS, SlpTransactionType.MINT, SlpTransactionType.SEND].includes(tokenDetails.transactionType))
-                                    tokenId = tokenDetails.tokenIdHex;
-                                else
-                                    throw Error("updateTxnCollections: Unknown SLP transaction type")
-                            } catch(err) {
-                                console.log("[ERROR] updateTxnCollections(): Failed to get tokenId");
-                                console.log(err.message);
-                                process.exit()
+                            if([SlpTransactionType.MINT, SlpTransactionType.SEND].includes(tokenDetails.transactionType))
+                                tokenId = tokenDetails.tokenIdHex;
+                            else if(tokenDetails.transactionType === SlpTransactionType.GENESIS)
+                                tokenId = txid;
+                            else {
+                                isValid = null;
+                                invalidReason = "Unable to set token ID";
                             }
                         }
                     }
@@ -378,7 +376,7 @@ export class SlpGraphManager {
                             process.exit();
                         }
                     } else if(tokenId) {
-                        isValid = false;
+                        invalidReason = 'Token ID is not being tracked. SLPDB may be still syncing or is not following this token.';
                     }
 
                     tna.slp.valid = isValid;
