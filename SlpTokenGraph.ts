@@ -183,7 +183,7 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     //recursive method to do breadth-first run toward genesis adding each txn to cache, and populating depthMap
-    buildGraphStats(txns: Map<string, GraphTxn>, txCache: Set<string>, depthMap: {[key:string]: [number, number]}, depth=0, txCount=0): number {
+    buildGraphStats(txns: Map<string, GraphTxn>, txCache: Set<string>, depthMap: {[key:string]: [number, number]}, depth=0): number {
         let txnsNew = new Map<string, GraphTxn>();
         for(let i = 0; i < txns.size; i++) {
             txns.forEach((txn, txid) => {
@@ -241,13 +241,14 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
         if(txnsNew.size > 0) {
-            if(txCache.size % 500 === 0) {
+            if(depth % 1000 === 0) {
                 let self = this;
                 setTimeout(function() {
-                    depth = self.buildGraphStats(txnsNew, txCache, depthMap, depth, txCount);
+                    depth = self.buildGraphStats(txnsNew, txCache, depthMap, depth);
                 }, 0)
+            } else {
+                depth = this.buildGraphStats(txnsNew, txCache, depthMap, depth);
             }
-            depth = this.buildGraphStats(txnsNew, txCache, depthMap, depth, txCount);
         }
         return depth;
     }
@@ -392,9 +393,11 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
         // compute node's graph search stats once all inputs have been mapped
+        let uid = (Math.random() * 100000).toFixed(0);
         try {
             if(!isParent && !graphTxn.stats) {
-                console.time("GRAPH STATS");
+                
+                console.time("GRAPH STATS " + uid);
                 let depthMap: {[key:string]: [number, number] } = {};
                 let init_cache = new Set<string>();
                 let parentGraphTxns = new Map<string, GraphTxn>();
@@ -419,7 +422,7 @@ export class SlpTokenGraph implements TokenGraph {
                 }
                 console.log("FROM", txid);
                 let depth = this.buildGraphStats(parentGraphTxns, init_cache, depthMap);
-                console.timeEnd("GRAPH STATS");
+                console.timeEnd("GRAPH STATS " + uid);
                 graphTxn.stats = { depth: depth, txcount: init_cache.size, depthMap: depthMap }
             }
         } catch(err) {
