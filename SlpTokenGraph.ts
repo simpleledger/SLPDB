@@ -298,7 +298,7 @@ export class SlpTokenGraph implements TokenGraph {
         // Create or update SLP graph outputs for each valid SLP output
         if(updateOutputs || graphTxn.outputs.length === 0) {
             graphTxn.outputs = [];
-            if(isValid && (graphTxn.details.transactionType === SlpTransactionType.GENESIS || graphTxn.details.transactionType === SlpTransactionType.MINT)) {
+            if(graphTxn.details.transactionType === SlpTransactionType.GENESIS || graphTxn.details.transactionType === SlpTransactionType.MINT) {
                 if(graphTxn.details.genesisOrMintQuantity!.isGreaterThanOrEqualTo(0)) {
                     let spendDetails = await this.getSpendDetails({ txid, vout: 1, txnOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
                     let address = this.getAddressStringFromTxnOutput(txn, 1);
@@ -326,7 +326,7 @@ export class SlpTokenGraph implements TokenGraph {
                     }
                 }
             }
-            else if(isValid && graphTxn.details.sendOutputs!.length > 0) {
+            else if(graphTxn.details.sendOutputs!.length > 0) {
                 await this.asyncForEach(graphTxn.details.sendOutputs!, async (output: BigNumber, slp_vout: number) => { 
                     if(output.isGreaterThanOrEqualTo(0)) {
                         if(slp_vout > 0) {
@@ -344,15 +344,7 @@ export class SlpTokenGraph implements TokenGraph {
                         }
                     }
                 })
-                // check for possible inputs burned due to outputs < inputs
-                let inputQty = graphTxn.inputs.reduce((a, c) => a.plus(c.slpAmount), new BigNumber(0));
-                let outputQty = graphTxn.outputs.reduce((a, c) => a.plus(c.slpAmount), new BigNumber(0));
-                if(inputQty.isGreaterThan(outputQty)) {
-                    graphTxn.outputs.push(<any>{
-                        slpAmount: inputQty.minus(outputQty),
-                        status: TokenUtxoStatus.EXCESS_INPUT_BURNED
-                    })
-                }
+
             }
             else {
                 console.log("[WARNING]: Transaction is not valid or is unknown token type!", txid);
@@ -385,6 +377,18 @@ export class SlpTokenGraph implements TokenGraph {
                     }
                 }
             })
+        }
+
+        // check for possible inputs burned due to outputs < inputs
+        if((updateOutputs || graphTxn.outputs.length === 0) && graphTxn.details.sendOutputs && graphTxn.details.sendOutputs!.length > 0) {
+            let inputQty = graphTxn.inputs.reduce((a, c) => a.plus(c.slpAmount), new BigNumber(0));
+            let outputQty = graphTxn.outputs.reduce((a, c) => a.plus(c.slpAmount), new BigNumber(0));
+            if(inputQty.isGreaterThan(outputQty)) {
+                graphTxn.outputs.push(<any>{
+                    slpAmount: inputQty.minus(outputQty),
+                    status: TokenUtxoStatus.EXCESS_INPUT_BURNED
+                })
+            }
         }
 
         // compute node's graph search stats once all inputs have been mapped
