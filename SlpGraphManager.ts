@@ -356,8 +356,8 @@ export class SlpGraphManager {
                                 try {
                                     if(tna.out[1]!.e!.a)
                                         addresses = [ tna.out[1]!.e!.a ];
-                                    else addresses = [ 'scriptPubKey:' + tna.out[1]!.e!.s.toString('hex') ]; // For the case of P2PK and P2MS we allow null
-                                } catch(_) { return null; }
+                                    else addresses = [ 'scriptPubKey:' + tna.out[1]!.e!.s.toString('hex') ];
+                                } catch(_) {  addresses = [ null ]; }
                             }
                             if(validation.details)
                                 details = SlpGraphManager.MapTokenDetailsToTnaDbo(validation.details, tokenGraph._tokenDetails, addresses);
