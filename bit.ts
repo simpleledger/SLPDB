@@ -11,7 +11,7 @@ import { BlockHeaderResult } from 'bitcoin-com-rest';
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { RpcClient } from './rpc';
-import SetList from './SetList';
+import { SetCache } from './Cache';
 import { SlpGraphManager } from './SlpGraphManager';
 import { Notifications } from './notifications';
 
@@ -52,8 +52,8 @@ export class Bit {
     outsock = zmq.socket('pub');
     queue = new pQueue({ concurrency: Config.rpc.limit });
     slpMempool = new Map<txid, txhex>();
-    slpMempoolIgnoreSetList = new SetList<string>(Config.core.slp_mempool_ignore_length);
-    blockHashIgnoreSetList = new SetList<string>(10);
+    slpMempoolIgnoreSetList = new SetCache<string>(Config.core.slp_mempool_ignore_length);
+    blockHashIgnoreSetList = new SetCache<string>(10);
     _slpGraphManager!: SlpGraphManager;
     _zmqItemQueue: pQueue<pQueue.DefaultAddOptions>;
     network!: string;

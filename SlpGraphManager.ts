@@ -19,7 +19,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 import { RpcClient } from './rpc';
 import { BlockHeaderResult } from "bitcoin-com-rest";
-import SetList from "./SetList";
+import { SetCache } from "./Cache";
 
 const bitcoin = new BITBOX();
 const slp = new Slp(bitcoin);
@@ -30,7 +30,8 @@ export class SlpGraphManager {
     _rpcClient: RpcClient;
     zmqPubSocket?: zmq.Socket;
     _transaction_lock: boolean = false;
-    _zmqMempoolPubSetList = new SetList<string>(1000);
+    _zmqMempoolPubSetList = new SetCache<string>(1000);
+
     _TnaQueue?: pQueue<pQueue.DefaultAddOptions>;
     _updatesQueue = new pQueue<pQueue.DefaultAddOptions>({ concurrency: 1, autoStart: false })
 

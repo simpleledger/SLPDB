@@ -10,6 +10,7 @@ import { RpcClient } from './rpc';
 import * as pQueue from 'p-queue';
 import { DefaultAddOptions } from 'p-queue';
 import { SlpGraphManager } from './SlpGraphManager';
+import { MapCache } from './Cache';
 
 let cashaddr = require('cashaddrjs-slp');
 
@@ -33,6 +34,7 @@ export class SlpTokenGraph implements TokenGraph {
     _statsNeedUpdated = false;
     _graphUpdateQueue: pQueue<DefaultAddOptions>;
     _manager: SlpGraphManager;
+    _spendTxnQueryCache: MapCache<string, SendTxnQueryResult>;
 
     constructor(db: Db, manager: SlpGraphManager) {
         this._db = db;
@@ -42,6 +44,7 @@ export class SlpTokenGraph implements TokenGraph {
         this._graphTxns = new Map<string, GraphTxn>();
         this._addresses = new Map<cashAddr, AddressBalance>();
         this._graphUpdateQueue = new pQueue({ concurrency: 1, autoStart: false });
+        this._spendTxnQueryCache = new MapCache<string, SendTxnQueryResult>(100000);
     }
 
     async initFromScratch({ tokenDetails, processUpToBlock }: { tokenDetails: SlpTransactionDetails; processUpToBlock?: number; }) {
@@ -129,11 +132,23 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async getSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number; processUpTo?: number; }): Promise<SpendDetails> {
-        let txOut = await this._rpcClient.getTxOut(txid, vout);
-        if(txOut === null) {
+        let txOut: any;
+        let cachedSpendTxnInfo = this._spendTxnQueryCache.get(txid + ":" + vout);
+        if(!cachedSpendTxnInfo)
+            txOut = await this._rpcClient.getTxOut(txid, vout);
+        if(cachedSpendTxnInfo || !txOut) {
             this._tokenUtxos.delete(txid + ":" + vout);
             try {
-                let spendTxnInfo = await Query.queryForTxoInputAsSlpSend(txid, vout);
+                let spendTxnInfo: SendTxnQueryResult|null;
+                if(!cachedSpendTxnInfo) {
+                    spendTxnInfo = await Query.queryForTxoInputAsSlpSend(txid, vout);
+                    if(spendTxnInfo)
+                        this._spendTxnQueryCache.set(txid + ":" + vout, spendTxnInfo);
+                } else {
+                    spendTxnInfo = cachedSpendTxnInfo;
+                    console.log("[INFO] Used cached spend data", txid, vout);
+                }
+
                 if(!spendTxnInfo) {
                     if(vout < txnOutputLength)
                        return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, queryResponse: null, invalidReason: null };
@@ -177,8 +192,10 @@ export class SlpTokenGraph implements TokenGraph {
                 await self._manager.publishZmqNotification(txid);
 
             // Update token's statistics
-            if(self._graphUpdateQueue.pending === 1)
+            if(self._graphUpdateQueue.pending === 1) {
+                self._spendTxnQueryCache.clear();
                 await self.updateStatistics();
+            }
         })
     }
 

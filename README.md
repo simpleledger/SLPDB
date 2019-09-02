@@ -108,7 +108,7 @@ The following settings should be applied to your full node's configuration.  NOT
 
 ###  4.3. <a name='BCHDgRPCSupport'></a>BCHD & gRPC Support
 
-High speed gRPC is supported with BCHD full nodes in place of JSON RPC and incomming ZMQ notifications.  To enable, add the environment variables `grpc_url` and `grpc_certPath`.  See the `example.env` file in this project and the [BCHD documentation](https://github.com/gcash/bchd/tree/master/docs) for more details.
+High speed gRPC is supported with BCHD 0.14.8+ full nodes in place of JSON RPC and incomming ZMQ notifications.  To enable, add the environment variables `grpc_url` and `grpc_certPath`.  See the `example.env` file in this project and the [BCHD documentation](https://github.com/gcash/bchd/tree/master/docs) for more details.
 
 ###  4.4. <a name='TestnetSupport'></a>Testnet Support
 
