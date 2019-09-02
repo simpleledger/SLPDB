@@ -512,8 +512,10 @@ export class SlpTokenGraph implements TokenGraph {
                 let addr = txout.address;
                 let bal;
                 if(graph.outputs[vout-1].status !== TokenUtxoStatus.UNSPENT && graph.outputs[vout-1].status !== BatonUtxoStatus.BATON_UNSPENT) {
-                    console.log("UTXO is not unspent!");
-                    process.exit();
+                    console.log(graph.outputs);
+                    console.log("[WARN] TXO is not unspent:", txid, vout);
+                    this._tokenUtxos.delete(utxo);
+                    return;
                 }
                 if(this._addresses.has(addr)) {
                     bal = this._addresses.get(addr)!
@@ -598,8 +600,36 @@ export class SlpTokenGraph implements TokenGraph {
             txout = await this._rpcClient.getTxOut(txid, vout);
         } catch(_) { }
         if(!txout) {
-            console.log("[INFO] updateTxoIfSpent(): Updating token graph for TXO",txo);
-            await this.queueTokenGraphUpdateFrom({ txid, isParent: true });
+            // check for a double spent transaction
+            let txn;
+            try {
+                txn = await this._rpcClient.getRawTransaction(txid);
+            } catch(_) {}
+            if(txn) {
+                console.log("[INFO] updateTxoIfSpent(): Updating token graph for TXO",txo);
+                await this.updateTokenGraphFrom({ txid, isParent: true });
+            } else {
+                let gt = this._graphTxns.get(txid);
+                if(gt) {
+                    this._slpValidator.cachedValidations[txid].validity = false;
+                    for(let i = 0; i < gt.inputs.length; i++) {
+                        let igt = this._graphTxns.get(gt.inputs[i].txid)
+                        if(igt) {
+                            igt.outputs = [];
+                        }
+                        await this.updateTokenGraphFrom({ txid: gt.inputs[i].txid, isParent: true });
+                    }
+                    console.log("[INFO] updateTxoIfSpent(): Removing unknown transaction from token graph.",txo);
+                    let outlength = gt.outputs.length;
+                    this._graphTxns.delete(txid);
+                    for(let i = 0; i < outlength; i++) {
+                        let txo = txid + ":" + vout;
+                        let deleted = this._tokenUtxos.delete(txo);
+                        if(deleted)
+                            console.log("[INFO] updateTxoIfSpent(): Removing utxo for unknown transaction", txo);
+                    }
+                }
+            }
         }
     }
 
