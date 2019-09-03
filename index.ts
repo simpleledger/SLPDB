@@ -113,6 +113,8 @@ const util = {
         console.timeEnd('[PERF] Initial Block Sync');
         console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
         let tokenManager = new SlpGraphManager(db);
+        bit._slpGraphManager = tokenManager;
+        bit.listenToZmq();
         await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: [tokenId], loadFromDb: false });
         tokenManager._tokens.get(tokenId)!.updateStatistics();
         process.exit();
