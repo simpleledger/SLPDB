@@ -5,7 +5,7 @@ import { Config } from './config';
 import { Info, ChainSyncCheckpoint } from './info';
 import { Bit } from './bit';
 import { Db } from './db';
-import { SlpGraphManager } from './SlpGraphManager';
+import { SlpGraphManager } from './slpgraphmanager';
 
 import { RpcClient } from './rpc';
 const rpc = new RpcClient({useGrpc: Boolean(Config.grpc.url) });

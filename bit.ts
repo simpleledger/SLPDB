@@ -11,8 +11,8 @@ import { BlockHeaderResult } from 'bitcoin-com-rest';
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { RpcClient } from './rpc';
-import { SetCache } from './Cache';
-import { SlpGraphManager } from './SlpGraphManager';
+import { SetCache } from './cache';
+import { SlpGraphManager } from './slpgraphmanager';
 import { Notifications } from './notifications';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

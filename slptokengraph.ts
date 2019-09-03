@@ -9,8 +9,8 @@ import { Db } from './db';
 import { RpcClient } from './rpc';
 import * as pQueue from 'p-queue';
 import { DefaultAddOptions } from 'p-queue';
-import { SlpGraphManager } from './SlpGraphManager';
-import { MapCache } from './Cache';
+import { SlpGraphManager } from './slpgraphmanager';
+import { MapCache } from './cache';
 
 let cashaddr = require('cashaddrjs-slp');
 

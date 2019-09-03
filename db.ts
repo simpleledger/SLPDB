@@ -1,7 +1,7 @@
 import { MongoClient, Db as MongoDb } from 'mongodb';
 import { Config, DbConfig } from './config';
 import { TNATxn, TNA } from './tna';
-import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from './SlpTokenGraph';
+import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from './slptokengraph';
 import { Info } from './info';
 import { RpcClient } from './rpc';
 

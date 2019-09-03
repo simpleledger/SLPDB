@@ -1,4 +1,4 @@
-import { SlpTokenGraph, TokenDBObject, UtxoDbo, AddressBalancesDbo, GraphTxnDbo } from "./SlpTokenGraph";
+import { SlpTokenGraph, TokenDBObject, UtxoDbo, AddressBalancesDbo, GraphTxnDbo } from "./slptokengraph";
 import { SlpTransactionType, Slp, SlpTransactionDetails, Primatives } from "slpjs";
 import { SyncCompletionInfo, SyncFilterTypes, txid, txhex, SyncType } from "./bit";
 import { Query } from "./query";
@@ -19,7 +19,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 import { RpcClient } from './rpc';
 import { BlockHeaderResult } from "bitcoin-com-rest";
-import { SetCache } from "./Cache";
+import { SetCache } from "./cache";
 
 const bitcoin = new BITBOX();
 const slp = new Slp(bitcoin);

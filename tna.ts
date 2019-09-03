@@ -1,5 +1,5 @@
 require('dotenv').config()
-import { SlpTransactionDetailsTnaDbo } from './SlpGraphManager';
+import { SlpTransactionDetailsTnaDbo } from './slpgraphmanager';
 import { Utils } from 'slpjs';
 import { BITBOX } from 'bitbox-sdk';
 import * as Bitcore from 'bitcore-lib-cash';
