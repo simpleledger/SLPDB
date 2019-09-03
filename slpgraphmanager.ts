@@ -34,6 +34,7 @@ export class SlpGraphManager {
 
     _TnaQueue?: pQueue<pQueue.DefaultAddOptions>;
     _updatesQueue = new pQueue<pQueue.DefaultAddOptions>({ concurrency: 1, autoStart: false })
+    _bestBlockHeight!: number;
 
     get TnaSynced(): boolean {
         if(this._TnaQueue)
@@ -49,7 +50,8 @@ export class SlpGraphManager {
         })
     }
 
-    onBlockHash(hash: string, tokenIdFilter: string[] = []) {
+    async onBlockHash(hash: string, tokenIdFilter: string[] = []) {
+        this._bestBlockHeight = (await Info.getBlockCheckpoint()).height;
         let self = this;
         this._updatesQueue.add(async function() {
             await self._onBlockHash(hash, tokenIdFilter);
@@ -199,11 +201,14 @@ export class SlpGraphManager {
         }
     }
 
-
     constructor(db: Db) {
         this.db = db;
         this._tokens = new Map<string, SlpTokenGraph>();
         this._rpcClient = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
+        let self = this;
+        (async function() {
+            self._bestBlockHeight = (await Info.getBlockCheckpoint()).height;
+        })();
     }
 
     async fixMissingTokenTimestamps() {

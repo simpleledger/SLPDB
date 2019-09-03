@@ -142,8 +142,14 @@ export class SlpTokenGraph implements TokenGraph {
                 let spendTxnInfo: SendTxnQueryResult|null;
                 if(!cachedSpendTxnInfo) {
                     spendTxnInfo = await Query.queryForTxoInputAsSlpSend(txid, vout);
-                    if(spendTxnInfo)
-                        this._spendTxnQueryCache.set(txid + ":" + vout, spendTxnInfo);
+                    // only cache mature spends
+                    if(spendTxnInfo && 
+                        spendTxnInfo.block && 
+                        this._manager._bestBlockHeight && 
+                        (this._manager._bestBlockHeight - spendTxnInfo.block) > 10
+                    ) {
+                        this._spendTxnQueryCache.set(txid + ":" + vout, spendTxnInfo!);
+                    }
                 } else {
                     spendTxnInfo = cachedSpendTxnInfo;
                     console.log("[INFO] Used cached spend data", txid, vout);
