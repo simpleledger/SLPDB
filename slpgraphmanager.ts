@@ -31,10 +31,12 @@ export class SlpGraphManager {
     zmqPubSocket?: zmq.Socket;
     _transaction_lock: boolean = false;
     _zmqMempoolPubSetList = new SetCache<string>(1000);
-
     _TnaQueue?: pQueue<pQueue.DefaultAddOptions>;
+    _startupQueue = new pQueue<pQueue.DefaultAddOptions>({ concurrency: 4, autoStart: true })
+    _updatesQueue = new pQueue<pQueue.DefaultAddOptions>({ concurrency: 1, autoStart: false });
     _bestBlockHeight: number;
     _network: string;
+    _startupTokenCount: number;
 
     get TnaSynced(): boolean {
         if(this._TnaQueue)
@@ -208,9 +210,10 @@ export class SlpGraphManager {
         this._tokens = new Map<string, SlpTokenGraph>();
         this._rpcClient = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
         let self = this;
-        (async function() {
-            self._bestBlockHeight = (await Info.getBlockCheckpoint()).height;
-        })();
+        this._startupTokenCount = 0
+        this._startupQueue.on('active', () => {
+            console.log(`[INFO] Loading new token.  Loaded: ${self._startupTokenCount++}.  Total: ${this._tokens.size}.  Queue Size: ${this._startupQueue.size}.  Queue Pending: ${this._startupQueue.pending}`);
+        })
     }
 
     async fixMissingTokenTimestamps() {
@@ -458,14 +461,19 @@ export class SlpGraphManager {
         }
 
         // Instantiate all Token Graphs in memory
+        let self = this;
         for (let i = 0; i < tokens.length; i++) {
-            await this.initToken({ token: tokens[i], reprocessFrom, reprocessTo, loadFromDb, allowGraphUpdates });
+            this._startupQueue.add(async function() {
+                await self.initToken({ token: tokens[i], reprocessFrom, reprocessTo, loadFromDb, allowGraphUpdates });
+            });
         }
 
-        console.log("[INFO] Init all tokens complete");
-
-        console.log("[INFO] Starting to process graph based on recent mempool and block activity")
-        this._updatesQueue.start()
+        (async function() {
+            console.log("[INFO] Init all tokens complete");
+            await self._startupQueue.onIdle();
+            console.log("[INFO] Starting to process graph based on recent mempool and block activity");
+            self._updatesQueue.start();
+        })();
     }
 
     private async initToken({ token, reprocessFrom, reprocessTo, loadFromDb = true, allowGraphUpdates = true }: { token: SlpTransactionDetails; reprocessFrom?: number; reprocessTo?: number; loadFromDb?: boolean; allowGraphUpdates?: boolean }) {
