@@ -34,7 +34,8 @@ export class SlpTokenGraph implements TokenGraph {
     _statsNeedUpdated = false;
     _graphUpdateQueue: pQueue<DefaultAddOptions>;
     _manager: SlpGraphManager;
-    _spendTxnQueryCache: MapCache<string, SendTxnQueryResult>;
+    _liveTxoSpendCache: MapCache<string, SendTxnQueryResult>;
+    _startupTxoSendCache?: MapCache<string, {txid: string, block: number|null}>;
 
     constructor(db: Db, manager: SlpGraphManager, network: string) {
         this._db = db;
@@ -45,16 +46,17 @@ export class SlpTokenGraph implements TokenGraph {
         this._graphTxns = new Map<string, GraphTxn>();
         this._addresses = new Map<cashAddr, AddressBalance>();
         this._graphUpdateQueue = new pQueue({ concurrency: 1, autoStart: false });
-        this._spendTxnQueryCache = new MapCache<string, SendTxnQueryResult>(100000);
+        this._liveTxoSpendCache = new MapCache<string, SendTxnQueryResult>(100000);
     }
 
     async initFromScratch({ tokenDetails, processUpToBlock }: { tokenDetails: SlpTransactionDetails; processUpToBlock?: number; }) {
         await Query.init();
-        this._network = (await this._rpcClient.getBlockchainInfo()).chain === 'test' ? 'testnet': 'mainnet';
         this._lastUpdatedBlock = 0;
         this._tokenDetails = tokenDetails;
         this._tokenUtxos = new Set<string>();
         this._mintBatonUtxo = "";
+
+        this._startupTxoSendCache = await Query.getTxoInputSlpSendCache(tokenDetails.tokenIdHex);
 
         let valid = await this.updateTokenGraphFrom({ txid: tokenDetails.tokenIdHex, processUpToBlock: processUpToBlock });
         if(valid) {
@@ -67,6 +69,8 @@ export class SlpTokenGraph implements TokenGraph {
             }
             await this.updateStatistics();
         }
+        this._startupTxoSendCache.clear();
+        this._startupTxoSendCache = undefined;
         this._graphUpdateQueue.start();
     }
 
@@ -134,13 +138,25 @@ export class SlpTokenGraph implements TokenGraph {
 
     async getSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number; processUpTo?: number; }): Promise<SpendDetails> {
         let txOut: any;
-        let cachedSpendTxnInfo = this._spendTxnQueryCache.get(txid + ":" + vout);
+
+        let cachedSpendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
+        if(this._startupTxoSendCache)
+            cachedSpendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
+        if(!cachedSpendTxnInfo)
+            cachedSpendTxnInfo = this._liveTxoSpendCache.get(txid + ":" + vout);
         if(!cachedSpendTxnInfo)
             txOut = await this._rpcClient.getTxOut(txid, vout);
         if(cachedSpendTxnInfo || !txOut) {
             this._tokenUtxos.delete(txid + ":" + vout);
             try {
-                let spendTxnInfo: SendTxnQueryResult|null;
+                let spendTxnInfo: SendTxnQueryResult|{txid: string, block: number|null}|null|undefined;
+
+                // NEED MORE WORK BEFORE WE CAN DO CACHE ONLY STARTUPS
+                // if(!cachedSpendTxnInfo && this._startupTxoSendCache) {
+                //     console.log("[INFO] TXO IS SPENT BUT, NO SPEND DATA WAS FOUND FOR:", txid, vout);
+                // }
+                // else if(!cachedSpendTxnInfo) { //&& !this._startupTxoSendCache) {   
+
                 if(!cachedSpendTxnInfo) {
                     spendTxnInfo = await Query.queryForTxoInputAsSlpSend(txid, vout);
                     // only cache mature spends
@@ -149,7 +165,7 @@ export class SlpTokenGraph implements TokenGraph {
                         this._manager._bestBlockHeight && 
                         (this._manager._bestBlockHeight - spendTxnInfo.block) > 10
                     ) {
-                        this._spendTxnQueryCache.set(txid + ":" + vout, spendTxnInfo!);
+                        this._liveTxoSpendCache.set(txid + ":" + vout, spendTxnInfo!);
                     }
                 } else {
                     spendTxnInfo = cachedSpendTxnInfo;
@@ -200,7 +216,7 @@ export class SlpTokenGraph implements TokenGraph {
 
             // Update token's statistics
             if(self._graphUpdateQueue.pending === 1) {
-                self._spendTxnQueryCache.clear();
+                self._liveTxoSpendCache.clear();
                 await self.updateStatistics();
             }
         })
@@ -473,7 +489,7 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
         if(!processUpToBlock)
-            this._lastUpdatedBlock = await this._rpcClient.getBlockCount();
+            this._lastUpdatedBlock = this._manager._bestBlockHeight; //await this._rpcClient.getBlockCount();
         else
             this._lastUpdatedBlock = processUpToBlock;
 
