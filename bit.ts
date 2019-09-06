@@ -50,7 +50,6 @@ export class Bit {
     rpc!: RpcClient;
     tna!: TNA;
     outsock = zmq.socket('pub');
-    queue = new pQueue({ concurrency: Config.rpc.limit });
     slpMempool = new Map<txid, txhex>();
     slpMempoolIgnoreSetList = new SetCache<string>(Config.core.slp_mempool_ignore_length);
     blockHashIgnoreSetList = new SetCache<string>(10);
@@ -383,16 +382,6 @@ export class Bit {
     static async sync(self: Bit, type: string, hash?: string, txhex?: string): Promise<SyncCompletionInfo|null> {
         let result: SyncCompletionInfo;
         if (type === 'block') {
-
-            // TODO: Handle case where block sync is already underway (e.g., situation where 2 blocks mined together)
-            if(hash) {
-                console.log("[INFO] Starting to sync block:", hash);
-                while(self.queue.size > 0) {
-                    console.log("[DEBUG] mempool processing queue size:", self.queue.size);
-                    console.log("[INFO] Waiting for mempool processing queue to complete before processing block.");
-                    await sleep(1000);
-                }
-            }
 
             result = { syncType: SyncType.Block, filteredContent: new Map<SyncFilterTypes, Map<txid, txhex>>() }
             try {
