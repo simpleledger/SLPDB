@@ -33,8 +33,8 @@ export class SlpGraphManager {
     _zmqMempoolPubSetList = new SetCache<string>(1000);
 
     _TnaQueue?: pQueue<pQueue.DefaultAddOptions>;
-    _updatesQueue = new pQueue<pQueue.DefaultAddOptions>({ concurrency: 1, autoStart: false })
-    _bestBlockHeight!: number;
+    _bestBlockHeight: number;
+    _network: string;
 
     get TnaSynced(): boolean {
         if(this._TnaQueue)
@@ -201,8 +201,10 @@ export class SlpGraphManager {
         }
     }
 
-    constructor(db: Db) {
+    constructor(db: Db, currentBestHeight: number, network: string) {
         this.db = db;
+        this._bestBlockHeight = currentBestHeight;
+        this._network = network;
         this._tokens = new Map<string, SlpTokenGraph>();
         this._rpcClient = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
         let self = this;
@@ -504,7 +506,7 @@ export class SlpGraphManager {
             let utxos: UtxoDbo[] = await this.db.utxoFetch(token.tokenIdHex);
             let addresses: AddressBalancesDbo[] = await this.db.addressFetch(token.tokenIdHex);
             let dag: GraphTxnDbo[] = await this.db.graphFetch(token.tokenIdHex);
-            graph = await SlpTokenGraph.FromDbObjects(tokenState, dag, utxos, addresses, this.db, this);
+            graph = await SlpTokenGraph.FromDbObjects(tokenState, dag, utxos, addresses, this.db, this, this._network);
             
             let res: string[] = [];
             if(allowGraphUpdates) {
@@ -574,7 +576,7 @@ export class SlpGraphManager {
 
     private async createNewTokenGraph({ tokenId, processUpToBlock }: { tokenId: string; processUpToBlock?: number; }): Promise<SlpTokenGraph|null> {
         //await this.deleteTokenFromDb(tokenId);
-        let graph = new SlpTokenGraph(this.db, this);
+        let graph = new SlpTokenGraph(this.db, this, this._network);
         let txn = <string>await this._rpcClient.getRawTransaction(tokenId);
         let tokenDetails = this.parseTokenTransactionDetails(txn);
 

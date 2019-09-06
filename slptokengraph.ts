@@ -29,16 +29,17 @@ export class SlpTokenGraph implements TokenGraph {
     _addresses!: Map<cashAddr, AddressBalance>;
     _slpValidator!: LocalValidator;
     _rpcClient: RpcClient;
-    _network!: string;
+    _network: string;
     _db: Db;
     _statsNeedUpdated = false;
     _graphUpdateQueue: pQueue<DefaultAddOptions>;
     _manager: SlpGraphManager;
     _spendTxnQueryCache: MapCache<string, SendTxnQueryResult>;
 
-    constructor(db: Db, manager: SlpGraphManager) {
+    constructor(db: Db, manager: SlpGraphManager, network: string) {
         this._db = db;
         this._manager = manager;
+        this._network = network;
         this._rpcClient = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
         this._slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await this._rpcClient.getRawTransaction(txids[0]) ], console)
         this._graphTxns = new Map<string, GraphTxn>();
@@ -935,8 +936,8 @@ export class SlpTokenGraph implements TokenGraph {
         return res;
     }
 
-    static async FromDbObjects(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], addresses: AddressBalancesDbo[], db: Db, manager: SlpGraphManager): Promise<SlpTokenGraph> {
-        let tg = new SlpTokenGraph(db, manager);
+    static async FromDbObjects(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], addresses: AddressBalancesDbo[], db: Db, manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
+        let tg = new SlpTokenGraph(db, manager, network);
         await Query.init();
 
         // add minting baton
@@ -946,7 +947,7 @@ export class SlpTokenGraph implements TokenGraph {
         if(token.nftParentId)
             tg._nftParentId = token.nftParentId;
 
-        tg._network = (await tg._rpcClient.getBlockchainInfo()).chain === 'test' ? 'testnet': 'mainnet';
+        tg._network = network;
 
         // Map _tokenDetails
         tg._tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
