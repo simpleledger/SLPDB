@@ -431,11 +431,9 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
         // compute node's graph search stats once all inputs have been mapped
-        let uid = (Math.random() * 100000).toFixed(0);
         try {
             if(!isParent && !graphTxn.stats) {
-                
-                console.time("GRAPH STATS " + uid);
+                console.time("GRAPH STATS " + txid);
                 let depthMap: {[key:string]: [number, number] } = {};
                 let init_cache = new Set<string>();
                 let parentGraphTxns = new Map<string, GraphTxn>();
@@ -460,7 +458,7 @@ export class SlpTokenGraph implements TokenGraph {
                 }
                 console.log("FROM", txid);
                 let depth = this.buildGraphStats(parentGraphTxns, init_cache, depthMap);
-                console.timeEnd("GRAPH STATS " + uid);
+                console.timeEnd("GRAPH STATS " + txid);
                 graphTxn.stats = { depth: depth, txcount: init_cache.size, depthMap: depthMap }
             }
         } catch(err) {
