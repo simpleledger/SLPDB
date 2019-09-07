@@ -14,6 +14,7 @@ import { RpcClient } from './rpc';
 import { SetCache } from './cache';
 import { SlpGraphManager } from './slpgraphmanager';
 import { Notifications } from './notifications';
+import { SlpdbStatus } from './status';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -287,7 +288,7 @@ export class Bit {
                         self._slpGraphManager.onBlockHash!(hash!);
                 } catch(err) {
                     console.log(err);
-                    process.exit();
+                    SlpdbStatus.logAndExitProcess(err);
                 }
             })
         }
@@ -310,7 +311,7 @@ export class Bit {
                     }
                 } catch(err) {
                     console.log(err);
-                    process.exit();
+                    SlpdbStatus.logAndExitProcess(err);
                 }
             })
         }
@@ -452,7 +453,7 @@ export class Bit {
                             //await self.db.mempoolreplace(content);
                         } else {
                             console.log('[ERROR] Mempool sync ERR:', e, content);
-                            process.exit();
+                            SlpdbStatus.logAndExitProcess(e);
                         }
                     }
 

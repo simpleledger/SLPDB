@@ -1,5 +1,5 @@
 import { Config } from "./config";
-import { TxOutResult, BlockchainInfoResult, BlockHeaderResult } from "bitcoin-com-rest";
+import { TxOutResult, BlockchainInfoResult, BlockHeaderResult, MempoolInfoResult } from "bitcoin-com-rest";
 import { GrpcClient, BlockInfo, GetUnspentOutputResponse } from "grpc-bchrpc-node";
 
 const _rpcClient = require('bitcoin-rpc-promise');
@@ -147,6 +147,14 @@ export class RpcClient {
         }
         console.log("[INFO] JSON RPC: getTxOut", hash, vout, true);
         return await rpc.getTxOut(hash, vout, true);
+    }
+
+    async getMempoolInfo(): Promise<MempoolInfoResult|{}> {
+        if(this.useGrpc) {
+            return {};
+        }
+        console.log("[INFO] JSON RPC: getMempoolInfo");
+        return await rpc.getMemPoolInfo();
     }
 
     // DO NOT USE, THIS IS DEPRECIATED ON SOME NODES

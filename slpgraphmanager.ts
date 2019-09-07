@@ -1,6 +1,6 @@
 import { SlpTokenGraph, TokenDBObject, UtxoDbo, AddressBalancesDbo, GraphTxnDbo } from "./slptokengraph";
 import { SlpTransactionType, Slp, SlpTransactionDetails, Primatives } from "slpjs";
-import { SyncCompletionInfo, SyncFilterTypes, txid, txhex, SyncType } from "./bit";
+import { SyncCompletionInfo, SyncFilterTypes, txid, txhex, SyncType, Bit } from "./bit";
 import { Query } from "./query";
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
@@ -20,6 +20,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 import { RpcClient } from './rpc';
 import { BlockHeaderResult } from "bitcoin-com-rest";
 import { SetCache } from "./cache";
+import { SlpdbStatus } from "./status";
 
 const bitcoin = new BITBOX();
 const slp = new Slp(bitcoin);
@@ -37,6 +38,8 @@ export class SlpGraphManager {
     _bestBlockHeight: number;
     _network: string;
     _startupTokenCount: number;
+    _slpMempool = new Map<txid, txhex>();
+    _bit: Bit;
 
     get TnaSynced(): boolean {
         if(this._TnaQueue)
@@ -203,12 +206,13 @@ export class SlpGraphManager {
         }
     }
 
-    constructor(db: Db, currentBestHeight: number, network: string) {
+    constructor(db: Db, currentBestHeight: number, network: string, bit: Bit) {
         this.db = db;
         this._bestBlockHeight = currentBestHeight;
         this._network = network;
         this._tokens = new Map<string, SlpTokenGraph>();
         this._rpcClient = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
+        this._bit = bit;
         let self = this;
         this._startupTokenCount = 0
         this._startupQueue.on('active', () => {
@@ -379,12 +383,13 @@ export class SlpGraphManager {
                                 invalidReason = "Invalid Token Genesis";
                             } else {
                                 console.log("[ERROR]", err.message);
-                                process.exit();
+                                SlpdbStatus.logAndExitProcess(err);
                             }
                         }
                         if(isValid! === null) {
-                            console.log("[ERROR] Validitity of " + txid + " is null.");
-                            process.exit();
+                            let msg = `[ERROR] Validitity of ${txid} is null.`;
+                            console.log(msg);
+                            SlpdbStatus.logAndExitProcess(msg);
                         }
                     } else if(tokenId) {
                         invalidReason = 'Token ID is not being tracked. SLPDB may be still syncing or is not following this token.';
@@ -399,8 +404,9 @@ export class SlpGraphManager {
                     if(collection === 'confirmed')
                         await this.db.db.collection('unconfirmed').deleteMany({ "tx.h": txid });
                     if(!test.slp) {
-                        console.log("[ERROR] Did not update SLP object.");
-                        process.exit();
+                        let msg = "[ERROR] Did not update SLP object.";
+                        console.log(msg);
+                        SlpdbStatus.logAndExitProcess(msg);
                     }
                 }
             }
@@ -473,6 +479,14 @@ export class SlpGraphManager {
             await self._startupQueue.onIdle();
             console.log("[INFO] Starting to process graph based on recent mempool and block activity");
             self._updatesQueue.start();
+
+            await self.fixMissingTokenTimestamps();
+            await self._bit.handleConfirmedTxnsMissingSlpMetadata();
+            await SlpdbStatus.changeStateToRunning({
+                getSlpMempoolSize: () => self._bit.slpMempool.size,
+                getSlpTokensCount: () => self._tokens.size,
+                getSyncdCheckpoint: async () => await Info.getBlockCheckpoint()
+            });
         })();
     }
 
@@ -547,7 +561,7 @@ export class SlpGraphManager {
             }
             else {
                 console.log(err);
-                process.exit();
+                SlpdbStatus.logAndExitProcess(err);
             }
         }
     }

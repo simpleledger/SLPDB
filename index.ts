@@ -1,17 +1,18 @@
 import * as dotenv from 'dotenv';
 dotenv.config()
 
-import { Config } from './config';
-import { Info, ChainSyncCheckpoint } from './info';
 import { Bit } from './bit';
 import { Db } from './db';
-import { SlpGraphManager } from './slpgraphmanager';
-
 import { RpcClient } from './rpc';
-const rpc = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
+import { Config } from './config';
+import { SlpdbStatus } from './status';
+import { Info, ChainSyncCheckpoint } from './info';
+import { SlpGraphManager } from './slpgraphmanager';
 
 const db = new Db();
 const bit = new Bit();
+const rpc = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
+new SlpdbStatus(db, rpc);
 
 const daemon = {
     run: async function(start_height?: number) {
@@ -56,22 +57,33 @@ const daemon = {
 
         console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
         console.time('[PERF] Initial Block Sync');
+        await SlpdbStatus.changeStateToStartupBlockSync(network);
         await bit.processBlocksForTNA();
         await bit.processCurrentMempoolForTNA();
         console.timeEnd('[PERF] Initial Block Sync');
         console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
 
         console.log('[INFO] Starting to processing SLP Data.', new Date());
+        await SlpdbStatus.changeStateToStartupSlpProcessing();
         let currentHeight = await rpc.getBlockCount();
-        let tokenManager = new SlpGraphManager(db, currentHeight, network);
+        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit);
         bit._slpGraphManager = tokenManager;
         bit.listenToZmq();
         await bit.checkForMissingMempoolTxns(undefined, true);
 
         await tokenManager.initAllTokens({ reprocessFrom });
-        await tokenManager.fixMissingTokenTimestamps();
-        await bit.handleConfirmedTxnsMissingSlpMetadata();
-        //await tokenManager.searchForNonSlpBurnTransactions();
+
+        // persist updated SLPDB status every 10 minutes
+        setInterval(async function() {
+            await SlpdbStatus.saveStatus();
+        }, 600000);
+
+        // look for burned token transactions every hour after startup
+        setInterval(async function() {
+            if(tokenManager._startupQueue.size === 0 && tokenManager._startupQueue.pending === 0) {
+                await tokenManager.searchForNonSlpBurnTransactions();
+            }
+        }, 3600000);
     }
 }
 
@@ -88,7 +100,7 @@ const util = {
             // 	await util.fix(fromHeight)
             // } else
             // 	console.log("Usage 'node ./index.js fix <block number>'")
-            process.exit()
+            SlpdbStatus.logAndExitProcess();
         } else if (cmd === 'reset') {
             await db.confirmedReset()
             await db.unconfirmedReset()
@@ -97,11 +109,11 @@ const util = {
             await db.utxoReset()
             await db.addressReset()
             await Info.checkpointReset()
-            process.exit()
+            SlpdbStatus.logAndExitProcess();
         } else if (cmd === 'index') {
             console.log("Command not implemented");
             //await db.blockindex()
-            process.exit()
+            SlpdbStatus.logAndExitProcess();
         }
     }, 
     reprocess_token: async function(tokenId: string) {
@@ -116,12 +128,12 @@ const util = {
         console.timeEnd('[PERF] Initial Block Sync');
         console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
         let currentHeight = await rpc.getBlockCount();
-        let tokenManager = new SlpGraphManager(db, currentHeight, network);
+        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit);
         bit._slpGraphManager = tokenManager;
         bit.listenToZmq();
         await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: [tokenId], loadFromDb: false });
         tokenManager._tokens.get(tokenId)!.updateStatistics();
-        process.exit();
+        SlpdbStatus.logAndExitProcess();
     },
     reset_to_block: async function(block_height: number) {  //592340
         let tokenIdFilter = [
@@ -131,14 +143,14 @@ const util = {
         await Info.setNetwork(network);
         await db.init(rpc);
         let currentHeight = await rpc.getBlockCount();
-        let tokenManager = new SlpGraphManager(db, currentHeight, network);
+        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit);
         await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: tokenIdFilter, reprocessTo: block_height });
         //await tokenManager.initAllTokens({ allowGraphUpdates: false, tokenIds: tokenIdFilter });
         //await tokenManager.simulateOnTransactionHash("06e27bfcd9f8839ea6c7720a6c50f68465e3bc56775c7a683dcb29f799eba24a");
         let blockhash = await rpc.getBlockHash(block_height+1);
         await tokenManager.onBlockHash(blockhash, tokenIdFilter);
         await Info.updateBlockCheckpoint(block_height, null);
-        process.exit();
+        SlpdbStatus.logAndExitProcess();
     }
     //,
     //fix: async function(height: number) {
@@ -178,7 +190,7 @@ const start = async function() {
         }
     } catch(err) {
         console.log(err);
-        process.exit();
+        SlpdbStatus.logAndExitProcess(err);
     }
 }
 
