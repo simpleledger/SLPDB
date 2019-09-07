@@ -94,6 +94,7 @@ The services `SlpServe` and `SlpSockServer` return query results as a JSON objec
 ###  4.2. <a name='FullNodeSettingsforbitcoin.conf'></a>Full Node Settings for `bitcoin.conf`
 
 The following settings should be applied to your full node's configuration.  NOTE: The settings presented here are matched up with the default settings presented in `config.ts`, you should modify these settings and use environment variables (shown in `config.ts`) if you need a custom setup.
+* `txindex=1`
 * `server=1`
 * `rpcuser=bitcoin`
 * `rpcpassword=password`
