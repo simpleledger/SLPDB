@@ -78,12 +78,12 @@ const daemon = {
             await SlpdbStatus.saveStatus();
         }, 600000);
 
-        // look for burned token transactions every hour after startup
-        setInterval(async function() {
-            if(tokenManager._startupQueue.size === 0 && tokenManager._startupQueue.pending === 0) {
-                await tokenManager.searchForNonSlpBurnTransactions();
-            }
-        }, 3600000);
+        // // look for burned token transactions every hour after startup
+        // setInterval(async function() {
+        //     if(tokenManager._startupQueue.size === 0 && tokenManager._startupQueue.pending === 0) {
+        //         await tokenManager.searchForNonSlpBurnTransactions();
+        //     }
+        // }, 3600000);
     }
 }
 
