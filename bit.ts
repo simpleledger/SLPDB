@@ -47,9 +47,9 @@ export type txid = string;
 //export type TransactionPool = Map<txid, txhex>;
 
 export class Bit {
-    db!: Db;
-    rpc!: RpcClient;
-    tna!: TNA;
+    db: Db;
+    rpc: RpcClient;
+    tna: TNA = new TNA();
     outsock = zmq.socket('pub');
     slpMempool = new Map<txid, txhex>();
     slpMempoolIgnoreSetList = new SetCache<string>(Config.core.slp_mempool_ignore_length);
@@ -59,9 +59,16 @@ export class Bit {
     network!: string;
     notifications!: Notifications;
 
-    constructor() { 
+    constructor(db: Db, rpc: RpcClient) { 
+        this.db = db;
+        this.rpc = rpc;
         this._zmqItemQueue = new pQueue({ concurrency: 1, autoStart: true });
         this.outsock.bindSync('tcp://' + Config.zmq.outgoing.host + ':' + Config.zmq.outgoing.port);
+    }
+
+    async init() {
+        this.network = await Info.getNetwork();
+        await this.waitForFullNodeSync();
     }
 
     slp_txn_filter(txnhex: string): boolean {
@@ -69,15 +76,6 @@ export class Bit {
             return true;
         }
         return false;
-    }
-    
-    async init(db: Db, rpc: RpcClient) {
-        this.db = db;
-        this.rpc = rpc;
-        this.network = await Info.getNetwork();
-        await this.waitForFullNodeSync();
-        this.tna = new TNA();
-        //this.lastBlockProcessing = (await Info.getBlockCheckpoint()).height;
     }
 
     private async waitForFullNodeSync() {
@@ -204,7 +202,7 @@ export class Bit {
                         let syncResult = await Bit.sync(this, 'mempool', block.txs[i].txid());
                         this._slpGraphManager.onTransactionHash!(syncResult!);
                     }
-                    //This is used during startup block sync
+                    // This is used during startup block sync
                     else {
                         tasks.push(limit(async function() {
                             try {
@@ -273,45 +271,37 @@ export class Bit {
         let self = this;
         let onBlockHash = function(blockHash: Buffer) {
             self._zmqItemQueue.add(async function() {
-                try {
-                    let hash = blockHash.toString('hex');
-                    if(self.blockHashIgnoreSetList.has(hash)) {
-                        console.log('[ZMQ-SUB] Block message ignored:', hash);
-                        return;
-                    }
-                    self.blockHashIgnoreSetList.push(hash);   
-                    console.log('[ZMQ-SUB] New block found:', hash);
-                    await sync(self, 'block', hash);
-                    if(!self._slpGraphManager.zmqPubSocket)
-                        self._slpGraphManager.zmqPubSocket = self.outsock;
-                    if(self._slpGraphManager.onBlockHash)
-                        self._slpGraphManager.onBlockHash!(hash!);
-                } catch(err) {
-                    console.log(err);
-                    SlpdbStatus.logAndExitProcess(err);
+                let hash = blockHash.toString('hex');
+                if(self.blockHashIgnoreSetList.has(hash)) {
+                    console.log('[ZMQ-SUB] Block message ignored:', hash);
+                    return;
                 }
+                self.blockHashIgnoreSetList.push(hash);   
+                    self.blockHashIgnoreSetList.push(hash);   
+                self.blockHashIgnoreSetList.push(hash);   
+                console.log('[ZMQ-SUB] New block found:', hash);
+                await sync(self, 'block', hash);
+                if(!self._slpGraphManager.zmqPubSocket)
+                    self._slpGraphManager.zmqPubSocket = self.outsock;
+                if(self._slpGraphManager.onBlockHash)
+                    self._slpGraphManager.onBlockHash!(hash!);
             })
         }
 
         let onRawTxn = function(message: Buffer) {
             self._zmqItemQueue.add(async function() {
-                try {
-                    let rawtx = message.toString('hex');
-                    let hash = Buffer.from(bitbox.Crypto.hash256(message).toJSON().data.reverse()).toString('hex');
-                    if((await self.handleMempoolTransaction(hash, rawtx)).added) {
-                        console.log('[ZMQ-SUB] New unconfirmed transaction added:', hash);
-                        let syncResult = await sync(self, 'mempool', hash);
-                        if(!self._slpGraphManager.zmqPubSocket)
-                            self._slpGraphManager.zmqPubSocket = self.outsock;
-                        if(syncResult && self._slpGraphManager.onTransactionHash) {
-                            self._slpGraphManager.onTransactionHash!(syncResult);
-                        }
-                    } else {
-                        console.log('[INFO] Transaction ignored:', hash);
+                let rawtx = message.toString('hex');
+                let hash = Buffer.from(bitbox.Crypto.hash256(message).toJSON().data.reverse()).toString('hex');
+                if((await self.handleMempoolTransaction(hash, rawtx)).added) {
+                    console.log('[ZMQ-SUB] New unconfirmed transaction added:', hash);
+                    let syncResult = await sync(self, 'mempool', hash);
+                    if(!self._slpGraphManager.zmqPubSocket)
+                        self._slpGraphManager.zmqPubSocket = self.outsock;
+                    if(syncResult && self._slpGraphManager.onTransactionHash) {
+                        self._slpGraphManager.onTransactionHash!(syncResult);
                     }
-                } catch(err) {
-                    console.log(err);
-                    SlpdbStatus.logAndExitProcess(err);
+                } else {
+                    console.log('[INFO] Transaction ignored:', hash);
                 }
             })
         }
@@ -453,7 +443,7 @@ export class Bit {
                             //await self.db.mempoolreplace(content);
                         } else {
                             console.log('[ERROR] Mempool sync ERR:', e, content);
-                            SlpdbStatus.logAndExitProcess(e);
+                            throw e;
                         }
                     }
 

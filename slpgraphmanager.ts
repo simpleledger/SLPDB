@@ -382,14 +382,12 @@ export class SlpGraphManager {
                                 details = null;
                                 invalidReason = "Invalid Token Genesis";
                             } else {
-                                console.log("[ERROR]", err.message);
-                                SlpdbStatus.logAndExitProcess(err);
+                                throw err;
                             }
                         }
                         if(isValid! === null) {
                             let msg = `[ERROR] Validitity of ${txid} is null.`;
-                            console.log(msg);
-                            SlpdbStatus.logAndExitProcess(msg);
+                            throw msg;
                         }
                     } else if(tokenId) {
                         invalidReason = 'Token ID is not being tracked. SLPDB may be still syncing or is not following this token.';
@@ -405,8 +403,7 @@ export class SlpGraphManager {
                         await this.db.db.collection('unconfirmed').deleteMany({ "tx.h": txid });
                     if(!test.slp) {
                         let msg = "[ERROR] Did not update SLP object.";
-                        console.log(msg);
-                        SlpdbStatus.logAndExitProcess(msg);
+                        throw msg;
                     }
                 }
             }
@@ -485,7 +482,6 @@ export class SlpGraphManager {
             await SlpdbStatus.changeStateToRunning({
                 getSlpMempoolSize: () => self._bit.slpMempool.size,
                 getSlpTokensCount: () => self._tokens.size,
-                getSyncdCheckpoint: async () => await Info.getBlockCheckpoint()
             });
         })();
     }
@@ -560,8 +556,7 @@ export class SlpGraphManager {
                 await this.createNewTokenGraph({ tokenId: token.tokenIdHex, processUpToBlock: reprocessTo });
             }
             else {
-                console.log(err);
-                SlpdbStatus.logAndExitProcess(err);
+                throw err;
             }
         }
     }

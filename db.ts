@@ -10,14 +10,12 @@ export class Db {
     config: DbConfig;
     db!: MongoDb;
     mongo!: MongoClient;
-    _rpcClient!: RpcClient;
 
     constructor() {
         this.config = Config.db;
     }
 
-    async init(rpc: RpcClient) {
-        this._rpcClient = rpc;
+    async init() {
         let network = await Info.getNetwork();
         let client: MongoClient;
         console.log("[INFO] Initializing MongoDB...")
@@ -63,7 +61,7 @@ export class Db {
         await this.db.collection('tokens').deleteMany({})
         .catch(function(err) {
             console.log('[ERROR] token collection reset ERR ', err)
-            SlpdbStatus.logAndExitProcess(err);
+            throw err;
         })
     }
 
@@ -91,7 +89,7 @@ export class Db {
         await this.db.collection('graphs').deleteMany({})
         .catch(function(err) {
             console.log('[ERROR] graphs collection reset ERR ', err)
-            SlpdbStatus.logAndExitProcess(err);
+            throw err;
         })
     }
 
@@ -119,7 +117,7 @@ export class Db {
         await this.db.collection('addresses').deleteMany({})
         .catch(function(err) {
             console.log('[ERROR] addresses collection reset ERR ', err)
-            SlpdbStatus.logAndExitProcess(err);
+            throw err;
         })
     }
 
@@ -154,8 +152,8 @@ export class Db {
     async utxoReset() {
         await this.db.collection('utxos').deleteMany({})
         .catch(function(err) {
-            console.log('[ERROR] utxos collection reset ERR ', err)
-            SlpdbStatus.logAndExitProcess(err);
+            console.log('[ERROR] utxos collection reset ERR ', err);
+            throw err;
         })
     }
 
@@ -166,8 +164,8 @@ export class Db {
     async unconfirmedReset() {
         await this.db.collection('unconfirmed').deleteMany({})
         .catch(function(err) {
-            console.log('[ERROR] mempoolreset ERR ', err)
-            SlpdbStatus.logAndExitProcess(err);
+            console.log('[ERROR] mempoolreset ERR ', err);
+            throw err;
         })
     }
 
@@ -198,7 +196,7 @@ export class Db {
                 await this.db.collection('unconfirmed').insertMany(chunk, { ordered: false }).catch(function(err) {
                     if (err.code !== 11000) {
                         console.log('[ERROR] ## ERR ', err, items)
-                        SlpdbStatus.logAndExitProcess(err);
+                        throw err;
                     }
                 })
             } else {
@@ -214,7 +212,7 @@ export class Db {
     async confirmedReset() {
         await this.db.collection('confirmed').deleteMany({}).catch(function(err) {
             console.log('[ERROR] confirmedReset ERR ', err)
-            SlpdbStatus.logAndExitProcess(err);
+            throw err;
         })
     }
 
@@ -238,7 +236,7 @@ export class Db {
                 await this.db.collection('confirmed').deleteMany({ 'blk.i': block_index })
             } catch(err) {
                 console.log('confirmedReplace ERR ', err)
-                SlpdbStatus.logAndExitProcess(err);
+                throw err;
             }
             console.log('[INFO] Updating block', block_index, 'with', items.length, 'items')
         } else {
@@ -258,7 +256,7 @@ export class Db {
                     // duplicates are ok because they will be ignored
                     if (err.code !== 11000) {
                         console.log('[ERROR] confirmedReplace ERR ', err, items)
-                        SlpdbStatus.logAndExitProcess(err);
+                        throw err;
                     }
                 }
                 index+=1000
@@ -287,7 +285,7 @@ export class Db {
                 // duplicates are ok because they will be ignored
                     if (e.code !== 11000) {
                         console.log('[ERROR] confirmedInsert error:', e, items)
-                        SlpdbStatus.logAndExitProcess(e);
+                        throw e
                     }
                 }
                 index+=1000
@@ -323,7 +321,7 @@ export class Db {
                         }
                         } catch (e) {
                             console.log('[ERROR] blockindex error:', e)
-                            SlpdbStatus.logAndExitProcess(e);
+                            throw e;
                         }
                         console.timeEnd('Index:' + keys[i])
                     }
@@ -339,7 +337,7 @@ export class Db {
                         await this.db.collection(collectionName).createIndex(o, { name: 'fulltext' })
                     } catch (e) {
                         console.log('[ERROR] blockindex error:', e)
-                        SlpdbStatus.logAndExitProcess(e);
+                        throw e;
                     }
                     console.timeEnd('Fulltext search for ' + collectionName)
                 }
@@ -351,12 +349,12 @@ export class Db {
 
         try {
             let result = await this.db.collection('confirmed').indexInformation(<any>{ full: true }) // <- No MongoSession passed
-            //console.log('* Confirmed Index = ', result)
+            console.log('* Confirmed Index = ', result)
             result = await this.db.collection('unconfirmed').indexInformation(<any>{ full: true }) // <- No MongoSession passed
-            //console.log('* Unonfirmed Index = ', result)
+            console.log('* Unonfirmed Index = ', result)
         } catch (e) {
             console.log('[INFO] * Error fetching index info ', e)
-            SlpdbStatus.logAndExitProcess(e);
+            throw e;
         }
     }
 }

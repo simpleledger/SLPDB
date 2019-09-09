@@ -12,10 +12,10 @@ export class SlpdbStatus {
     static db: Db;
     static version: string;
     static context: context = context.SLPDB;
-    static timeStatusUpdate: string = '';
+    static lastStatusUpdate: string = '';
     static state: SlpdbState;
     static network: string = '';
-    static pastStackTraces: string[] = [];
+    static pastStackTraces: any[] = [];
     static rpc: RpcClient;
     static getSlpMempoolSize = function() { return -1; }
     static getSlpTokensCount = function() { return -1; }
@@ -28,8 +28,9 @@ export class SlpdbStatus {
         SlpdbStatus.state = SlpdbState.PRE_STARTUP;
     }
 
-    static async changeStateToStartupBlockSync(network: string) {
+    static async changeStateToStartupBlockSync({network, getSyncdCheckpoint}: {network: string, getSyncdCheckpoint: () => Promise<ChainSyncCheckpoint>}) {
         SlpdbStatus.network = network;
+        SlpdbStatus.getSyncdCheckpoint = getSyncdCheckpoint;
         SlpdbStatus.state = SlpdbState.STARTUP_BLOCK_SYNC;
         await SlpdbStatus.saveStatus();
     }
@@ -39,54 +40,77 @@ export class SlpdbStatus {
         await SlpdbStatus.saveStatus();
     }
 
-    static async changeStateToRunning({ getSlpMempoolSize, getSlpTokensCount, getSyncdCheckpoint }: { getSlpMempoolSize: () => number, getSlpTokensCount: () => number, getSyncdCheckpoint: () => Promise<ChainSyncCheckpoint>}) {
+    static async changeStateToRunning({ getSlpMempoolSize, getSlpTokensCount }: { getSlpMempoolSize: () => number, getSlpTokensCount: () => number}) {
         SlpdbStatus.state = SlpdbState.RUNNING;
         SlpdbStatus.getSlpMempoolSize = getSlpMempoolSize;
         SlpdbStatus.getSlpTokensCount = getSlpTokensCount;
-        SlpdbStatus.getSyncdCheckpoint = getSyncdCheckpoint;
         await SlpdbStatus.saveStatus();
     }
 
     static async changeStateToExitOnError(trace: string) {
         SlpdbStatus.state = SlpdbState.EXITED_ON_ERROR;
         SlpdbStatus.pastStackTraces.unshift(trace);
+        if(SlpdbStatus.pastStackTraces.length > 5)
+            SlpdbStatus.pastStackTraces.pop();
         await SlpdbStatus.saveStatus();
     }
 
     static async saveStatus() {
-        await SlpdbStatus.db.statusUpdate(await SlpdbStatus.toDbo());
+        let dbo = await SlpdbStatus.toDbo();
+        await SlpdbStatus.db.statusUpdate(dbo);
     }
 
     static async logAndExitProcess(error?: string) {
         if(error) {
-            SlpdbState.EXITED_ON_ERROR;
-            SlpdbStatus.pastStackTraces.unshift(error);
-            if(SlpdbStatus.pastStackTraces.length > 10)
-                SlpdbStatus.pastStackTraces.pop();
+            await SlpdbStatus.changeStateToExitOnError(error);
         } else {
             SlpdbState.EXITED_NORMAL;
+            await SlpdbStatus.saveStatus();
         }
-        await SlpdbStatus.saveStatus();
         process.exit();
     }
 
     private static async toDbo() {
         let checkpoint = await SlpdbStatus.getSyncdCheckpoint();
-            
+
+        let mempoolInfo = {};
+        try {
+            mempoolInfo = await SlpdbStatus.rpc.getMempoolInfo();
+        } catch (_) { }
+
+        let stackTraces = SlpdbStatus.pastStackTraces.map(t => {
+            if(typeof t === 'string')
+                return t;
+            else {
+                try {
+                    return t.toString();
+                } catch(_) { 
+                    return "Unknown stack trace."
+                }
+            }
+        })
+        let date = new Date()
         return {
             version: SlpdbStatus.version,
             context: SlpdbStatus.context,
-            timeStatusUpdate: (new Date()).toUTCString(),
+            lastStatusUpdate: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) },
             state: SlpdbStatus.state,
             network: SlpdbStatus.network,
             blockHeight: checkpoint.height,
             blockHash: checkpoint.hash,
-            mempoolInfoBch: await SlpdbStatus.rpc.getMempoolInfo(),
+            mempoolInfoBch: mempoolInfo,
             mempoolSizeSlp: SlpdbStatus.getSlpMempoolSize(),
             tokensCount: SlpdbStatus.getSlpTokensCount(),
-            pastStackTraces: SlpdbStatus.pastStackTraces,
+            pastStackTraces: stackTraces,
             mongoDbStats: await SlpdbStatus.db.db.stats({ scale: 1048576 })
         }
+    }
+
+    static async loadPreviousAttributes() {
+        let dbo = await SlpdbStatus.db.statusFetch("SLPDB");
+        try {
+            SlpdbStatus.pastStackTraces = dbo.pastStackTraces;
+        } catch(_) {}
     }
 }
 

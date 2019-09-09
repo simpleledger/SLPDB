@@ -10,12 +10,21 @@ import { Info, ChainSyncCheckpoint } from './info';
 import { SlpGraphManager } from './slpgraphmanager';
 
 const db = new Db();
-const bit = new Bit();
 const rpc = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
+const bit = new Bit(db, rpc);
 new SlpdbStatus(db, rpc);
 
 const daemon = {
     run: async function(start_height?: number) {
+        await db.init();
+
+        // persist updated SLPDB status every 10 minutes
+        await SlpdbStatus.loadPreviousAttributes();
+        setInterval(async function() {
+            await SlpdbStatus.saveStatus();
+        }, 60000);
+
+        await bit.init();
 
         // test RPC connection
         console.log("[INFO] Testing RPC connection...");
@@ -29,6 +38,8 @@ const daemon = {
         // set start height override
         if(start_height)
             await Info.updateBlockCheckpoint(start_height, null);
+        
+        await SlpdbStatus.saveStatus();
 
         // check for confirmed collection schema update
         let schema = await Info.getConfirmedCollectionSchema();
@@ -37,9 +48,6 @@ const daemon = {
             await Info.checkpointReset();
             console.log("[INFO] Schema version for the confirmed collection was updated. Reseting block checkpoint reset to", (await Info.getBlockCheckpoint()).height)
         }
-
-        await db.init(rpc);
-        await bit.init(db, rpc);
 
         const lastSynchronized = <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
         let reprocessFrom = lastSynchronized.height;
@@ -57,7 +65,9 @@ const daemon = {
 
         console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
         console.time('[PERF] Initial Block Sync');
-        await SlpdbStatus.changeStateToStartupBlockSync(network);
+        await SlpdbStatus.changeStateToStartupBlockSync({ 
+            network, getSyncdCheckpoint: async () => await Info.getBlockCheckpoint()
+        });
         await bit.processBlocksForTNA();
         await bit.processCurrentMempoolForTNA();
         console.timeEnd('[PERF] Initial Block Sync');
@@ -73,11 +83,6 @@ const daemon = {
 
         await tokenManager.initAllTokens({ reprocessFrom });
 
-        // persist updated SLPDB status every 10 minutes
-        setInterval(async function() {
-            await SlpdbStatus.saveStatus();
-        }, 600000);
-
         // // look for burned token transactions every hour after startup
         // setInterval(async function() {
         //     if(tokenManager._startupQueue.size === 0 && tokenManager._startupQueue.pending === 0) {
@@ -89,8 +94,7 @@ const daemon = {
 
 const util = {
     run: async function() {
-        const rpc = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
-        await db.init(rpc)
+        await db.init()
         let cmd = process.argv[2]
         if (cmd === 'fix') {
             console.log("Command not implemented");
@@ -119,8 +123,8 @@ const util = {
     reprocess_token: async function(tokenId: string) {
         let network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet'
         await Info.setNetwork(network);
-        await db.init(rpc);
-        await bit.init(db, rpc);
+        await db.init();
+        await bit.init();
         console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
         console.time('[PERF] Initial Block Sync');
         await bit.processBlocksForTNA();
@@ -141,7 +145,7 @@ const util = {
         ]
         let network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
         await Info.setNetwork(network);
-        await db.init(rpc);
+        await db.init();
         let currentHeight = await rpc.getBlockCount();
         let tokenManager = new SlpGraphManager(db, currentHeight, network, bit);
         await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: tokenIdFilter, reprocessTo: block_height });
@@ -174,24 +178,37 @@ const util = {
 }
 
 const start = async function() {
-    try {
-        let args = process.argv;
-        if (args.length > 3) {
-            if(args[2] === "run")
-                await daemon.run(parseInt(process.argv[3]));
-            else if(args[2] === "reprocess")
-                await util.reprocess_token(process.argv[3]);
-            else if(args[2] === "goToBlock")
-                await util.reset_to_block(parseInt(process.argv[3]));
-        } else if (process.argv.length > 2) {
-            await util.run();
-        } else {
-            await daemon.run();
-        }
-    } catch(err) {
-        console.log(err);
-        SlpdbStatus.logAndExitProcess(err);
+    let args = process.argv;
+    if (args.length > 3) {
+        if(args[2] === "run")
+            await daemon.run(parseInt(process.argv[3]));
+        else if(args[2] === "reprocess")
+            await util.reprocess_token(process.argv[3]);
+        else if(args[2] === "goToBlock")
+            await util.reset_to_block(parseInt(process.argv[3]));
+    } else if (process.argv.length > 2) {
+        await util.run();
+    } else {
+        await daemon.run();
     }
 }
+
+// @ts-ignore
+process.on('uncaughtException', (err: any, origin: any) => {
+    var message = err;
+    try {
+        message = `[${(new Date()).toUTCString()}] ${err.stack}`;
+    } catch(_) {}
+    SlpdbStatus.logAndExitProcess(message);
+});
+
+// @ts-ignore
+process.on('unhandledRejection', (err: any, promise: any) => {
+    var message = err;
+    try {
+        message = `[${(new Date()).toUTCString()}] ${err.stack}`;
+    } catch(_) {}
+    SlpdbStatus.logAndExitProcess(message);
+});
 
 start();
