@@ -23,7 +23,7 @@ export class Db {
     }
 
     async exit() {
-        await this.mongo.close()
+        await this.mongo.close();
     }
 
     async statusUpdate(status: any) {

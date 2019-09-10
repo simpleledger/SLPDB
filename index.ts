@@ -108,7 +108,7 @@ const util = {
             // 	await util.fix(fromHeight)
             // } else
             // 	console.log("Usage 'node ./index.js fix <block number>'")
-            SlpdbStatus.logAndExitProcess();
+            process.exit(1);
         } else if (cmd === 'reset') {
             await db.confirmedReset()
             await db.unconfirmedReset()
@@ -117,11 +117,11 @@ const util = {
             await db.utxoReset()
             await db.addressReset()
             await Info.checkpointReset()
-            SlpdbStatus.logAndExitProcess();
+            process.exit(1);
         } else if (cmd === 'index') {
             console.log("Command not implemented");
             //await db.blockindex()
-            SlpdbStatus.logAndExitProcess();
+            process.exit(1);
         }
     }, 
     reprocess_token: async function(tokenId: string) {
@@ -141,7 +141,7 @@ const util = {
         bit.listenToZmq();
         await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: [tokenId], loadFromDb: false });
         tokenManager._tokens.get(tokenId)!.updateStatistics();
-        SlpdbStatus.logAndExitProcess();
+        process.exit(1);
     },
     reset_to_block: async function(block_height: number) {  //592340
         let tokenIdFilter = [
@@ -158,7 +158,7 @@ const util = {
         let blockhash = await rpc.getBlockHash(block_height+1);
         await tokenManager.onBlockHash(blockhash, tokenIdFilter);
         await Info.updateBlockCheckpoint(block_height, null);
-        SlpdbStatus.logAndExitProcess();
+        process.exit(1);
     }
     //,
     //fix: async function(height: number) {
@@ -198,21 +198,30 @@ const start = async function() {
 }
 
 // @ts-ignore
-process.on('uncaughtException', (err: any, origin: any) => {
+process.on('uncaughtException', async (err: any, origin: any) => {
     var message = err;
     try {
         message = `[${(new Date()).toUTCString()}] ${err.stack}`;
     } catch(_) {}
-    SlpdbStatus.logAndExitProcess(message);
+    await SlpdbStatus.logExitReason(message);
+    try {
+        console.log('[INFO] Shutting down SLPDB...', new Date().toString());
+        await db.exit();
+    } catch(_) {}
+    process.exit(0);
 });
 
-// @ts-ignore
-process.on('unhandledRejection', (err: any, promise: any) => {
+process.on('unhandledRejection', async (err: any, promise: any) => {
     var message = err;
     try {
         message = `[${(new Date()).toUTCString()}] ${err.stack}`;
     } catch(_) {}
-    SlpdbStatus.logAndExitProcess(message);
+    await SlpdbStatus.logExitReason(message);
+    try {
+        console.log('[INFO] Shutting down SLPDB...', new Date().toString());
+        await db.exit();
+    } catch(_) {}
+    process.exit(0);
 });
 
 start();

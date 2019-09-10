@@ -402,7 +402,6 @@ export class Bit {
                     currentHeight = await self.requestheight();
                 }
 
-
                 // clear mempool and synchronize
                 if (lastCheckpoint.height < currentHeight && hash) {
                     await self.checkForMissingMempoolTxns();
@@ -417,8 +416,6 @@ export class Bit {
                 }
             } catch (e) {
                 console.log('[ERROR] block sync Error');
-                console.log('[INFO] Shutting down SLPDB...', new Date().toString());
-                await self.db.exit();
                 throw e;
             }
         } else if (type === 'mempool') {

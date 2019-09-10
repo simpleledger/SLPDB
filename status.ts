@@ -60,14 +60,13 @@ export class SlpdbStatus {
         await SlpdbStatus.db.statusUpdate(dbo);
     }
 
-    static async logAndExitProcess(error?: string) {
+    static async logExitReason(error: string) {
         if(error) {
             await SlpdbStatus.changeStateToExitOnError(error);
         } else {
             SlpdbState.EXITED_NORMAL;
             await SlpdbStatus.saveStatus();
         }
-        process.exit();
     }
 
     private static async toDbo() {
