@@ -16,7 +16,15 @@ new SlpdbStatus(db, rpc);
 
 const daemon = {
     run: async function(start_height?: number) {
-        await db.init();
+        let network!: string;
+        try {        
+            network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
+            await Info.setNetwork(network);
+            await db.init();
+        } catch(err) {
+            console.log(err);
+            process.exit();
+        }
 
         // persist updated SLPDB status every 10 minutes
         await SlpdbStatus.loadPreviousAttributes();
@@ -30,10 +38,6 @@ const daemon = {
         console.log("[INFO] Testing RPC connection...");
         await rpc.getBlockCount();
         console.log("[INFO] RPC is initialized.");
-
-        // set network
-        let network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
-        await Info.setNetwork(network);
 
         // set start height override
         if(start_height)

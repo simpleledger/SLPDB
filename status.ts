@@ -73,7 +73,7 @@ export class SlpdbStatus {
     private static async toDbo() {
         let checkpoint = await SlpdbStatus.getSyncdCheckpoint();
 
-        let mempoolInfo = {};
+        let mempoolInfo = null;
         try {
             mempoolInfo = await SlpdbStatus.rpc.getMempoolInfo();
         } catch (_) { }
@@ -89,7 +89,7 @@ export class SlpdbStatus {
                 }
             }
         })
-        let date = new Date()
+        let date = new Date();
         return {
             version: SlpdbStatus.version,
             context: SlpdbStatus.context,

@@ -3,8 +3,6 @@ import { Config, DbConfig } from './config';
 import { TNATxn } from './tna';
 import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from './slptokengraph';
 import { Info } from './info';
-import { RpcClient } from './rpc';
-import { SlpdbStatus } from './status';
 
 export class Db {
     config: DbConfig;
@@ -17,12 +15,10 @@ export class Db {
 
     async init() {
         let network = await Info.getNetwork();
-        let client: MongoClient;
         console.log("[INFO] Initializing MongoDB...")
-        client = await MongoClient.connect(this.config.url, { useNewUrlParser: true })
+        this.mongo = await MongoClient.connect(this.config.url, { useNewUrlParser: true })
         let dbname = network === 'mainnet' ? this.config.name : this.config.name_testnet;
-        this.db = client.db(dbname);
-        this.mongo = <MongoClient>client;
+        this.db = this.mongo.db(dbname);
         console.log("[INFO] MongoDB initialized.")
     }
 
@@ -31,7 +27,7 @@ export class Db {
     }
 
     async statusUpdate(status: any) {
-        await this.db.collection('statuses').deleteOne({ "context": status.context });
+        await this.db.collection('statuses').deleteMany({ "context": status.context });
         return await this.db.collection('statuses').insertOne(status);
     }
 
