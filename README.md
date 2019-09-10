@@ -1,9 +1,9 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-08-10
+**Last Updated:** 2019-09-10
 
-**Current SLPDB Version:** 0.15.3 (beta)
+**Current SLPDB Version:** 0.15.4
 
 * 1. [What is SLPDB?](#WhatisSLPDB)
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)
@@ -84,7 +84,7 @@ The services `SlpServe` and `SlpSockServer` return query results as a JSON objec
 ##  4. <a name='InstallationInstructions'></a>Installation Instructions
 
 ###  4.1. <a name='Prerequisites'></a>Prerequisites
-* Node.js 11+
+* Node.js 12
 * TypeScript 3+ (`npm install -g typescript`)
 * MongoDB 4.0+
 * BitcoinABC, BitcoinUnlimited or other Bitcoin Cash full node with:
@@ -109,7 +109,7 @@ The following settings should be applied to your full node's configuration.  NOT
 
 ###  4.3. <a name='BCHDgRPCSupport'></a>BCHD & gRPC Support
 
-High speed gRPC is supported with BCHD 0.14.8+ full nodes in place of JSON RPC and incomming ZMQ notifications.  To enable, add the environment variables `grpc_url` and `grpc_certPath`.  See the `example.env` file in this project and the [BCHD documentation](https://github.com/gcash/bchd/tree/master/docs) for more details.
+**Experimental:** High speed gRPC is supported with BCHD 0.14.8+ full nodes in place of JSON RPC and incomming ZMQ notifications.  To enable, add the environment variables `grpc_url` and `grpc_certPath`.  See the `example.env` file in this project and the [BCHD documentation](https://github.com/gcash/bchd/tree/master/docs) for more details.
 
 ###  4.4. <a name='TestnetSupport'></a>Testnet Support
 
