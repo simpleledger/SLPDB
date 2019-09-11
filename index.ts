@@ -78,7 +78,6 @@ const daemon = {
         console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
 
         console.log('[INFO] Starting to processing SLP Data.', new Date());
-        await SlpdbStatus.changeStateToStartupSlpProcessing();
         let currentHeight = await rpc.getBlockCount();
         let tokenManager = new SlpGraphManager(db, currentHeight, network, bit);
         bit._slpGraphManager = tokenManager;

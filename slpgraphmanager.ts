@@ -463,6 +463,10 @@ export class SlpGraphManager {
             tokens = (await Promise.all(results)).flat()
         }
 
+        await SlpdbStatus.changeStateToStartupSlpProcessing({ 
+            getSlpTokensCount: () => this._tokens.size,
+        });
+
         // Instantiate all Token Graphs in memory
         let self = this;
         for (let i = 0; i < tokens.length; i++) {
@@ -480,8 +484,7 @@ export class SlpGraphManager {
             await self.fixMissingTokenTimestamps();
             await self._bit.handleConfirmedTxnsMissingSlpMetadata();
             await SlpdbStatus.changeStateToRunning({
-                getSlpMempoolSize: () => self._bit.slpMempool.size,
-                getSlpTokensCount: () => self._tokens.size,
+                getSlpMempoolSize: () => self._bit.slpMempool.size
             });
         })();
     }

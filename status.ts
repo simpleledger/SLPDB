@@ -28,22 +28,22 @@ export class SlpdbStatus {
         SlpdbStatus.state = SlpdbState.PRE_STARTUP;
     }
 
-    static async changeStateToStartupBlockSync({network, getSyncdCheckpoint}: {network: string, getSyncdCheckpoint: () => Promise<ChainSyncCheckpoint>}) {
+    static async changeStateToStartupBlockSync({ network, getSyncdCheckpoint }: { network: string, getSyncdCheckpoint: () => Promise<ChainSyncCheckpoint> }) {
         SlpdbStatus.network = network;
         SlpdbStatus.getSyncdCheckpoint = getSyncdCheckpoint;
         SlpdbStatus.state = SlpdbState.STARTUP_BLOCK_SYNC;
         await SlpdbStatus.saveStatus();
     }
 
-    static async changeStateToStartupSlpProcessing() {
+    static async changeStateToStartupSlpProcessing({ getSlpTokensCount }: { getSlpTokensCount: () => number }) {
         SlpdbStatus.state = SlpdbState.STARTUP_TOKEN_PROCESSING;
+        SlpdbStatus.getSlpTokensCount = getSlpTokensCount;
         await SlpdbStatus.saveStatus();
     }
 
-    static async changeStateToRunning({ getSlpMempoolSize, getSlpTokensCount }: { getSlpMempoolSize: () => number, getSlpTokensCount: () => number}) {
+    static async changeStateToRunning({ getSlpMempoolSize }: { getSlpMempoolSize: () => number }) {
         SlpdbStatus.state = SlpdbState.RUNNING;
         SlpdbStatus.getSlpMempoolSize = getSlpMempoolSize;
-        SlpdbStatus.getSlpTokensCount = getSlpTokensCount;
         await SlpdbStatus.saveStatus();
     }
 
