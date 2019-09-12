@@ -726,10 +726,10 @@ export class SlpTokenGraph implements TokenGraph {
                 //this._statsNeedUpdated = false;
             }
 
-            await this._db.tokenInsertReplace(this.toTokenDbObject());
-            await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
-            await this._db.graphInsertReplace(this.toGraphDbObject(), this._tokenDetails.tokenIdHex);
-            await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
+            this._db.tokenInsertReplace(this.toTokenDbObject());
+            this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
+            this._db.graphInsertReplace(this.toGraphDbObject(), this._tokenDetails.tokenIdHex);
+            this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
 
             console.log("########################################################################################################")
             console.log("TOKEN STATS/ADDRESSES FOR", this._tokenDetails.name, this._tokenDetails.tokenIdHex)
