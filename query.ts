@@ -185,7 +185,7 @@ export class Query {
             "q": {
                 "db": ["c"],
                 "find": {
-                    "slp": { "$exists": false }
+                    "$or": [ {"slp": { "$exists": false }}, { "slp.valid": null } ]
                 },
                 "project": {
                     "tx.h": 1
