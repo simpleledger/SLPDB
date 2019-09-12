@@ -389,8 +389,12 @@ export class SlpGraphManager {
                             let msg = `[ERROR] Validitity of ${txid} is null.`;
                             throw msg;
                         }
+                    } else if(tokenId && this._startupQueue.size === 0 && this._startupQueue.pending === 0 && this._startupTokenCount > 0) {
+                        invalidReason = 'Token is invalid, most likely because it is an invalid Genesis.';
+                        isValid = false;
                     } else if(tokenId) {
-                        invalidReason = 'Token ID is not being tracked. SLPDB may be still syncing or is not following this token.';
+                        invalidReason = 'Token ID is not currently being tracked because SLPDB is still syncing.';
+                        isValid = null;
                     }
 
                     tna.slp.valid = isValid;
