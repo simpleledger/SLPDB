@@ -213,7 +213,7 @@ export class SlpTokenGraph implements TokenGraph {
                 await self._manager.publishZmqNotification(txid);
 
             // Update token's statistics
-            if(self._graphUpdateQueue.pending === 1) {
+            if(self._graphUpdateQueue.size === 0 && self._graphUpdateQueue.pending === 1) {
                 self._liveTxoSpendCache.clear();
                 await self.updateStatistics();
             }
