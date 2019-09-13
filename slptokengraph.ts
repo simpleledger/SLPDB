@@ -431,41 +431,43 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
         // compute node's graph search stats once all inputs have been mapped
-        try {
-            if(!isParent && !graphTxn.stats) {
-                console.time("GRAPH STATS " + txid);
-                let depthMap: {[key:string]: [number, number] } = {};
-                let init_cache = new Set<string>();
-                let parentGraphTxns = new Map<string, GraphTxn>();
-                for(let i = 0; i < graphTxn.inputs.length; i++) {
-                    let previd = graphTxn.inputs[i].txid;
-                    if(this._slpValidator.cachedValidations[previd] && this._slpValidator.cachedValidations[previd].validity && !init_cache.has(previd)) {
-                        let gt = this._graphTxns.get(previd)!
-                        if(!gt)
-                            throw Error("No txn graph found.");
+        if(Config.core.enable_graph_search) {
+            try {
+                if(!isParent && !graphTxn.stats) {
+                    console.time("GRAPH STATS " + txid);
+                    let depthMap: {[key:string]: [number, number] } = {};
+                    let init_cache = new Set<string>();
+                    let parentGraphTxns = new Map<string, GraphTxn>();
+                    for(let i = 0; i < graphTxn.inputs.length; i++) {
+                        let previd = graphTxn.inputs[i].txid;
+                        if(this._slpValidator.cachedValidations[previd] && this._slpValidator.cachedValidations[previd].validity && !init_cache.has(previd)) {
+                            let gt = this._graphTxns.get(previd)!
+                            if(!gt)
+                                throw Error("No txn graph found.");
+    
+                            // if(gt.inputs.length === 0) {
+                            //     await this.updateTokenGraphFrom({ txid: previd, isParent: true, updateOutputs: false }); 
+                            // }
+    
+                            if(gt.outputs.length === 0)
+                                throw Error("MISSING OUTPUTS " + previd);
 
-                        // if(gt.inputs.length === 0) {
-                        //     await this.updateTokenGraphFrom({ txid: previd, isParent: true, updateOutputs: false }); 
-                        // }
-
-                        if(gt.outputs.length === 0)
-                            throw Error("MISSING OUTPUTS " + previd);
-                        
-                        parentGraphTxns.set(previd, gt);
-                        init_cache.add(previd);
-                        console.log("START", previd);
+                            parentGraphTxns.set(previd, gt);
+                            init_cache.add(previd);
+                            console.log("START", previd);
+                        }
                     }
+                    console.log("FROM", txid);
+                    let depth = this.buildGraphStats(parentGraphTxns, init_cache, depthMap);
+                    console.timeEnd("GRAPH STATS " + txid);
+                    graphTxn.stats = { depth: depth, txcount: init_cache.size, depthMap: depthMap }
                 }
-                console.log("FROM", txid);
-                let depth = this.buildGraphStats(parentGraphTxns, init_cache, depthMap);
-                console.timeEnd("GRAPH STATS " + txid);
-                graphTxn.stats = { depth: depth, txcount: init_cache.size, depthMap: depthMap }
+            } catch(err) {
+                console.log(err);
+                graphTxn.stats = { depth: -2, txcount: 0, depthMap: {} }
             }
-        } catch(err) {
-            console.log(err);
-            graphTxn.stats = { depth: -2, txcount: 0, depthMap: {} }
         }
-        
+
         // update the status of each input txn's outputs
         if(!isParent) {
             let parentIds = new Set<string>([...txn.inputs.map(i => i.prevTxId.toString('hex'))])

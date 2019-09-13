@@ -63,7 +63,8 @@ export class Bit {
         this.db = db;
         this.rpc = rpc;
         this._zmqItemQueue = new pQueue({ concurrency: 1, autoStart: true });
-        this.outsock.bindSync('tcp://' + Config.zmq.outgoing.host + ':' + Config.zmq.outgoing.port);
+        if(Config.zmq.outgoing.enable)
+            this.outsock.bindSync('tcp://' + Config.zmq.outgoing.host + ':' + Config.zmq.outgoing.port);
     }
 
     async init() {

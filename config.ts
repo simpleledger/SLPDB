@@ -74,18 +74,20 @@ export class Config {
 		}
 	}
 	static zmq = {
-		'incoming': {
-			'host': process.env.zmq_incoming_host ? process.env.zmq_incoming_host : '0.0.0.0',
-			'port': process.env.zmq_incoming_port ? process.env.zmq_incoming_port : '28332',
+		incoming: {
+			host: process.env.zmq_incoming_host ? process.env.zmq_incoming_host : '0.0.0.0',
+			port: process.env.zmq_incoming_port ? process.env.zmq_incoming_port : '28332',
 		},
-		'outgoing': {
-			'host': process.env.zmq_outgoing_host ? process.env.zmq_outgoing_host : '0.0.0.0',
-			'port': process.env.zmq_outgoing_port ? process.env.zmq_outgoing_port : '28339'
+		outgoing: {
+			enable: process.env.zmq_outgoing_enable ? process.env.zmq_outgoing_enable === '1' || process.env.zmq_outgoing_enable === 'true' : true,
+			host: process.env.zmq_outgoing_host ? process.env.zmq_outgoing_host : '0.0.0.0',
+			port: process.env.zmq_outgoing_port ? process.env.zmq_outgoing_port : '28339',
 		}
 	}
 	static core = {
 		from: Number.parseInt(process.env.core_from ? process.env.core_from : "543375"),
 		from_testnet: Number.parseInt(process.env.core_from_testnet ? process.env.core_from_testnet : "1253801"),
 		slp_mempool_ignore_length: Number.parseInt(process.env.core_slp_mempool_ignore_length ? process.env.core_slp_mempool_ignore_length : "1000000"),
+		enable_graph_search: process.env.enable_graph_search ? process.env.enable_graph_search === '1' || process.env.enable_graph_search === 'true' : true
 	}
 }
