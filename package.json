@@ -6,6 +6,7 @@
   "scripts": {
     "test": "tsc && test",
     "start": "tsc && node --max_old_space_size=8192 index",
+    "tsc": "tsc",
     "lint": "./node_modules/.bin/eslint .",
     "migrate": "./node_modules/.bin/migrate-mongo"
   },
@@ -54,6 +55,7 @@
     "zeromq": "^5.1.0"
   },
   "devDependencies": {
-    "eslint": "^5.6.1"
+    "eslint": "^5.6.1",
+    "typescript": "^3.6.3"
   }
 }
