@@ -2,7 +2,7 @@ import { Config } from "./config";
 import { TxOutResult, BlockchainInfoResult, BlockHeaderResult, MempoolInfoResult } from "bitcoin-com-rest";
 import { GrpcClient, BlockInfo, GetUnspentOutputResponse } from "grpc-bchrpc-node";
 
-const _rpcClient = require('bitcoin-rpc-promise');
+const _rpcClient = require('bitcoin-rpc-promise-retry');
 const connectionString = 'http://' + Config.rpc.user + ':' + Config.rpc.pass + '@' + Config.rpc.host + ':' + Config.rpc.port
 
 let grpc: GrpcClient;
