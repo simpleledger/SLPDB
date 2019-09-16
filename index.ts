@@ -1,5 +1,7 @@
 import * as dotenv from 'dotenv';
 dotenv.config()
+import * as yaml from 'js-yaml';
+import * as fs from 'fs';
 
 import { Bit } from './bit';
 import { Db } from './db';
@@ -8,6 +10,7 @@ import { Config } from './config';
 import { SlpdbStatus } from './status';
 import { Info, ChainSyncCheckpoint } from './info';
 import { SlpGraphManager } from './slpgraphmanager';
+import { TokenFilterRule, TokenFilter } from './filters';
 
 const db = new Db();
 const rpc = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
@@ -45,6 +48,18 @@ const daemon = {
         
         await SlpdbStatus.saveStatus();
 
+        // try to load tokens filter yaml
+        let filter: TokenFilter = new TokenFilter();
+        try {
+            let o = yaml.safeLoad(fs.readFileSync('filters.yml', 'utf-8'));
+            o.tokens.forEach((f: TokenFilterRule) => {
+                filter.addRule(new TokenFilterRule({ info: f.info, name: f.name, type: f.type }));
+                console.log("[INFO] Loaded token filter:", f.name);
+            });
+        } catch(e) {
+            console.log("[INFO] No token filters loaded.");
+        }
+
         // check for confirmed collection schema update
         let schema = await Info.getConfirmedCollectionSchema();
         if(!schema || schema !== Config.db.confirmed_schema_version) {
@@ -79,7 +94,7 @@ const daemon = {
 
         console.log('[INFO] Starting to processing SLP Data.', new Date());
         let currentHeight = await rpc.getBlockCount();
-        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit);
+        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
         bit._slpGraphManager = tokenManager;
         bit.listenToZmq();
         await bit.checkForMissingMempoolTxns(undefined, true);
@@ -143,19 +158,23 @@ const util = {
         process.exit(1);
     },
     reset_to_block: async function(block_height: number) {  //592340
-        let tokenIdFilter = [
+        let includeTokenIds = [
             "8aab2185354926d72c6a8f6bf7e403daaf1469c02e00a5ad5981b84ea776d980",
         ]
+        let filter = new TokenFilter();
+        includeTokenIds.forEach(i => {
+            filter.addRule(new TokenFilterRule({ name: "unknown", info: i, type: 'include-single'}));
+        });
         let network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
         await Info.setNetwork(network);
         await db.init();
         let currentHeight = await rpc.getBlockCount();
-        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit);
-        await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: tokenIdFilter, reprocessTo: block_height });
+        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
+        await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: includeTokenIds, reprocessTo: block_height });
         //await tokenManager.initAllTokens({ allowGraphUpdates: false, tokenIds: tokenIdFilter });
         //await tokenManager.simulateOnTransactionHash("06e27bfcd9f8839ea6c7720a6c50f68465e3bc56775c7a683dcb29f799eba24a");
         let blockhash = await rpc.getBlockHash(block_height+1);
-        await tokenManager.onBlockHash(blockhash, tokenIdFilter);
+        await tokenManager.onBlockHash(blockhash);
         await Info.updateBlockCheckpoint(block_height, null);
         process.exit(1);
     }

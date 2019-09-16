@@ -9,3 +9,5 @@ _mongo
 .env
 
 .DS_Store
+
+filters.yml

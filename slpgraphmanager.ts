@@ -21,6 +21,7 @@ import { RpcClient } from './rpc';
 import { BlockHeaderResult } from "bitcoin-com-rest";
 import { SetCache } from "./cache";
 import { SlpdbStatus } from "./status";
+import { TokenFilter } from "./filters";
 
 const bitcoin = new BITBOX();
 const slp = new Slp(bitcoin);
@@ -40,6 +41,7 @@ export class SlpGraphManager {
     _startupTokenCount: number;
     _slpMempool = new Map<txid, txhex>();
     _bit: Bit;
+    _filter: TokenFilter;
 
     get TnaSynced(): boolean {
         if(this._TnaQueue)
@@ -55,11 +57,11 @@ export class SlpGraphManager {
         })
     }
 
-    async onBlockHash(hash: string, tokenIdFilter: string[] = []) {
+    async onBlockHash(hash: string) {
         this._bestBlockHeight = (await Info.getBlockCheckpoint()).height;
         let self = this;
         this._updatesQueue.add(async function() {
-            await self._onBlockHash(hash, tokenIdFilter);
+            await self._onBlockHash(hash);
         })
     }
 
@@ -72,6 +74,12 @@ export class SlpGraphManager {
                 let txn = new bitcore.Transaction(txPair[1]);
                 let tokenDetails = this.parseTokenTransactionDetails(txPair[1]);
                 let tokenId = tokenDetails ? tokenDetails.tokenIdHex : null;
+
+                // check token filters
+                if(tokenId && !this._filter.passesAllFilterRules(tokenId)) {
+                    console.log("[INFO] Transaction does not pass token filter:", txPair[0]);
+                    return;
+                }
 
                 // Based on Txn output OP_RETURN data, update graph for the tokenId 
                 if(tokenId) {
@@ -142,7 +150,7 @@ export class SlpGraphManager {
         return tokenDetails;
     }
 
-    async _onBlockHash(hash: string, tokenIdFilter: string[] = []): Promise<void> {
+    async _onBlockHash(hash: string): Promise<void> {
 
         while(this._transaction_lock) {
             console.log("[INFO] onBlockHash update is locked until processing for new token graph is completed.")
@@ -168,10 +176,10 @@ export class SlpGraphManager {
 
             // update all statistics for tokens included in this block
             let tokenIds: string[];
-            if(tokenIdFilter.length > 0) {
+            if(this._filter._rules.size > 0) {
                 tokenIds = Array.from(new Set<string>([
                     ...blockTxns!.txns
-                        .filter(t => t.slp && t.slp.valid && tokenIdFilter.includes(t.slp.detail!.tokenIdHex))
+                        .filter(t => t.slp && t.slp.valid && this._filter.passesAllFilterRules(t.slp.detail!.tokenIdHex))
                         .map(t => t.slp.detail!.tokenIdHex)
                     ]));
             }
@@ -206,13 +214,14 @@ export class SlpGraphManager {
         }
     }
 
-    constructor(db: Db, currentBestHeight: number, network: string, bit: Bit) {
+    constructor(db: Db, currentBestHeight: number, network: string, bit: Bit, filter: TokenFilter = new TokenFilter()) {
         this.db = db;
         this._bestBlockHeight = currentBestHeight;
         this._network = network;
         this._tokens = new Map<string, SlpTokenGraph>();
         this._rpcClient = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
         this._bit = bit;
+        this._filter = filter;
         let self = this;
         this._startupTokenCount = 0
         this._startupQueue.on('active', () => {
@@ -459,7 +468,15 @@ export class SlpGraphManager {
 
     async initAllTokens({ reprocessFrom, reprocessTo, tokenIds, loadFromDb = true, allowGraphUpdates = true }: { reprocessFrom?: number; reprocessTo?: number; tokenIds?: string[]; loadFromDb?: boolean; allowGraphUpdates?: boolean} = {}) {
         await Query.init();
-        let tokens: SlpTransactionDetails[]; 
+        let tokens: SlpTransactionDetails[];
+        if(this._filter._rules.size > 0) {
+            if(!tokenIds)
+                tokenIds = [];
+            this._filter._rules.forEach(f => {
+                if(f.type === 'include-single')
+                    tokenIds!.push(f.info);
+            });
+        }
         if(!tokenIds)
             tokens = await Query.queryTokensList();
         else {
