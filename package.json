@@ -34,7 +34,7 @@
     "bcash": "^1.1.1",
     "bignumber.js": "^8.1.0",
     "bitbox-sdk": "8.2.1",
-    "bitcoin-rpc-promise": "gist:7c752c62fdae80fc7e2125a6016cbf26",
+    "bitcoin-rpc-promise-retry": "^1.1.0",
     "bitcore-lib-cash": "^0.19.0",
     "bufio": "^1.0.4",
     "cashaddrjs-slp": "^0.2.11",
