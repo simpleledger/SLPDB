@@ -196,7 +196,7 @@ export class SlpGraphManager {
             console.log('[INFO] Finished looking for burned tokens.');
 
             // zmq publish block events
-            if(this.zmqPubSocket) {
+            if(this.zmqPubSocket && Config.zmq.outgoing.enable) {
                 console.log("[ZMQ-PUB] SLP block txn notification", hash);
                 this.zmqPubSocket.send([ 'block', JSON.stringify(blockTxns) ]);
             }
@@ -628,7 +628,7 @@ export class SlpGraphManager {
     }
 
     async publishZmqNotification(txid: string) {
-        if(this.zmqPubSocket && !this._zmqMempoolPubSetList.has(txid)) {
+        if(this.zmqPubSocket && !this._zmqMempoolPubSetList.has(txid) && Config.zmq.outgoing.enable) {
             this._zmqMempoolPubSetList.push(txid);
             let tna: TNATxn | null = await this.db.db.collection('unconfirmed').findOne({ "tx.h": txid });
             if(tna) {
