@@ -211,12 +211,15 @@ process.on('uncaughtException', async (err: any, origin: any) => {
     try {
         message = `[${(new Date()).toUTCString()}] ${err.stack}`;
     } catch(_) {}
-    await SlpdbStatus.logExitReason(message);
     try {
+        await SlpdbStatus.logExitReason(message);
         console.log('[INFO] Shutting down SLPDB...', new Date().toString());
         await db.exit();
-    } catch(_) {}
-    process.exit(0);
+    } catch(error) {
+        console.log("[uncaughtException]", error);
+    } finally { 
+        process.exit(0);
+    }
 });
 
 process.on('unhandledRejection', async (err: any, promise: any) => {
@@ -224,12 +227,15 @@ process.on('unhandledRejection', async (err: any, promise: any) => {
     try {
         message = `[${(new Date()).toUTCString()}] ${err.stack}`;
     } catch(_) {}
-    await SlpdbStatus.logExitReason(message);
     try {
+        await SlpdbStatus.logExitReason(message);
         console.log('[INFO] Shutting down SLPDB...', new Date().toString());
         await db.exit();
-    } catch(_) {}
-    process.exit(0);
+    } catch(error) {
+        console.log("[unhandledRejection]", error);
+    } finally {
+        process.exit(0);
+    }
 });
 
 start();
