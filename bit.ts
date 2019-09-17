@@ -14,7 +14,6 @@ import { RpcClient } from './rpc';
 import { SetCache } from './cache';
 import { SlpGraphManager } from './slpgraphmanager';
 import { Notifications } from './notifications';
-import { SlpdbStatus } from './status';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
