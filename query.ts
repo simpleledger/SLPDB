@@ -360,7 +360,7 @@ export class Query {
                 "aggregate": [
                     { "$match": { "out.h4": tokenId, "out.s3": "SEND" }},
                     { "$unwind": "$in" },
-                    { "$project": { "prev_txid": "$in.e.h", "prev_index": "$in.e.i", "spent_in": "$tx.h", "block": "$blk.i" }}
+                    { "$project": { "prevTxid": "$in.e.h", "prevIndex": "$in.e.i", "txid": "$tx.h", "block": "$blk.i" }}
                 ], 
                 "limit": 1000000
             }
@@ -369,10 +369,10 @@ export class Query {
         let cache = new MapCache<string, {txid: string, block: number}>(1000000);
         if(!response.errors) {
             response.c.forEach(txo => {
-                cache.set(txo.prevTxid + txo.prevIndex, {txid: txo.txid, block: txo.block });
+                cache.set(txo.prevTxid + ":" + txo.prevIndex, { txid: txo.txid, block: txo.block });
             });
             response.u.forEach(txo => {
-                cache.set(txo.prevTxid + txo.prevIndex, {txid: txo.txid, block: txo.block });
+                cache.set(txo.prevTxid + ":" + txo.prevIndex, { txid: txo.txid, block: txo.block });
             });
         }
         return cache;

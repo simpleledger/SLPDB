@@ -497,8 +497,8 @@ export class SlpGraphManager {
         }
 
         (async function() {
-            console.log("[INFO] Init all tokens complete");
             await self._startupQueue.onIdle();
+            console.log("[INFO] Init all tokens complete");
             console.log("[INFO] Starting to process graph based on recent mempool and block activity");
             self._updatesQueue.start();
 

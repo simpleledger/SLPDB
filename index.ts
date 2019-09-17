@@ -154,7 +154,8 @@ const util = {
         bit._slpGraphManager = tokenManager;
         bit.listenToZmq();
         await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: [tokenId], loadFromDb: false });
-        tokenManager._tokens.get(tokenId)!.updateStatistics();
+        await tokenManager._startupQueue.onIdle();
+        await tokenManager._tokens.get(tokenId)!.updateStatistics();
         process.exit(1);
     },
     reset_to_block: async function(block_height: number) {  //592340
