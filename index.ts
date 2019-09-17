@@ -1,7 +1,5 @@
 import * as dotenv from 'dotenv';
 dotenv.config()
-import * as yaml from 'js-yaml';
-import * as fs from 'fs';
 
 import { Bit } from './bit';
 import { Db } from './db';
@@ -49,16 +47,7 @@ const daemon = {
         await SlpdbStatus.saveStatus();
 
         // try to load tokens filter yaml
-        let filter: TokenFilter = new TokenFilter();
-        try {
-            let o = yaml.safeLoad(fs.readFileSync('filters.yml', 'utf-8'));
-            o.tokens.forEach((f: TokenFilterRule) => {
-                filter.addRule(new TokenFilterRule({ info: f.info, name: f.name, type: f.type }));
-                console.log("[INFO] Loaded token filter:", f.name);
-            });
-        } catch(e) {
-            console.log("[INFO] No token filters loaded.");
-        }
+        let filter = TokenFilter.loadFromFile();
 
         // check for confirmed collection schema update
         let schema = await Info.getConfirmedCollectionSchema();

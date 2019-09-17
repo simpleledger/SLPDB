@@ -1,3 +1,6 @@
+import * as yaml from 'js-yaml';
+import * as fs from 'fs';
+
 export class TokenFilterRule {
     name: string;
     type: string;
@@ -72,5 +75,22 @@ export class TokenFilter {
         } else {
             return true;
         }
+    }
+
+    static loadFromFile(): TokenFilter {
+
+        let filter: TokenFilter = new TokenFilter();
+
+        try {
+            let o = yaml.safeLoad(fs.readFileSync('filters.yml', 'utf-8'));
+            o.tokens.forEach((f: TokenFilterRule) => {
+                filter.addRule(new TokenFilterRule({ info: f.info, name: f.name, type: f.type }));
+                console.log("[INFO] Loaded token filter:", f.name);
+            });
+        } catch(e) {
+            console.log("[INFO] No token filters loaded.");
+        }
+
+        return filter;
     }
 }
