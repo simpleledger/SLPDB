@@ -390,8 +390,8 @@ export class SlpTokenGraph implements TokenGraph {
             }
         }
 
-        // Add contributing SLP inputs - do not use !isParent here to support Graph Search
-        if((!isParent || Config.core.enable_graph_search) && graphTxn.inputs.length === 0) {
+        // Add contributing SLP inputs
+        if(graphTxn.inputs.length === 0) {
             await this.asyncForEach(txn.inputs, async (i: bitcore.TxnInput) => {
                 let previd = i.prevTxId.toString('hex');
                 if(!this._slpValidator.cachedValidations[previd]) {
