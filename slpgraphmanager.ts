@@ -466,22 +466,22 @@ export class SlpGraphManager {
         return res;
     }
 
-    async initAllTokens({ reprocessFrom, reprocessTo, tokenIds, loadFromDb = true, allowGraphUpdates = true }: { reprocessFrom?: number; reprocessTo?: number; tokenIds?: string[]; loadFromDb?: boolean; allowGraphUpdates?: boolean} = {}) {
+    async initAllTokens({ reprocessFrom, reprocessTo, tokenIds, loadFromDb = true, allowGraphUpdates = true, onComplete }: { reprocessFrom?: number; reprocessTo?: number; tokenIds?: Set<string>; loadFromDb?: boolean; allowGraphUpdates?: boolean; onComplete?: ()=>any } = {}) {
         await Query.init();
         let tokens: SlpTransactionDetails[];
         if(this._filter._rules.size > 0) {
             if(!tokenIds)
-                tokenIds = [];
+                tokenIds = new Set<string>();
             this._filter._rules.forEach(f => {
-                if(f.type === 'include-single')
-                    tokenIds!.push(f.info);
+                if(f.type === 'include-single' && !tokenIds!.has(f.info))
+                    tokenIds!.add(f.info);
             });
         }
         if(!tokenIds)
             tokens = await Query.queryTokensList();
         else {
-            let results = tokenIds.map(async id => { return await Query.queryTokensList(id) })
-            tokens = (await Promise.all(results)).flat()
+            let results = Array.from(tokenIds).map(async id => { return await Query.queryTokensList(id) });
+            tokens = (await Promise.all(results)).flat();
         }
 
         await SlpdbStatus.changeStateToStartupSlpProcessing({ 
@@ -496,18 +496,8 @@ export class SlpGraphManager {
             });
         }
 
-        (async function() {
-            await self._startupQueue.onIdle();
-            console.log("[INFO] Init all tokens complete");
-            console.log("[INFO] Starting to process graph based on recent mempool and block activity");
-            self._updatesQueue.start();
-
-            await self.fixMissingTokenTimestamps();
-            await self._bit.handleConfirmedTxnsMissingSlpMetadata();
-            await SlpdbStatus.changeStateToRunning({
-                getSlpMempoolSize: () => self._bit.slpMempool.size
-            });
-        })();
+        if(onComplete)
+            onComplete();
     }
 
     private async initToken({ token, reprocessFrom, reprocessTo, loadFromDb = true, allowGraphUpdates = true }: { token: SlpTransactionDetails; reprocessFrom?: number; reprocessTo?: number; loadFromDb?: boolean; allowGraphUpdates?: boolean }) {

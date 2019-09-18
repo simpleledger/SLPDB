@@ -88,7 +88,21 @@ const daemon = {
         bit.listenToZmq();
         await bit.checkForMissingMempoolTxns(undefined, true);
 
-        await tokenManager.initAllTokens({ reprocessFrom });
+        let onComplete = async () => {
+            await tokenManager._startupQueue.onIdle();
+            console.log("[INFO] Starting to process graph based on recent mempool and block activity");
+            tokenManager._updatesQueue.start();
+            await tokenManager._updatesQueue.onIdle();
+            console.log("[INFO] Updates from recent mempool and block activity complete");
+            await tokenManager.fixMissingTokenTimestamps();
+            await tokenManager._bit.handleConfirmedTxnsMissingSlpMetadata();
+            await SlpdbStatus.changeStateToRunning({
+                getSlpMempoolSize: () => tokenManager._bit.slpMempool.size
+            });
+            console.log("[INFO] initAllTokens complete");
+        }
+
+        await tokenManager.initAllTokens({ reprocessFrom, onComplete });
 
         // // look for burned token transactions every hour after startup
         // setInterval(async function() {
@@ -128,6 +142,8 @@ const util = {
         }
     }, 
     reprocess_token: async function(tokenId: string) {
+        let filter = new TokenFilter();
+        filter.addRule(new TokenFilterRule({ name: "unknown", info: tokenId, type: 'include-single'}));
         let network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet'
         await Info.setNetwork(network);
         await db.init();
@@ -139,12 +155,12 @@ const util = {
         console.timeEnd('[PERF] Initial Block Sync');
         console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
         let currentHeight = await rpc.getBlockCount();
-        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit);
+        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
         bit._slpGraphManager = tokenManager;
         bit.listenToZmq();
-        await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: [tokenId], loadFromDb: false });
+        await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: new Set<string>([tokenId]), loadFromDb: false });
         await tokenManager._startupQueue.onIdle();
-        await tokenManager._tokens.get(tokenId)!.updateStatistics();
+        console.log("[INFO] Reprocess done.");
         process.exit(1);
     },
     reset_to_block: async function(block_height: number) {  //592340
@@ -160,12 +176,14 @@ const util = {
         await db.init();
         let currentHeight = await rpc.getBlockCount();
         let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
-        await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: includeTokenIds, reprocessTo: block_height });
+        await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: new Set<string>(includeTokenIds), reprocessTo: block_height });
+        await tokenManager._startupQueue.onIdle();
         //await tokenManager.initAllTokens({ allowGraphUpdates: false, tokenIds: tokenIdFilter });
         //await tokenManager.simulateOnTransactionHash("06e27bfcd9f8839ea6c7720a6c50f68465e3bc56775c7a683dcb29f799eba24a");
         let blockhash = await rpc.getBlockHash(block_height+1);
         await tokenManager.onBlockHash(blockhash);
         await Info.updateBlockCheckpoint(block_height, null);
+        console.log("[INFO] Reset block done.")
         process.exit(1);
     }
     //,

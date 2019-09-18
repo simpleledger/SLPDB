@@ -401,6 +401,7 @@ export class SlpTokenGraph implements TokenGraph {
                     this._slpValidator.cachedValidations[previd].validity && 
                     this._slpValidator.cachedValidations[previd].details!.tokenIdHex === this._tokenDetails.tokenIdHex) {
                     if(!this._graphTxns.has(previd)) {
+                        console.log("[INFO] updateTokenGraphFrom: Add contributing SLP inputs");
                         await this.updateTokenGraphFrom({ txid: previd, isParent: true, updateOutputs: false });
                     }
                     let input = this._graphTxns.get(i.prevTxId.toString('hex'))!
@@ -468,12 +469,13 @@ export class SlpTokenGraph implements TokenGraph {
             }
         }
 
-        // update the status of each input txn's outputs
-        if(!isParent) {
+        // Update the status of each input txn's outputs -- add to token's update queue
+        if(!isParent && this._manager._startupQueue.size === 0 && this._manager._startupQueue.pending === 0) {
             let parentIds = new Set<string>([...txn.inputs.map(i => i.prevTxId.toString('hex'))])
             await this.asyncForEach(Array.from(parentIds), async (txid: string) => {
                 if(this._graphTxns.get(txid)!) {
-                    await this.updateTokenGraphFrom({ txid, isParent: true });
+                    console.log("[INFO] updateTokenGraphFrom: update the status of each input txn's outputs");
+                    this.queueTokenGraphUpdateFrom({ txid, isParent: true });
                 }
             });
         }
@@ -481,6 +483,7 @@ export class SlpTokenGraph implements TokenGraph {
         // Continue to complete graph from output UTXOs
         if(!isParent) {
             await this.asyncForEach(graphTxn.outputs.filter(o => o.spendTxid && (o.status === TokenUtxoStatus.SPENT_SAME_TOKEN || o.status === BatonUtxoStatus.BATON_SPENT_IN_MINT)), async (o: GraphTxnOutput) => {
+                console.log("[INFO] updateTokenGraphFrom: Continue to complete graph from output UTXOs");
                 await this.updateTokenGraphFrom({ txid: o.spendTxid!, processUpToBlock });
             });
             graphTxn.isComplete = true;
