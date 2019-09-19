@@ -90,4 +90,9 @@ export class Config {
 		slp_mempool_ignore_length: Number.parseInt(process.env.core_slp_mempool_ignore_length ? process.env.core_slp_mempool_ignore_length : "1000000"),
 		enable_graph_search: process.env.enable_graph_search ? process.env.enable_graph_search === '1' || process.env.enable_graph_search === 'true' : true
 	}
+	static telemetry = {
+		enable: process.env.enable_telemetry ? process.env.enable_telemetry === '1' || process.env.enable_telemetry === 'true' : false,
+		host: process.env.telemetry_host ? process.env.telemetry_host : 'status.simpleledger.info',
+		advertised_url: process.env.telemetry_advertised_url ? process.env.telemetry_advertised_url : ''
+	}
 }

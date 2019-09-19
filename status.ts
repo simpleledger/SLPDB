@@ -2,7 +2,9 @@ import { Db } from "./db";
 import { RpcClient } from "./rpc";
 import { ChainSyncCheckpoint } from "./info";
 import * as fs from 'fs';
+import { Config } from "./config";
 
+import * as https from 'https';
 var pjson = require('./package.json');
 
 enum context { 
@@ -13,6 +15,7 @@ export class SlpdbStatus {
     static db: Db;
     static version: string;
     static context: context = context.SLPDB;
+    static public_url: string = Config.telemetry.advertised_url;
     static lastIncomingTxnZmq: { utc: string, unix: number}|null = null;
     static lastIncomingBlockZmq: { utc: string, unix: number}|null = null;
     static lastOutgoingTxnZmq: { utc: string, unix: number}|null = null;
@@ -113,7 +116,7 @@ export class SlpdbStatus {
             }
         })
         let date = new Date();
-        return {
+        let status = {
             version: SlpdbStatus.version,            
             versionHash: this.getVersion(),
             context: SlpdbStatus.context,
@@ -131,6 +134,41 @@ export class SlpdbStatus {
             tokensCount: SlpdbStatus.getSlpTokensCount(),
             pastStackTraces: stackTraces,
             mongoDbStats: await SlpdbStatus.db.db.stats({ scale: 1048576 }),
+            public_url: SlpdbStatus.public_url
+        }
+        SlpdbStatus.updateTelemetry(status);
+        return status;
+    }
+
+    private static updateTelemetry(status: { version: string; versionHash: Promise<string | null>; context: context; lastStatusUpdate: { utc: string; unix: number; }; lastIncomingTxnZmq: { utc: string; unix: number; } | null; lastIncomingBlockZmq: { utc: string; unix: number; } | null; lastOutgoingTxnZmq: { utc: string; unix: number; } | null; lastOutgoingBlockZmq: { utc: string; unix: number; } | null; state: SlpdbState; network: string; blockHeight: number; blockHash: string | null; mempoolInfoBch: {} | null; mempoolSizeSlp: number; tokensCount: number; pastStackTraces: any[]; mongoDbStats: any; public_url: string; }) {
+        if (Config.telemetry.enable) {
+            if (Config.telemetry.advertised_url === '')
+                console.log("[WARN] Environment variable 'telemetry_advertised_url' is not set");
+            let data = JSON.stringify(status);
+            let options = {
+                hostname: Config.telemetry.host,
+                port: 443,
+                path: '/slpdb',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': data.length
+                }
+            };
+            let req = https.request(options, res => {
+                console.log(`statusCode: ${res.statusCode}`);
+                res.on('data', d => {
+                    process.stdout.write(d);
+                });
+            });
+            req.on('error', error => {
+                let reason = error.message;
+                if (Config.telemetry.host === '')
+                    reason = "Env var 'telemetry_host' is not set";
+                console.log("[ERROR] Telemetry update failed. Reason:", reason);
+            });
+            req.write(data);
+            req.end();
         }
     }
 
