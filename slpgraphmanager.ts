@@ -484,8 +484,9 @@ export class SlpGraphManager {
             tokens = (await Promise.all(results)).flat();
         }
 
-        await SlpdbStatus.changeStateToStartupSlpProcessing({ 
-            getSlpTokensCount: () => this._tokens.size,
+        let size = () => { return this._tokens.size; }
+        await SlpdbStatus.changeStateToStartupSlpProcessing({
+            getSlpTokensCount: size
         });
 
         // Instantiate all Token Graphs in memory
