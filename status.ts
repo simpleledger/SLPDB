@@ -13,7 +13,9 @@ enum context {
 
 export class SlpdbStatus {
     static db: Db;
-    static version: string;
+    static version = pjson.version;
+    static versionHash: string|null = null;
+    static deplVersionHash: string|null = null;
     static context: context = context.SLPDB;
     static public_url: string = Config.telemetry.advertised_url;
     static lastIncomingTxnZmq: { utc: string, unix: number}|null = null;
@@ -29,10 +31,11 @@ export class SlpdbStatus {
     static getSyncdCheckpoint: () => Promise<ChainSyncCheckpoint> = async function() { return { hash: '', height: -1 }; }
 
     constructor(db: Db, rpc: RpcClient) {
-        SlpdbStatus.version = pjson.version;
         SlpdbStatus.db = db;
         SlpdbStatus.rpc = rpc;
         SlpdbStatus.state = SlpdbState.PRE_STARTUP;
+        SlpdbStatus.versionHash = SlpdbStatus.getVersion();
+        SlpdbStatus.deplVersionHash = SlpdbStatus.getDeplVersion();
     }
    
     static updateTimeIncomingTxnZmq() {
@@ -118,7 +121,8 @@ export class SlpdbStatus {
         let date = new Date();
         let status = {
             version: SlpdbStatus.version,            
-            versionHash: this.getVersion(),
+            versionHash: SlpdbStatus.versionHash,
+            deplVersionHash: SlpdbStatus.deplVersionHash,
             context: SlpdbStatus.context,
             lastStatusUpdate: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) },
             lastIncomingTxnZmq: SlpdbStatus.lastIncomingTxnZmq,
@@ -140,7 +144,7 @@ export class SlpdbStatus {
         return status;
     }
 
-    private static updateTelemetry(status: { version: string; versionHash: Promise<string | null>; context: context; lastStatusUpdate: { utc: string; unix: number; }; lastIncomingTxnZmq: { utc: string; unix: number; } | null; lastIncomingBlockZmq: { utc: string; unix: number; } | null; lastOutgoingTxnZmq: { utc: string; unix: number; } | null; lastOutgoingBlockZmq: { utc: string; unix: number; } | null; state: SlpdbState; network: string; blockHeight: number; blockHash: string | null; mempoolInfoBch: {} | null; mempoolSizeSlp: number; tokensCount: number; pastStackTraces: any[]; mongoDbStats: any; public_url: string; }) {
+    private static updateTelemetry(status: StatusDbo) {
         if (Config.telemetry.enable) {
             if (Config.telemetry.advertised_url === '')
                 console.log("[WARN] Environment variable 'telemetry_advertised_url' is not set");
@@ -179,13 +183,26 @@ export class SlpdbStatus {
         } catch(_) {}
     }
 
-    static async getVersion() {
+    static getVersion() {
         try {
             const rev = fs.readFileSync('.git/HEAD').toString();
             if (rev.indexOf(':') === -1) {
                 return rev.trim();
             } else {
                 return fs.readFileSync('.git/' + rev.trim().substring(5)).toString().trim();
+            }
+        }  catch (_) {
+            return null;
+        }
+    }
+
+    static getDeplVersion() {
+        try {
+            const rev = fs.readFileSync('._git/HEAD').toString();
+            if (rev.indexOf(':') === -1) {
+                return rev.trim();
+            } else {
+                return fs.readFileSync('._git/' + rev.trim().substring(5)).toString().trim();
             }
         }  catch (_) {
             return null;
@@ -200,4 +217,26 @@ export enum SlpdbState {
     "RUNNING" = "RUNNING",                                    // phase 4) startup completed, running normally
     "EXITED_ON_ERROR" = "EXITED_ON_ERROR",                    // process exited due to an error during normal operation
     "EXITED_NORMAL" = "EXITED_NORMAL"                         // process exited normally, clean shutdown or finished running a command
+}
+
+interface StatusDbo {
+    version: string; 
+    versionHash: string | null; 
+    deplVersionHash: string | null;
+    context: context; 
+    lastStatusUpdate: { utc: string; unix: number; }; 
+    lastIncomingTxnZmq: { utc: string; unix: number; } | null; 
+    lastIncomingBlockZmq: { utc: string; unix: number; } | null; 
+    lastOutgoingTxnZmq: { utc: string; unix: number; } | null; 
+    lastOutgoingBlockZmq: { utc: string; unix: number; } | null; 
+    state: SlpdbState; 
+    network: string; 
+    blockHeight: number; 
+    blockHash: string | null; 
+    mempoolInfoBch: {} | null; 
+    mempoolSizeSlp: number; 
+    tokensCount: number; 
+    pastStackTraces: any[]; 
+    mongoDbStats: any; 
+    public_url: string; 
 }
