@@ -101,10 +101,10 @@ The following settings should be applied to your full node's configuration.  NOT
 * `rpcport=8332`
 * `rpcworkqueue=10000`
 * `rpcthreads=8`
-* `zmqpubhashtx=tcp://127.0.0.1:28332`
-* `zmqpubrawtx=tcp://127.0.0.1:28332`
-* `zmqpubhashblock=tcp://127.0.0.1:28332`
-* `zmqpubrawblock=tcp://127.0.0.1:28332`
+* `zmqpubhashtx=tcp://*:28332`
+* `zmqpubrawtx=tcp://*:28332`
+* `zmqpubhashblock=tcp://*:28332`
+* `zmqpubrawblock=tcp://*:28332`
 * Optional: `testnet=1`
 
 ###  4.3. <a name='BCHDgRPCSupport'></a>BCHD & gRPC Support

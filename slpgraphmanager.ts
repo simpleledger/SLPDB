@@ -207,6 +207,7 @@ export class SlpGraphManager {
             if(this.zmqPubSocket && Config.zmq.outgoing.enable) {
                 console.log("[ZMQ-PUB] SLP block txn notification", hash);
                 this.zmqPubSocket.send([ 'block', JSON.stringify(blockTxns) ]);
+                SlpdbStatus.updateTimeOutgoingBlockZmq();
             }
 
             // fix any missed token timestamps 
@@ -642,6 +643,7 @@ export class SlpGraphManager {
             if(tna) {
                 console.log("[ZMQ-PUB] SLP mempool notification", tna);
                 this.zmqPubSocket.send(['mempool', JSON.stringify(tna)]);
+                SlpdbStatus.updateTimeOutgoingTxnZmq();
             }
         }
     }

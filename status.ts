@@ -1,6 +1,7 @@
 import { Db } from "./db";
 import { RpcClient } from "./rpc";
 import { ChainSyncCheckpoint } from "./info";
+import * as fs from 'fs';
 
 var pjson = require('./package.json');
 
@@ -12,7 +13,10 @@ export class SlpdbStatus {
     static db: Db;
     static version: string;
     static context: context = context.SLPDB;
-    static lastStatusUpdate: string = '';
+    static lastIncomingTxnZmq: { utc: string, unix: number}|null = null;
+    static lastIncomingBlockZmq: { utc: string, unix: number}|null = null;
+    static lastOutgoingTxnZmq: { utc: string, unix: number}|null = null;
+    static lastOutgoingBlockZmq: { utc: string, unix: number}|null = null;
     static state: SlpdbState;
     static network: string = '';
     static pastStackTraces: any[] = [];
@@ -26,6 +30,26 @@ export class SlpdbStatus {
         SlpdbStatus.db = db;
         SlpdbStatus.rpc = rpc;
         SlpdbStatus.state = SlpdbState.PRE_STARTUP;
+    }
+   
+    static updateTimeIncomingTxnZmq() {
+        let date = new Date();
+        SlpdbStatus.lastIncomingTxnZmq = { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }
+    }
+
+    static updateTimeIncomingBlockZmq() {
+        let date = new Date();
+        SlpdbStatus.lastIncomingBlockZmq = { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }    
+    }
+
+    static updateTimeOutgoingBlockZmq() {
+        let date = new Date();
+        SlpdbStatus.lastOutgoingBlockZmq = { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }    
+    }
+
+    static updateTimeOutgoingTxnZmq() {
+        let date = new Date();
+        SlpdbStatus.lastOutgoingTxnZmq = { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }    
     }
 
     static async changeStateToStartupBlockSync({ network, getSyncdCheckpoint }: { network: string, getSyncdCheckpoint: () => Promise<ChainSyncCheckpoint> }) {
@@ -90,9 +114,14 @@ export class SlpdbStatus {
         })
         let date = new Date();
         return {
-            version: SlpdbStatus.version,
+            version: SlpdbStatus.version,            
+            versionHash: this.getVersion(),
             context: SlpdbStatus.context,
             lastStatusUpdate: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) },
+            lastIncomingTxnZmq: SlpdbStatus.lastIncomingTxnZmq,
+            lastIncomingBlockZmq: SlpdbStatus.lastIncomingBlockZmq,
+            lastOutgoingTxnZmq: SlpdbStatus.lastOutgoingTxnZmq,
+            lastOutgoingBlockZmq: SlpdbStatus.lastOutgoingBlockZmq,
             state: SlpdbStatus.state,
             network: SlpdbStatus.network,
             blockHeight: checkpoint.height,
@@ -101,7 +130,7 @@ export class SlpdbStatus {
             mempoolSizeSlp: SlpdbStatus.getSlpMempoolSize(),
             tokensCount: SlpdbStatus.getSlpTokensCount(),
             pastStackTraces: stackTraces,
-            mongoDbStats: await SlpdbStatus.db.db.stats({ scale: 1048576 })
+            mongoDbStats: await SlpdbStatus.db.db.stats({ scale: 1048576 }),
         }
     }
 
@@ -110,6 +139,19 @@ export class SlpdbStatus {
         try {
             SlpdbStatus.pastStackTraces = dbo.pastStackTraces;
         } catch(_) {}
+    }
+
+    static async getVersion() {
+        try {
+            const rev = fs.readFileSync('.git/HEAD').toString();
+            if (rev.indexOf(':') === -1) {
+                return rev.trim();
+            } else {
+                return fs.readFileSync('.git/' + rev.trim().substring(5)).toString().trim();
+            }
+        }  catch (_) {
+            return null;
+        }
     }
 }
 

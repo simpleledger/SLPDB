@@ -14,6 +14,7 @@ import { RpcClient } from './rpc';
 import { SetCache } from './cache';
 import { SlpGraphManager } from './slpgraphmanager';
 import { Notifications } from './notifications';
+import { SlpdbStatus } from './status';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -270,6 +271,7 @@ export class Bit {
         this._slpGraphManager._TnaQueue = this._zmqItemQueue;
         let self = this;
         let onBlockHash = function(blockHash: Buffer) {
+            SlpdbStatus.updateTimeIncomingBlockZmq();
             self._zmqItemQueue.add(async function() {
                 let hash = blockHash.toString('hex');
                 if(self.blockHashIgnoreSetList.has(hash)) {
@@ -289,6 +291,7 @@ export class Bit {
         }
 
         let onRawTxn = function(message: Buffer) {
+            SlpdbStatus.updateTimeIncomingTxnZmq();
             self._zmqItemQueue.add(async function() {
                 let rawtx = message.toString('hex');
                 let hash = Buffer.from(bitbox.Crypto.hash256(message).toJSON().data.reverse()).toString('hex');
