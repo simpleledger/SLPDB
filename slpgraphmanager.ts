@@ -502,79 +502,73 @@ export class SlpGraphManager {
             onComplete();
     }
 
-    private async initToken({ token, reprocessFrom, reprocessTo, loadFromDb = true, allowGraphUpdates = true }: { token: SlpTransactionDetails; reprocessFrom?: number; reprocessTo?: number; loadFromDb?: boolean; allowGraphUpdates?: boolean }) {
+    private async initToken({ token, reprocessFrom, reprocessTo, loadFromDb = true, allowGraphUpdates = true }: 
+        { token: SlpTransactionDetails; reprocessFrom?: number; reprocessTo?: number; loadFromDb?: boolean; allowGraphUpdates?: boolean }) 
+    {
         let graph: SlpTokenGraph;
-        let throwMsg1 = "There is no db record for this token.";
-        let throwMsg2 = "Outdated token graph detected for: ";
-        let throwMsg3 = "loadFromDb is false."
-        let throwMsg4 = "reprocessTo is set."
-        try {
-            let tokenState = <TokenDBObject>await this.db.tokenFetch(token.tokenIdHex);
-            if (!tokenState)
-                throw Error(throwMsg1);
-
-            // Reprocess entire DAG if schema version is updated
-            if (!tokenState.schema_version || tokenState.schema_version !== Config.db.token_schema_version) {
-                throw Error(throwMsg2 + token.tokenIdHex);
-            }
-
-            // Reprocess entire DAG if reprocessFrom is before token's GENESIS
-            if(reprocessFrom && reprocessFrom <= tokenState.tokenStats.block_created!) {
-                throw Error(throwMsg2 + token.tokenIdHex);
-            }
-
-            if(!loadFromDb) {
-                throw Error(throwMsg3)
-            }
-
-            if(reprocessTo && reprocessTo >= tokenState.tokenStats.block_created!) {
-                throw Error(throwMsg4)
-            } else if (reprocessTo) {
-                await this.deleteTokenFromDb(token.tokenIdHex);
-                return;
-            }
-
-            console.log("########################################################################################################");
-            console.log("LOAD FROM DB:", token.tokenIdHex);
-            console.log("########################################################################################################");
-            let utxos: UtxoDbo[] = await this.db.utxoFetch(token.tokenIdHex);
-            let addresses: AddressBalancesDbo[] = await this.db.addressFetch(token.tokenIdHex);
-            let dag: GraphTxnDbo[] = await this.db.graphFetch(token.tokenIdHex);
-            graph = await SlpTokenGraph.FromDbObjects(tokenState, dag, utxos, addresses, this.db, this, this._network);
-            
-            let res: string[] = [];
-            if(allowGraphUpdates) {
-                let potentialReorgFactor = 10; // determine how far back the token graph should be reprocessed
-                let updateFromHeight = graph._lastUpdatedBlock - potentialReorgFactor;
-                if(reprocessFrom !== undefined && reprocessFrom !== null && reprocessFrom < updateFromHeight)
-                updateFromHeight = reprocessFrom;
-                console.log("[INFO] Checking for Graph Updates since:", updateFromHeight);
-                res.push(...await Query.queryForRecentTokenTxns(graph._tokenDetails.tokenIdHex, updateFromHeight));
-                // update graph items
-                await this.asyncForEach(res, async (txid: string) => {
-                    await graph.updateTokenGraphFrom({txid: txid});
-                    console.log("[INFO] Updated graph from", txid);
-                });
-                if (res.length === 0)
-                    console.log("[INFO] No token transactions after block", updateFromHeight, "were found.");
-                else {
-                    console.log("[INFO] Token's graph was updated.");
-                    await graph.updateStatistics();
-                }
-            } else {
-                console.log("[WARN] Token's graph loaded using allowGraphUpdates=false.");
-            }
-            await this.updateTxnCollectionsForTokenId(token.tokenIdHex);
-            await this.setAndSaveTokenGraph(graph);
+        let tokenState = <TokenDBObject>await this.db.tokenFetch(token.tokenIdHex);
+        if (!tokenState) {
+            console.log("There is no db record for this token.");
+            return await this.createNewTokenGraph({ tokenId: token.tokenIdHex, processUpToBlock: reprocessTo });
         }
-        catch (err) {
-            if (err.message.includes(throwMsg1) || err.message.includes(throwMsg2) || err.message.includes(throwMsg3) || err.message.includes(throwMsg4)) {
-                await this.createNewTokenGraph({ tokenId: token.tokenIdHex, processUpToBlock: reprocessTo });
-            }
+
+        // Reprocess entire DAG if schema version is updated
+        if (!tokenState.schema_version || tokenState.schema_version !== Config.db.token_schema_version) {
+            console.log("Outdated token graph detected for:", token.tokenIdHex);
+            return await this.createNewTokenGraph({ tokenId: token.tokenIdHex, processUpToBlock: reprocessTo });
+        }
+
+        // Reprocess entire DAG if reprocessFrom is before token's GENESIS
+        if(reprocessFrom && reprocessFrom <= tokenState.tokenStats.block_created!) {
+            console.log("Outdated token graph detected for:", token.tokenIdHex);
+            return await this.createNewTokenGraph({ tokenId: token.tokenIdHex, processUpToBlock: reprocessTo });
+        }
+
+        if(!loadFromDb) {
+            console.log("loadFromDb is false.");
+            return await this.createNewTokenGraph({ tokenId: token.tokenIdHex, processUpToBlock: reprocessTo });
+        }
+
+        if(reprocessTo && reprocessTo >= tokenState.tokenStats.block_created!) {
+            console.log("reprocessTo is set.");
+            return await this.createNewTokenGraph({ tokenId: token.tokenIdHex, processUpToBlock: reprocessTo });
+        } else if (reprocessTo) {
+            await this.deleteTokenFromDb(token.tokenIdHex);
+            return;
+        }
+
+        console.log("########################################################################################################");
+        console.log("LOAD FROM DB:", token.tokenIdHex);
+        console.log("########################################################################################################");
+        let utxos: UtxoDbo[] = await this.db.utxoFetch(token.tokenIdHex);
+        let addresses: AddressBalancesDbo[] = await this.db.addressFetch(token.tokenIdHex);
+        let dag: GraphTxnDbo[] = await this.db.graphFetch(token.tokenIdHex);
+        graph = await SlpTokenGraph.FromDbObjects(tokenState, dag, utxos, addresses, this.db, this, this._network);
+        
+        let res: string[] = [];
+        if(allowGraphUpdates) {
+            let potentialReorgFactor = 10; // determine how far back the token graph should be reprocessed
+            let updateFromHeight = graph._lastUpdatedBlock - potentialReorgFactor;
+            if(reprocessFrom !== undefined && reprocessFrom !== null && reprocessFrom < updateFromHeight)
+            updateFromHeight = reprocessFrom;
+            console.log("[INFO] Checking for Graph Updates since:", updateFromHeight);
+            res.push(...await Query.queryForRecentTokenTxns(graph._tokenDetails.tokenIdHex, updateFromHeight));
+            // update graph items
+            await this.asyncForEach(res, async (txid: string) => {
+                await graph.updateTokenGraphFrom({txid: txid});
+                console.log("[INFO] Updated graph from", txid);
+            });
+            if (res.length === 0)
+                console.log("[INFO] No token transactions after block", updateFromHeight, "were found.");
             else {
-                throw err;
+                console.log("[INFO] Token's graph was updated.");
+                await graph.updateStatistics();
             }
+        } else {
+            console.log("[WARN] Token's graph loaded using allowGraphUpdates=false.");
         }
+        await this.updateTxnCollectionsForTokenId(token.tokenIdHex);
+        await this.setAndSaveTokenGraph(graph);
     }
 
     private async deleteTokenFromDb(tokenId: string) {
