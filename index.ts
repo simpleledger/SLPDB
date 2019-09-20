@@ -114,26 +114,6 @@ const daemon = {
 }
 
 const util = {
-    run: async function() {
-        await db.init()
-        let cmd = process.argv[2]
-        if (cmd === 'fix') {
-            console.log("Command not implemented. Exiting.");
-            process.exit(1);
-        } else if (cmd === 'reset') {
-            await db.confirmedReset()
-            await db.unconfirmedReset()
-            await db.tokenReset()
-            await db.graphReset()
-            await db.utxoReset()
-            await db.addressReset()
-            await Info.checkpointReset()
-            process.exit(1);
-        } else if (cmd === 'index') {
-            console.log("Command not implemented. Exiting.");
-            process.exit(1);
-        }
-    }, 
     reprocess_token: async function(tokenId: string) {
         let network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet'
         await Info.setNetwork(network);
@@ -171,44 +151,26 @@ const util = {
         let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
         await tokenManager.initAllTokens({ reprocessFrom: 0, reprocessTo: block_height });
         await tokenManager._startupQueue.onIdle();
-        //await tokenManager.initAllTokens({ allowGraphUpdates: false, tokenIds: tokenIdFilter });
-        //await tokenManager.simulateOnTransactionHash("06e27bfcd9f8839ea6c7720a6c50f68465e3bc56775c7a683dcb29f799eba24a");
         let blockhash = await rpc.getBlockHash(block_height+1);
         await tokenManager.onBlockHash(blockhash);
         await Info.updateBlockCheckpoint(block_height, null);
         console.log("[INFO] Reset block done.")
         process.exit(1);
     }
-    //,
-    //fix: async function(height: number) {
-        // const rpc = <BitcoinRpc.RpcClient>(new RpcClient({useGrpc: Boolean(Config.grpc.url) }));
-        // await bit.init(db, rpc)
-        // let tokenManager = new SlpGraphManager(db);
-        // bit._zmqSubscribers.push(tokenManager);
-        // console.log('[INFO] Clearing all unconfirmed transactions');
-        // await db.unconfirmedReset();
-        // console.log('[INFO] Fixing SLPDB after block', height);
-        // console.time('[PERF] replace')
-        // let content = await bit.crawl(height, true)
-        // if(content) {
-        // 	let array = Array.from(content.values()).map(c => c.tnaTxn)
-        // 	await db.confirmedReplace(array, height)
-        // }
-        // console.log('[INFO] Block', height, 'fixed.')
-        // await bit.removeExtraneousMempoolTxns()
-        // console.timeEnd('[PERF] replace')
-    //}
 }
 
 const start = async function() {
     let args = process.argv;
-    if (args.length > 3) {
+    if (args.length > 2) {
         if(args[2] === "run") {
             let options: any = {};
-            if(args.includes("--reprocess"))
+            if(args.includes("--reprocess")) {
+                console.log("[INFO] Reprocessing all tokens.");
                 options.loadFromDb = false;
+            }
             if(args.includes("--startHeight")) {
                 let index = args.indexOf("--startHeight");
+                console.log("[INFO] Resync from startHeight:", index);
                 options.startHeight = parseInt(args[index+1]);
             }
             await daemon.run(options);
@@ -217,8 +179,6 @@ const start = async function() {
             await util.reprocess_token(process.argv[3]);
         else if(args[2] === "goToBlock")
             await util.reset_to_block(parseInt(process.argv[3]));
-    } else if (process.argv.length > 2) {
-        await util.run();
     } else {
         await daemon.run({});
     }
