@@ -467,12 +467,12 @@ export class SlpGraphManager {
         return res;
     }
 
-    async initAllTokens({ reprocessFrom, reprocessTo, tokenIds, loadFromDb = true, allowGraphUpdates = true, onComplete }: { reprocessFrom?: number; reprocessTo?: number; tokenIds?: Set<string>; loadFromDb?: boolean; allowGraphUpdates?: boolean; onComplete?: ()=>any } = {}) {
+    async initAllTokens({ reprocessFrom, reprocessTo, loadFromDb = true, allowGraphUpdates = true, onComplete }: { reprocessFrom?: number; reprocessTo?: number; loadFromDb?: boolean; allowGraphUpdates?: boolean; onComplete?: ()=>any } = {}) {
         await Query.init();
         let tokens: SlpTransactionDetails[];
+        let tokenIds: Set<string>|undefined;
         if(this._filter._rules.size > 0) {
-            if(!tokenIds)
-                tokenIds = new Set<string>();
+            tokenIds = new Set<string>();
             this._filter._rules.forEach(f => {
                 if(f.type === 'include-single' && !tokenIds!.has(f.info))
                     tokenIds!.add(f.info);

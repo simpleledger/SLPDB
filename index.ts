@@ -16,7 +16,7 @@ const bit = new Bit(db, rpc);
 new SlpdbStatus(db, rpc);
 
 const daemon = {
-    run: async function(start_height?: number) {
+    run: async function({ startHeight, loadFromDb=true }: { startHeight?: number, loadFromDb?: boolean} ) {
         let network!: string;
         try {        
             network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
@@ -41,8 +41,8 @@ const daemon = {
         console.log("[INFO] RPC is initialized.");
 
         // set start height override
-        if(start_height)
-            await Info.updateBlockCheckpoint(start_height, null);
+        if(startHeight)
+            await Info.updateBlockCheckpoint(startHeight, null);
         
         await SlpdbStatus.saveStatus();
 
@@ -102,7 +102,7 @@ const daemon = {
             console.log("[INFO] initAllTokens complete");
         }
 
-        await tokenManager.initAllTokens({ reprocessFrom, onComplete });
+        await tokenManager.initAllTokens({ reprocessFrom, onComplete, loadFromDb: loadFromDb });
 
         // // look for burned token transactions every hour after startup
         // setInterval(async function() {
@@ -118,13 +118,7 @@ const util = {
         await db.init()
         let cmd = process.argv[2]
         if (cmd === 'fix') {
-            console.log("Command not implemented");
-            let fromHeight: number;
-            // if (process.argv.length > 3) {
-            // 	fromHeight = parseInt(process.argv[3])
-            // 	await util.fix(fromHeight)
-            // } else
-            // 	console.log("Usage 'node ./index.js fix <block number>'")
+            console.log("Command not implemented. Exiting.");
             process.exit(1);
         } else if (cmd === 'reset') {
             await db.confirmedReset()
@@ -136,14 +130,11 @@ const util = {
             await Info.checkpointReset()
             process.exit(1);
         } else if (cmd === 'index') {
-            console.log("Command not implemented");
-            //await db.blockindex()
+            console.log("Command not implemented. Exiting.");
             process.exit(1);
         }
     }, 
     reprocess_token: async function(tokenId: string) {
-        let filter = new TokenFilter();
-        filter.addRule(new TokenFilterRule({ name: "unknown", info: tokenId, type: 'include-single'}));
         let network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet'
         await Info.setNetwork(network);
         await db.init();
@@ -154,11 +145,13 @@ const util = {
         await bit.processCurrentMempoolForTNA();
         console.timeEnd('[PERF] Initial Block Sync');
         console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
+        let filter = new TokenFilter();
+        filter.addRule(new TokenFilterRule({ name: "unknown", info: tokenId, type: 'include-single'}));
         let currentHeight = await rpc.getBlockCount();
         let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
         bit._slpGraphManager = tokenManager;
         bit.listenToZmq();
-        await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: new Set<string>([tokenId]), loadFromDb: false });
+        await tokenManager.initAllTokens({ reprocessFrom: 0, loadFromDb: false });
         await tokenManager._startupQueue.onIdle();
         console.log("[INFO] Reprocess done.");
         process.exit(1);
@@ -176,7 +169,7 @@ const util = {
         await db.init();
         let currentHeight = await rpc.getBlockCount();
         let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
-        await tokenManager.initAllTokens({ reprocessFrom: 0, tokenIds: new Set<string>(includeTokenIds), reprocessTo: block_height });
+        await tokenManager.initAllTokens({ reprocessFrom: 0, reprocessTo: block_height });
         await tokenManager._startupQueue.onIdle();
         //await tokenManager.initAllTokens({ allowGraphUpdates: false, tokenIds: tokenIdFilter });
         //await tokenManager.simulateOnTransactionHash("06e27bfcd9f8839ea6c7720a6c50f68465e3bc56775c7a683dcb29f799eba24a");
@@ -210,8 +203,16 @@ const util = {
 const start = async function() {
     let args = process.argv;
     if (args.length > 3) {
-        if(args[2] === "run")
-            await daemon.run(parseInt(process.argv[3]));
+        if(args[2] === "run") {
+            let options: any = {};
+            if(args.includes("--reprocess"))
+                options.loadFromDb = false;
+            if(args.includes("--startHeight")) {
+                let index = args.indexOf("--startHeight");
+                options.startHeight = parseInt(args[index+1]);
+            }
+            await daemon.run(options);
+        }
         else if(args[2] === "reprocess")
             await util.reprocess_token(process.argv[3]);
         else if(args[2] === "goToBlock")
@@ -219,38 +220,42 @@ const start = async function() {
     } else if (process.argv.length > 2) {
         await util.run();
     } else {
-        await daemon.run();
+        await daemon.run({});
     }
 }
 
 // @ts-ignore
 process.on('uncaughtException', async (err: any, origin: any) => {
+    console.log("[ERROR] uncaughtException", err);
     var message = err;
     try {
         message = `[${(new Date()).toUTCString()}] ${err.stack}`;
     } catch(_) {}
     try {
         await SlpdbStatus.logExitReason(message);
+        console.log(err);
         console.log('[INFO] Shutting down SLPDB...', new Date().toString());
         await db.exit();
     } catch(error) {
-        console.log("[uncaughtException]", error);
+        console.log("[ERROR] Could not log to DB:", error);
     } finally { 
         process.exit(0);
     }
 });
 
 process.on('unhandledRejection', async (err: any, promise: any) => {
+    console.log("[ERROR] unhandledRejection", err);
     var message = err;
     try {
         message = `[${(new Date()).toUTCString()}] ${err.stack}`;
     } catch(_) {}
     try {
         await SlpdbStatus.logExitReason(message);
+        console.log(err);
         console.log('[INFO] Shutting down SLPDB...', new Date().toString());
         await db.exit();
     } catch(error) {
-        console.log("[unhandledRejection]", error);
+        console.log("[ERROR] Could not log to DB:", error);
     } finally {
         process.exit(0);
     }
