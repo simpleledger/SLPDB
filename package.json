@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "tsc && test",
-    "start": "tsc && node --max_old_space_size=8192 index",
+    "start": "tsc && node --max_old_space_size=8192 index run",
     "tsc": "tsc",
     "lint": "./node_modules/.bin/eslint .",
     "migrate": "./node_modules/.bin/migrate-mongo"
