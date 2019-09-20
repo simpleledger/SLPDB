@@ -18,14 +18,9 @@ new SlpdbStatus(db, rpc);
 const daemon = {
     run: async function({ startHeight, loadFromDb=true }: { startHeight?: number, loadFromDb?: boolean} ) {
         let network!: string;
-        try {        
-            network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
-            await Info.setNetwork(network);
-            await db.init();
-        } catch(err) {
-            console.log(err);
-            process.exit();
-        }
+        network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
+        await Info.setNetwork(network);
+        await db.init();
 
         // persist updated SLPDB status every 10 minutes
         await SlpdbStatus.loadPreviousAttributes();
