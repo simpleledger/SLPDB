@@ -661,74 +661,37 @@ export class SlpTokenGraph implements TokenGraph {
         if(this.IsValid && this._graphUpdateQueue.size === 0) {
             await this.updateAddressesFromScratch();
 
-            if(!this._tokenStats) {
-                this._tokenStats = <TokenStats> {
-                    block_created: await Query.queryTokenGenesisBlock(this._tokenDetails.tokenIdHex),
-                    block_last_active_mint: await Query.blockLastMinted(this._tokenDetails.tokenIdHex),
-                    block_last_active_send: await Query.blockLastSent(this._tokenDetails.tokenIdHex),
-                    qty_valid_txns_since_genesis: this._graphTxns.size,
-                    qty_valid_token_utxos: this._tokenUtxos.size,
-                    qty_valid_token_addresses: this._addresses.size,
-                    qty_token_minted: await this.getTotalMintQuantity(),
-                    qty_token_burned: new BigNumber(0),
-                    qty_token_circulating_supply: this.getTotalHeldByAddresses(),
-                    qty_satoshis_locked_up: this.getTotalSatoshisLockedUp(),
-                    minting_baton_status: await this.getBatonStatus()
-                }
-                this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply)
+            let block_created = await Query.queryTokenGenesisBlock(this._tokenDetails.tokenIdHex);
+            let block_last_active_mint = await Query.blockLastMinted(this._tokenDetails.tokenIdHex);
+            let block_last_active_send = await Query.blockLastSent(this._tokenDetails.tokenIdHex);
+            let qty_token_minted = await this.getTotalMintQuantity();
+            let minting_baton_status = await this.getBatonStatus();
+
+            this._tokenStats = <TokenStats> {
+                block_created: block_created,
+                block_last_active_mint: block_last_active_mint,
+                block_last_active_send: block_last_active_send,
+                qty_valid_txns_since_genesis: this._graphTxns.size,
+                qty_valid_token_utxos: this._tokenUtxos.size,
+                qty_valid_token_addresses: this._addresses.size,
+                qty_token_minted: qty_token_minted,
+                qty_token_burned: new BigNumber(0),
+                qty_token_circulating_supply: this.getTotalHeldByAddresses(),
+                qty_satoshis_locked_up: this.getTotalSatoshisLockedUp(),
+                minting_baton_status: minting_baton_status
             }
-            else {
-                let minted = await this.getTotalMintQuantity();
-                let addressesTotal = this.getTotalHeldByAddresses()
-                this._tokenStats.block_created = await Query.queryTokenGenesisBlock(this._tokenDetails.tokenIdHex),
-                this._tokenStats.block_last_active_mint = await Query.blockLastMinted(this._tokenDetails.tokenIdHex),
-                this._tokenStats.block_last_active_send = await Query.blockLastSent(this._tokenDetails.tokenIdHex),
-                this._tokenStats.qty_valid_token_addresses = this._addresses.size;
-                this._tokenStats.qty_valid_token_utxos = this._tokenUtxos.size;
-                this._tokenStats.qty_valid_txns_since_genesis = this._graphTxns.size;
-                this._tokenStats.qty_token_minted = minted;
-                this._tokenStats.qty_token_circulating_supply = addressesTotal;
-                this._tokenStats.qty_token_burned = minted.minus(addressesTotal);
-                this._tokenStats.qty_satoshis_locked_up = this.getTotalSatoshisLockedUp();
-                this._tokenStats.minting_baton_status = await this.getBatonStatus();
-            }
+            this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply)
 
             if(this._tokenStats.qty_token_circulating_supply.isGreaterThan(this._tokenStats.qty_token_minted)) {
                 console.log("[ERROR] Cannot have circulating supply larger than total minted quantity.");
-                console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
-                // if(!this._statsNeedUpdated) {
-                //     this._statsNeedUpdated = true;
-                //     let self = this;
-                //     (async function() {
-                //         await self._graphUpdateQueue.onIdle();
-                //         if(self._statsNeedUpdated) {
-                //             console.log("[INFO] Rerunning update statistics (caused by circ_supply_qty > mint_qty)")
-                //             await self.updateStatistics();
-                //         }
-                //     })();
-                // }
-                // return;
-            } else {
-                //this._statsNeedUpdated = false;
+                //console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
+                // TODO: handle this condition gracefully.
             }
 
             if(!this._tokenStats.qty_token_circulating_supply.isEqualTo(this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_burned))) {
                 console.log("[WARN] Circulating supply minus burn quantity does not equal minted quantity");
-                console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
-                // if(!this._statsNeedUpdated) {
-                //     this._statsNeedUpdated = true;
-                //     let self = this;
-                //     (async function() {
-                //         await self._graphUpdateQueue.onIdle();
-                //         if(self._statsNeedUpdated) {
-                //             console.log("[INFO] Rerunning update statistics (caused by mint_qty - burn_qty !== circulating_supply)")
-                //             await self.updateStatistics();
-                //         }
-                //     })();
-                // }
-                // return;
-            } else {
-                //this._statsNeedUpdated = false;
+                //console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
+                // TODO: handle this condition gracefully.
             }
 
             await this._db.tokenInsertReplace(this.toTokenDbObject());
