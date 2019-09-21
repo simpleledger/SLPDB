@@ -14,11 +14,11 @@ export class RpcClient {
         if(useGrpc) {
             this.useGrpc = useGrpc;
                 if(Boolean(Config.grpc.url) && Config.grpc.certPath)
-                    grpc = new GrpcClient({ url: Config.grpc.url, rootCertPath: Config.grpc.certPath })
+                    grpc = new GrpcClient({ url: Config.grpc.url, rootCertPath: Config.grpc.certPath });
                 else
-                    grpc = new GrpcClient({ url: Config.grpc.url })
+                    grpc = new GrpcClient({ url: Config.grpc.url });
         } else {
-            rpc = new _rpcClient(connectionString);
+            rpc = new _rpcClient(connectionString, { maxRetries: 10, retryDelayMs: 500 });
         }
     }
 

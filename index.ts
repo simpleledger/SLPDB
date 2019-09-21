@@ -175,7 +175,7 @@ const start = async function() {
         else if(args[2] === "goToBlock")
             await util.reset_to_block(parseInt(process.argv[3]));
     } else {
-        console.log("[ERROR] No command provided after 'node ./index.js'.")
+        throw Error("No command provided after 'node ./index.js'.");
     }
 }
 
