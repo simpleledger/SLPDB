@@ -266,7 +266,6 @@ export class Bit {
     }
 
     listenToZmq() {
-        // Listen to ZMQ
         let sync = Bit.sync;
         this._slpGraphManager._TnaQueue = this._zmqItemQueue;
         let self = this;

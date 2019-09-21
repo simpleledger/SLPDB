@@ -31,7 +31,6 @@ export class SlpGraphManager {
     _tokens!: Map<string, SlpTokenGraph>;
     _rpcClient: RpcClient;
     zmqPubSocket?: zmq.Socket;
-    _transaction_lock: boolean = false;
     _zmqMempoolPubSetList = new SetCache<string>(1000);
     _TnaQueue?: pQueue<pQueue.DefaultAddOptions>;
     _startupQueue = new pQueue<pQueue.DefaultAddOptions>({ concurrency: 4, autoStart: true })
@@ -142,19 +141,12 @@ export class SlpGraphManager {
     }
 
     async _onBlockHash(hash: string): Promise<void> {
-
-        while(this._transaction_lock) {
-            console.log("[INFO] onBlockHash update is locked until processing for new token graph is completed.")
-            await sleep(1000);
-        }
-
         while(!this.TnaSynced) {
             console.log("[INFO] At _onBlockHash() - Waiting for TNA sync to complete before we update tokens included in block.")
             await sleep(1000);
         }
-
         let blockTxns = await Query.getTransactionsForBlock(hash);
-        if(blockTxns!) {
+        if(blockTxns) {
             // update tokens collection timestamps on confirmation for Genesis transactions
             let genesisBlockTxns = await Query.getGenesisTransactionsForBlock(hash);
             if(genesisBlockTxns) {
@@ -164,46 +156,40 @@ export class SlpGraphManager {
                         token._tokenDetails.timestamp = genesisBlockTxns.timestamp!;
                 }
             }
-
             // update all statistics for tokens included in this block
             let tokenIds: string[];
             if(this._filter._rules.size > 0) {
                 tokenIds = Array.from(new Set<string>([
-                    ...blockTxns!.txns
+                    ...blockTxns.txns
                         .filter(t => t.slp && t.slp.valid && this._filter.passesAllFilterRules(t.slp.detail!.tokenIdHex))
                         .map(t => t.slp.detail!.tokenIdHex)
                     ]));
             }
             else {
                 tokenIds = Array.from(new Set<string>(
-                    [...blockTxns!.txns
+                    [...blockTxns.txns
                         .filter(t => t.slp && t.slp.valid)
                         .map(t => t.slp.detail!.tokenIdHex)
                     ]));
             }
-
-
             // update statistics for each token
             for(let i = 0; i < tokenIds.length; i++) {
                 let token = this._tokens.get(tokenIds[i])!;
                 await token.updateStatistics();
             }
-
             // Search for any burned transactions 
             console.log('[INFO] Starting to look for any burned tokens resulting from non-SLP transactions');
             await this.searchBlockForBurnedSlpTxos(hash);
             console.log('[INFO] Finished looking for burned tokens.');
-
             // zmq publish block events
             if(this.zmqPubSocket && Config.zmq.outgoing.enable) {
                 console.log("[ZMQ-PUB] SLP block txn notification", hash);
                 this.zmqPubSocket.send([ 'block', JSON.stringify(blockTxns) ]);
                 SlpdbStatus.updateTimeOutgoingBlockZmq();
             }
-
-            // fix any missed token timestamps 
             await this.fixMissingTokenTimestamps();
         }
+        SlpdbStatus.updateSlpProcessedBlockHeight(this._bestBlockHeight);
     }
 
     constructor(db: Db, currentBestHeight: number, network: string, bit: Bit, filter: TokenFilter = new TokenFilter()) {

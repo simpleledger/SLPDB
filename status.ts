@@ -22,6 +22,7 @@ export class SlpdbStatus {
     static lastIncomingBlockZmq: { utc: string, unix: number}|null = null;
     static lastOutgoingTxnZmq: { utc: string, unix: number}|null = null;
     static lastOutgoingBlockZmq: { utc: string, unix: number}|null = null;
+    static slpProcessedBlockHeight: number|null = null;
     static state: SlpdbState;
     static network: string = '';
     static pastStackTraces: any[] = [];
@@ -56,6 +57,10 @@ export class SlpdbStatus {
     static updateTimeOutgoingTxnZmq() {
         let date = new Date();
         SlpdbStatus.lastOutgoingTxnZmq = { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }    
+    }
+
+    static updateSlpProcessedBlockHeight(height: number) {
+        SlpdbStatus.slpProcessedBlockHeight = height;
     }
 
     static async changeStateToStartupBlockSync({ network, getSyncdCheckpoint }: { network: string, getSyncdCheckpoint: () => Promise<ChainSyncCheckpoint> }) {
@@ -131,8 +136,9 @@ export class SlpdbStatus {
             lastOutgoingBlockZmq: SlpdbStatus.lastOutgoingBlockZmq,
             state: SlpdbStatus.state,
             network: SlpdbStatus.network,
-            blockHeight: checkpoint.height,
-            blockHash: checkpoint.hash,
+            bchBlockHeight: checkpoint.height,
+            bchBlockHash: checkpoint.hash,
+            slpProcessedBlockHeight: SlpdbStatus.slpProcessedBlockHeight,
             mempoolInfoBch: mempoolInfo,
             mempoolSizeSlp: SlpdbStatus.getSlpMempoolSize(),
             tokensCount: SlpdbStatus.getSlpTokensCount(),
@@ -231,8 +237,9 @@ interface StatusDbo {
     lastOutgoingBlockZmq: { utc: string; unix: number; } | null; 
     state: SlpdbState; 
     network: string; 
-    blockHeight: number; 
-    blockHash: string | null; 
+    bchBlockHeight: number; 
+    bchBlockHash: string | null; 
+    slpProcessedBlockHeight: number | null;
     mempoolInfoBch: {} | null; 
     mempoolSizeSlp: number; 
     tokensCount: number; 
