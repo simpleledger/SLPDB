@@ -67,11 +67,10 @@ export class SlpGraphManager {
 
     async _onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
         if(syncResult && syncResult.filteredContent.size > 0) {
-            let txns = Array.from(syncResult.filteredContent.get(SyncFilterTypes.SLP)!)
+            let txns = Array.from(syncResult.filteredContent.get(SyncFilterTypes.SLP)!);
             await this.asyncForEach(txns, async (txPair: [string, string], index: number) =>
             {
                 console.log("[INFO] Processing possible SLP txn:", txPair[0]);
-                let txn = new bitcore.Transaction(txPair[1]);
                 let tokenDetails = this.parseTokenTransactionDetails(txPair[1]);
                 let tokenId = tokenDetails ? tokenDetails.tokenIdHex : null;
 
@@ -84,30 +83,22 @@ export class SlpGraphManager {
                 // Based on Txn output OP_RETURN data, update graph for the tokenId 
                 if(tokenId) {
                     if(!this._tokens.has(tokenId)) {
-                        if(tokenDetails) {
-                            this._transaction_lock = true;
-                            console.log("[INFO] Creating new token graph for tokenId:", tokenId);
-                            await this.createNewTokenGraph({ tokenId });
-                            this._transaction_lock = false;
-                            await this.publishZmqNotification(txPair[0]);
-                        }
-                        else {
-                            console.log("[INFO] Skipping: No token details are available for this token")
-                        }
+                        console.log("[INFO] Creating new token graph for tokenId:", tokenId);
+                        await this.createNewTokenGraph({ tokenId });
+                        await this.publishZmqNotification(txPair[0]);
                     }
                     else {
                         console.log("[INFO] Updating graph for:", tokenId);
-                        while(this._transaction_lock) {
-                            console.log("[INFO] onTransactionHash update is locked until processing for new token graph is completed.")
-                            await sleep(1000);
-                        }
-                        this._tokens.get(tokenId)!.queueTokenGraphUpdateFrom({ txid: txPair[0]} );
+                        this._tokens.get(tokenId)!.queueTokenGraphUpdateFrom({ txid: txPair[0] } );
                     }
                 } else {
                     console.log("[INFO] Skipping: TokenId is being filtered.")
-                    await this.updateTxnCollections(txPair[0])
+                    await this.updateTxnCollections(txPair[0]);
                 }
 
+                // NOTE: The following method is commented out because it is doing redundant work with burn search at  block discovery.
+                // If uncommented it would search for burns at mempool acceptance, but only searches SLP transactions
+                // -----
                 // Based on the spent inputs, look for associated tokenIDs of those inputs and update those token graphs also
                 // let inputTokenIds: string[] = [];
                 // for(let i = 0; i < txn.inputs.length; i++) {
