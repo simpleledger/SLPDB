@@ -31,7 +31,8 @@ export class SlpTokenGraph implements TokenGraph {
     _rpcClient: RpcClient;
     _network: string;
     _db: Db;
-    _graphUpdateQueue: pQueue<DefaultAddOptions>;
+    _graphUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: false });
+    _statsUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: true });
     _manager: SlpGraphManager;
     _liveTxoSpendCache: MapCache<string, SendTxnQueryResult>;
     _startupTxoSendCache?: MapCache<string, {txid: string, block: number|null}>;
@@ -66,7 +67,7 @@ export class SlpTokenGraph implements TokenGraph {
                 if(mints && mints.length > 0)
                     await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom({ txid: m.txid!, processUpToBlock: processUpToBlock, isParent:true }));
             }
-            await this.updateStatistics();
+            await this.UpdateStatistics();
         }
         this._startupTxoSendCache.clear();
         this._startupTxoSendCache = undefined;
@@ -215,7 +216,7 @@ export class SlpTokenGraph implements TokenGraph {
             // Update token's statistics
             if(self._graphUpdateQueue.size === 0 && self._graphUpdateQueue.pending === 1) {
                 self._liveTxoSpendCache.clear();
-                await self.updateStatistics();
+                await self.UpdateStatistics();
             }
         })
     }
@@ -657,7 +658,14 @@ export class SlpTokenGraph implements TokenGraph {
         }
     }
 
-    async updateStatistics(): Promise<void> {
+    async UpdateStatistics(): Promise<void> {
+        let self = this;
+        await this._statsUpdateQueue.add(async function() {
+            await self._updateStatistics();
+        });
+    }
+
+    async _updateStatistics(): Promise<void> {
         if(this.IsValid && this._graphUpdateQueue.size === 0) {
             await this.updateAddressesFromScratch();
 
@@ -977,7 +985,7 @@ export class SlpTokenGraph implements TokenGraph {
         // Map _tokenUtxos
         tg._tokenUtxos = new Set(utxos.map(u => u.utxo));
 
-        await tg.updateStatistics();
+        await tg.UpdateStatistics();
         tg._graphUpdateQueue.start();
         return tg;
     }

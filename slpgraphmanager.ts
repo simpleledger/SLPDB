@@ -218,11 +218,11 @@ export class SlpGraphManager {
                     let t = this._tokens.get(token.txid)!;
                     t._tokenDetails.timestamp = timestamp;
                     t._tokenStats.block_created = token.blk.i;
-                    await this.db.tokenInsertReplace(t.toTokenDbObject());
-                    return;
-                } 
-                await this.createNewTokenGraph({ tokenId: token.txid })
-                await this.fixMissingTokenTimestamps();
+                    await t.UpdateStatistics();
+                } else {
+                    await this.createNewTokenGraph({ tokenId: token.txid })
+                    await this.fixMissingTokenTimestamps();
+                }
             })
         }
         return tokens;
@@ -542,7 +542,7 @@ export class SlpGraphManager {
                 console.log("[INFO] No token transactions after block", updateFromHeight, "were found.");
             else {
                 console.log("[INFO] Token's graph was updated.");
-                await graph.updateStatistics();
+                await graph.UpdateStatistics();
             }
         } else {
             console.log("[WARN] Token's graph loaded using allowGraphUpdates=false.");
