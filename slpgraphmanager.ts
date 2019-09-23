@@ -49,17 +49,17 @@ export class SlpGraphManager {
             return true;
     }
 
-    onTransactionHash(syncResult: SyncCompletionInfo) {
+    async onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
         let self = this;
-        this._updatesQueue.add(async function() {
+        await this._updatesQueue.add(async function() {
             await self._onTransactionHash(syncResult);
         })
     }
 
-    async onBlockHash(hash: string) {
+    async onBlockHash(hash: string): Promise<void> {
         this._bestBlockHeight = (await Info.getBlockCheckpoint()).height;
         let self = this;
-        this._updatesQueue.add(async function() {
+        await this._updatesQueue.add(async function() {
             await self._onBlockHash(hash);
         })
     }
