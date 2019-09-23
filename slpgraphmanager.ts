@@ -156,6 +156,7 @@ export class SlpGraphManager {
                         token._tokenDetails.timestamp = genesisBlockTxns.timestamp!;
                 }
             }
+
             // update all statistics for tokens included in this block
             let tokenIds: string[];
             if(this._filter._rules.size > 0) {
@@ -172,15 +173,12 @@ export class SlpGraphManager {
                         .map(t => t.slp.detail!.tokenIdHex)
                     ]));
             }
+
             // update statistics for each token
-            for(let i = 0; i < tokenIds.length; i++) {
-                let token = this._tokens.get(tokenIds[i])!;
-                await token.updateStatistics();
-            }
-            // Search for any burned transactions 
-            console.log('[INFO] Starting to look for any burned tokens resulting from non-SLP transactions');
-            await this.searchBlockForBurnedSlpTxos(hash);
-            console.log('[INFO] Finished looking for burned tokens.');
+            await Promise.all(tokenIds.map(async (tokenId) => {
+                await this._tokens.get(tokenId)!.UpdateStatistics();
+            }));
+
             // zmq publish block events
             if(this.zmqPubSocket && Config.zmq.outgoing.enable) {
                 console.log("[ZMQ-PUB] SLP block txn notification", hash);
@@ -188,6 +186,9 @@ export class SlpGraphManager {
                 SlpdbStatus.updateTimeOutgoingBlockZmq();
             }
             await this.fixMissingTokenTimestamps();
+
+            // DO NOT AWAIT: Search for any burned transactions 
+            this.searchBlockForBurnedSlpTxos(hash);
         }
         SlpdbStatus.updateSlpProcessedBlockHeight(this._bestBlockHeight);
     }
@@ -234,6 +235,7 @@ export class SlpGraphManager {
     }
 
     async searchBlockForBurnedSlpTxos(block_hash: string) {
+        console.log('[INFO] Starting to look for any burned tokens resulting from non-SLP transactions');
         let blockHex = <string>await this._rpcClient.getRawBlock(block_hash);
         let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
         let graphPromises: Promise<void>[] = [];
@@ -286,6 +288,7 @@ export class SlpGraphManager {
         console.time("BlockBurnQueueWait-"+block_hash);
         await Promise.all(graphPromises);
         console.timeEnd("BlockBurnQueueWait-"+block_hash);
+        console.log('[INFO] Finished looking for burned tokens.');
     }
 
     async updateTxnCollections(txid: string, tokenId?: string): Promise<void> {
