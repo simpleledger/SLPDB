@@ -3,7 +3,7 @@ import BigNumber from 'bignumber.js';
 import { BITBOX } from 'bitbox-sdk';
 import { Config } from './config';
 import * as bitcore from 'bitcore-lib-cash';
-import { SendTxnQueryResult, MintQueryResult, Query, MintTxnQueryResult } from './query';
+import { SendTxnQueryResult, MintQueryResult, Query } from './query';
 import { Decimal128 } from 'mongodb';
 import { Db } from './db';
 import { RpcClient } from './rpc';
@@ -25,8 +25,8 @@ export class SlpTokenGraph implements TokenGraph {
     _tokenUtxos!: Set<string>;
     _mintBatonUtxo!: string;
     _nftParentId?: string;
-    _graphTxns!: Map<string, GraphTxn>;
-    _addresses!: Map<cashAddr, AddressBalance>;
+    _graphTxns = new Map<string, GraphTxn>();
+    _addresses = new Map<cashAddr, AddressBalance>();
     _slpValidator!: LocalValidator;
     _rpcClient: RpcClient;
     _network: string;
@@ -34,7 +34,7 @@ export class SlpTokenGraph implements TokenGraph {
     _graphUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: false });
     _statsUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: true });
     _manager: SlpGraphManager;
-    _liveTxoSpendCache: MapCache<string, SendTxnQueryResult>;
+    _liveTxoSpendCache = new MapCache<string, SendTxnQueryResult>(100000);
     _startupTxoSendCache?: MapCache<string, {txid: string, block: number|null}>;
 
     constructor(db: Db, manager: SlpGraphManager, network: string) {
@@ -42,11 +42,7 @@ export class SlpTokenGraph implements TokenGraph {
         this._manager = manager;
         this._network = network;
         this._rpcClient = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
-        this._slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await this._rpcClient.getRawTransaction(txids[0]) ], console)
-        this._graphTxns = new Map<string, GraphTxn>();
-        this._addresses = new Map<cashAddr, AddressBalance>();
-        this._graphUpdateQueue = new pQueue({ concurrency: 1, autoStart: false });
-        this._liveTxoSpendCache = new MapCache<string, SendTxnQueryResult>(100000);
+        this._slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await this._rpcClient.getRawTransaction(txids[0]) ], console);
     }
 
     async initFromScratch({ tokenDetails, processUpToBlock }: { tokenDetails: SlpTransactionDetails; processUpToBlock?: number; }) {
