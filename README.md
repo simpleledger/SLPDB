@@ -384,6 +384,12 @@ We want to make SLPDB more easily forkable for other OP_RETURN projects which ma
 
 ## 9. <a name='ChangeLog'></a>Change Log
 
+* 0.15.4
+    * Added statuses collection
+    * Added env variables for disabling graph search and zmq publishing
+    * Caching improvements to speed up token processing
+    * Various fixes and improvements
+
 * 0.15.3
     * Additional db cleanup needed in graphs collection from the issue fixed in 0.15.2
     * Removed unneeded object initializers in FromDbObjects, moved to TokenGraph constructor

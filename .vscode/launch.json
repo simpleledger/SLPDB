@@ -9,22 +9,15 @@
             "request": "launch",
             "name": "Start From Checkpoint",
             "program": "${workspaceFolder}/index.js",
+            "args": ["run"],
             "console": "externalTerminal"
-        },        
-        {
-            "type": "node",
-            "request": "launch",
-            "name": "Fix",
-            "program": "${workspaceFolder}/index.js",
-            "args": ["fix", "580609"],
-            "console": "integratedTerminal"
         },
         {
             "type": "node",
             "request": "launch",
             "name": "Start From 574710",
             "program": "${workspaceFolder}/index.js",
-            "args": ["run", "574710"],
+            "args": ["run", "--startHeight", "574710"],
             "console": "externalTerminal"
         },
         {
@@ -32,8 +25,24 @@
             "request": "launch",
             "name": "Reprocess token ID",
             "program": "${workspaceFolder}/index.js",
-            "args": ["reprocess", "959a6818cba5af8aba391d3f7649f5f6a5ceb6cdcd2c2a3dcb5d2fbfc4b08e98"],
+            "args": ["reprocess", "4de69e374a8ed21cbddd47f2338cc0f479dc58daa2bbe11cd604ca488eca0ddf"],
             "console": "externalTerminal"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Start tokens from scratch",
+            "program": "${workspaceFolder}/index.js",
+            "args": ["run", "--reprocess"],
+            "console": "externalTerminal"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Fix (untested)",
+            "program": "${workspaceFolder}/index.js",
+            "args": ["fix", "580609"],
+            "console": "integratedTerminal"
         },
     ]
 }

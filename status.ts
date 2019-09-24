@@ -157,8 +157,8 @@ export class SlpdbStatus {
             let data = JSON.stringify(status);
             let options = {
                 hostname: Config.telemetry.host,
-                port: 443,
-                path: '/slpdb',
+                port: Config.telemetry.port,
+                path: '/status',
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

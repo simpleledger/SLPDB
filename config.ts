@@ -92,7 +92,8 @@ export class Config {
 	}
 	static telemetry = {
 		enable: process.env.enable_telemetry ? process.env.enable_telemetry === '1' || process.env.enable_telemetry === 'true' : false,
-		host: process.env.telemetry_host ? process.env.telemetry_host : 'status.simpleledger.info',
+		host: process.env.telemetry_host ? process.env.telemetry_host : 'spd-status.herokuapp.com',
+		port: process.env.telemetry_port ? process.env.telemetry_port : 80,
 		advertised_url: process.env.telemetry_advertised_url ? process.env.telemetry_advertised_url : ''
 	}
 }
