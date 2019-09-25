@@ -91,9 +91,9 @@ export class Config {
 		enable_graph_search: process.env.enable_graph_search ? process.env.enable_graph_search === '1' || process.env.enable_graph_search === 'true' : true
 	}
 	static telemetry = {
-		enable: process.env.enable_telemetry ? process.env.enable_telemetry === '1' || process.env.enable_telemetry === 'true' : false,
 		host: process.env.telemetry_host ? process.env.telemetry_host : 'spd-status.herokuapp.com',
-		port: process.env.telemetry_port ? process.env.telemetry_port : 80,
-		advertised_url: process.env.telemetry_advertised_url ? process.env.telemetry_advertised_url : ''
+		port: process.env.telemetry_port ? process.env.telemetry_port : 443,
+		advertised_host: process.env.telemetry_advertised_host ? process.env.telemetry_advertised_host : '',
+		secret: process.env.telemetry_secret ? process.env.telemetry_secret : ''
 	}
 }

@@ -17,7 +17,7 @@ export class SlpdbStatus {
     static versionHash: string|null = null;
     static deplVersionHash: string|null = null;
     static context: context = context.SLPDB;
-    static public_url: string = Config.telemetry.advertised_url;
+    static public_url: string = Config.telemetry.advertised_host;
     static lastIncomingTxnZmq: { utc: string, unix: number}|null = null;
     static lastIncomingBlockZmq: { utc: string, unix: number}|null = null;
     static lastOutgoingTxnZmq: { utc: string, unix: number}|null = null;
@@ -151,10 +151,8 @@ export class SlpdbStatus {
     }
 
     private static updateTelemetry(status: StatusDbo) {
-        if (Config.telemetry.enable) {
-            if (Config.telemetry.advertised_url === '')
-                console.log("[WARN] Environment variable 'telemetry_advertised_url' is not set");
-            let data = JSON.stringify(status);
+        if (Config.telemetry.advertised_host !== '') {
+            let data = JSON.stringify({ status: status });
             let options = {
                 hostname: Config.telemetry.host,
                 port: Config.telemetry.port,
@@ -162,7 +160,8 @@ export class SlpdbStatus {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Content-Length': data.length
+                    'Content-Length': data.length, 
+                    'secret': Config.telemetry.secret
                 }
             };
             let req = https.request(options, res => {
