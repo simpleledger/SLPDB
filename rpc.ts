@@ -1,6 +1,7 @@
 import { Config } from "./config";
 import { TxOutResult, BlockchainInfoResult, BlockHeaderResult, MempoolInfoResult } from "bitcoin-com-rest";
 import { GrpcClient, BlockInfo, GetUnspentOutputResponse } from "grpc-bchrpc-node";
+import { MapCache } from "./cache";
 
 const _rpcClient = require('bitcoin-rpc-promise-retry');
 const connectionString = 'http://' + Config.rpc.user + ':' + Config.rpc.pass + '@' + Config.rpc.host + ':' + Config.rpc.port
@@ -10,6 +11,7 @@ let rpc: any;
 
 export class RpcClient {
     useGrpc: boolean | undefined;
+    transactionCache = new MapCache<string, Buffer>(100000);
     constructor({ useGrpc }: { useGrpc?: boolean }) {
         if(useGrpc) {
             this.useGrpc = useGrpc;
@@ -117,6 +119,10 @@ export class RpcClient {
     }
 
     async getRawTransaction(hash: string): Promise<string> { 
+        if(this.transactionCache.has(hash)) {
+            console.log("[INFO] cache: getRawTransaction");
+            return this.transactionCache.get(hash)!.toString('hex');
+        }
         if(this.useGrpc) {
             console.log("[INFO] gRPC: getRawTransaction", hash);
             return Buffer.from((await grpc.getRawTransaction({ hash: hash, reverseOrder: true })).getTransaction_asU8()).toString('hex');

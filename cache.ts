@@ -65,6 +65,10 @@ export class MapCache<T, M> {
         return this.map.has(key);
     }
 
+    getMap() {
+        return this.map;
+    }
+
     private shift(): T | undefined {
         let key = this.list.shift();
         if(key)
