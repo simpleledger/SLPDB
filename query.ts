@@ -115,7 +115,7 @@ export class Query {
         let a = Array.from(response);
         if(a.length === limit)
             throw Error("Query limit is reached, implementation error");
-        return { txns: a, timestamp: a[0] ? a[0].timestamp: null, };
+        return { txns: a, timestamp: a[0].timestamp };
     }
 
     static async queryForRecentTokenTxns(tokenId: string, block: number): Promise<string[]> {
@@ -381,29 +381,29 @@ export class Query {
         throw Error("Mongo DB ERROR.")
     }
 
-    static async getTxoInputSlpSendCache(tokenId: string): Promise<MapCache<string, {txid: string, block: number}>> {
+    static async getTxoInputSlpSendCache(tokenId: string): Promise<MapCache<string, { txid: string, block: number, blockHash: Buffer }>> {
         console.log("[Query] getTxoInputSlpSpendCache(" + tokenId + ")");
         let q = {
             "v": 3,
             "q": {
-                "db": ["c","u"],
+                "db": ["c"], // ,"u"],
                 "aggregate": [
                     { "$match": { "out.h4": tokenId, "out.s3": "SEND" }},
                     { "$unwind": "$in" },
-                    { "$project": { "prevTxid": "$in.e.h", "prevIndex": "$in.e.i", "txid": "$tx.h", "block": "$blk.i" }}
+                    { "$project": { "prevTxid": "$in.e.h", "prevIndex": "$in.e.i", "txid": "$tx.h", "block": "$blk.i", "blockHash": "$blk.h" }}
                 ], 
                 "limit": 1000000
             }
         }
-        let response: {c: { prevTxid: string, prevIndex: number, txid: string, block: number }[], u: { prevTxid: string, prevIndex: number, txid: string, block: number }[], errors?: any} = await this._dbQuery(q);
-        let cache = new MapCache<string, {txid: string, block: number}>(1000000);
+        let response: {c: { prevTxid: string, prevIndex: number, txid: string, block: number, blockHash: string }[], errors?: any} = await this._dbQuery(q);
+        let cache = new MapCache<string, {txid: string, block: number, blockHash: Buffer }>(1000000);
         if(!response.errors) {
             response.c.forEach(txo => {
-                cache.set(txo.prevTxid + ":" + txo.prevIndex, { txid: txo.txid, block: txo.block });
+                cache.set(txo.prevTxid + ":" + txo.prevIndex, { txid: txo.txid, block: txo.block, blockHash: Buffer.from(txo.blockHash, 'hex') });
             });
-            response.u.forEach(txo => {
-                cache.set(txo.prevTxid + ":" + txo.prevIndex, { txid: txo.txid, block: txo.block });
-            });
+            // response.u.forEach(txo => {
+            //     cache.set(txo.prevTxid + ":" + txo.prevIndex, { txid: txo.txid, block: null });
+            // });
         }
         return cache;
     }
