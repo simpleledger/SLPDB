@@ -145,7 +145,7 @@ export class SlpdbStatus {
             pastStackTraces: stackTraces,
             mongoDbStats: await SlpdbStatus.db.db.stats({ scale: 1048576 }),
             public_url: SlpdbStatus.public_url
-        }
+        };
         SlpdbStatus.updateTelemetry(status);
         return status;
     }
@@ -161,13 +161,14 @@ export class SlpdbStatus {
                 headers: {
                     'Content-Type': 'application/json',
                     'Content-Length': data.length, 
-                    'secret': Config.telemetry.secret
+                    'Authorization': Config.telemetry.secret
                 }
             };
             let req = https.request(options, res => {
                 console.log(`statusCode: ${res.statusCode}`);
                 res.on('data', d => {
-                    process.stdout.write(d);
+                    console.log(`[INFO] Telelmetry response from ${Config.telemetry.advertised_host}:`);
+                    console.log(d.toString('utf8'));
                 });
             });
             req.on('error', error => {

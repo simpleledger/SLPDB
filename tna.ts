@@ -125,7 +125,7 @@ export interface TNATxn {
 }
 
 export interface TNATxnSlpDetails {
-    valid: boolean|null, 
+    valid: boolean|null|undefined, 
     detail: SlpTransactionDetailsTnaDbo|null, 
     invalidReason: string|null,
     schema_version: number 

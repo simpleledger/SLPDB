@@ -379,6 +379,9 @@ export class SlpGraphManager {
                             let msg = `[ERROR] Validitity of ${txid} is null.`;
                             throw msg;
                         }
+                    } else if(tokenId && !this._filter.passesAllFilterRules(tokenId)) {
+                        invalidReason = 'Token validity is unknown because it is not tracked by SLPDB.';
+                        isValid = undefined;
                     } else if(tokenId && this._startupQueue.size === 0 && this._startupQueue.pending === 0 && this._startupTokenCount > 0) {
                         invalidReason = 'Token is invalid, most likely because it is an invalid Genesis.';
                         isValid = false;

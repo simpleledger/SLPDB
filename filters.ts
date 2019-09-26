@@ -12,15 +12,15 @@ export class TokenFilterRule {
         this.info = info;
     }
 
-    include(txid: string) {
+    include(tokenId: string) {
         if(this.type === 'include-single') {
-            if(txid === this.info) {
+            if(tokenId === this.info) {
                 return true;
             } else {
                 return false;
             }
         } else if(this.type === 'exclude-single') {
-            if(txid === this.info) {
+            if(tokenId === this.info) {
                 return false;
             } else {
                 return true;
@@ -28,8 +28,8 @@ export class TokenFilterRule {
         }
     }
 
-    exclude(txid: string) {
-        return !this.include(txid);
+    exclude(tokenId: string) {
+        return !this.include(tokenId);
     }
 }
 
@@ -55,11 +55,11 @@ export class TokenFilter {
         this._rules.set(rule.info, rule);
     }
 
-    passesAllFilterRules(txid: string) {
+    passesAllFilterRules(tokenId: string) {
         if(this._hasIncludeSingle) {
             let r = Array.from(this._rules).filter((v, i) => v[1].type === 'include-single');
             for(let i = 0; i < r.length; i++) {
-                if(r[i][1].type === 'include-single' && r[i][1].include(txid)) {
+                if(r[i][1].type === 'include-single' && r[i][1].include(tokenId)) {
                     return true;
                 }
             }
@@ -67,7 +67,7 @@ export class TokenFilter {
         } else if(this._hasExcludeSingle) {
             let r = Array.from(this._rules).filter((v, i) => v[1].type === 'exclude-single');
             for(let i = 0; i < r.length; i++) {
-                if(r[i][1].type === 'exclude-single' && r[i][1].exclude(txid)) {
+                if(r[i][1].type === 'exclude-single' && r[i][1].exclude(tokenId)) {
                     return false;
                 }
             }

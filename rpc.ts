@@ -138,7 +138,7 @@ export class RpcClient {
             return Buffer.from(txn.getTransaction()!.getBlockHash_asU8().reverse()).toString('hex');
         }
         console.log("[INFO] JSON RPC: getRawTransaction", hash, 1);
-        return await rpc.getRawTransaction(hash, 1).blockhash;
+        return (await rpc.getRawTransaction(hash, 1)).blockhash;
     }
 
     async getTxOut(hash: string, vout: number): Promise<TxOutResult|GetUnspentOutputResponse|null> {
