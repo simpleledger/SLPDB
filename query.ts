@@ -22,7 +22,7 @@ export class Query {
         return Query.dbQuery;
     }
 
-    static async _dbQuery(q: any, retries=0, delay=100) {
+    static async _dbQuery(q: any, retries=5, delay=500) {
         let res;
         for(let i = 0; i <= retries; i++) {
             try {
@@ -30,20 +30,20 @@ export class Query {
             } catch(err) { 
                 if(i === retries)
                     throw err;
-                console.log("[ERROR] Retry", i, "after mongo error", err);
+                console.log(`[ERROR] Retry ${i}, after mongo error: ${err}`);
                 await sleep(delay);
                 continue;
             }
             if(res && !res.t && !res.u && !res.c && !res.x && !res.a && !res.g && !res.s) {
                 if(i === retries)
-                    throw Error(res);
-                console.log("[ERROR] Retry", i, "after mongo error", res);
+                    throw Error(`_dbQuery failed with query ${JSON.stringify(q)} has response ${JSON.stringify(res)}`);
+                console.log(`[ERROR] Retry ${i}, after mongo query ${JSON.stringify(q)} has response ${JSON.stringify(res)}`);
                 await sleep(delay);
                 continue;
             } else if(!res) {
                 if(i === retries)
-                    throw Error('[ERROR] Undefined or null response from ' + q);
-                console.log("[ERROR] Retry", i, ", Undefined or null response from", q);
+                    throw Error(`[ERROR] Undefined or null response from ${JSON.stringify(q)}`);
+                console.log(`[ERROR] Retry ${i}, Undefined or null response from ${JSON.stringify(q)}`);
                 await sleep(delay);
                 continue;
             }
