@@ -12,6 +12,7 @@ let rpc: any;
 export class RpcClient {
     useGrpc: boolean | undefined;
     transactionCache = new MapCache<string, Buffer>(100000);
+    //spendCache = new MapCache<string, {txid: string, block: number|null, blockHash: string|null}>(10000);
     constructor({ useGrpc }: { useGrpc?: boolean }) {
         if(useGrpc) {
             this.useGrpc = useGrpc;
@@ -22,6 +23,15 @@ export class RpcClient {
         } else {
             rpc = new _rpcClient(connectionString, { maxRetries: 10, retryDelayMs: 500 });
         }
+    }
+
+
+    loadTxnIntoCache(txid: string, txnBuf: Buffer) {
+        this.transactionCache.set(txid, txnBuf);
+
+        // TODO investigate creating a cache for spent txid lookup
+        //let txn = Primatives.Transaction.parseFromBuffer(txnBuf);
+        //txn.inputs.forEach(i => i.);
     }
 
     async getBlockCount(): Promise<number> {

@@ -119,6 +119,7 @@ export class Bit {
             return { isSlp: false, added: false };
         if(!txhex)
             txhex = <string>await this.rpc.getRawTransaction(txid);
+        this.rpc.loadTxnIntoCache(txid, Buffer.from(txhex, 'hex'));
         if(this.slp_txn_filter(txhex)) {
             this.slpMempool.set(txid, txhex);
             return { isSlp: true, added: true };
@@ -286,7 +287,7 @@ export class Bit {
                     self._slpGraphManager.zmqPubSocket = self.outsock;
                 if(self._slpGraphManager.onBlockHash)
                     self._slpGraphManager.onBlockHash!(hash!);
-            })
+            });
         }
 
         let onRawTxn = function(message: Buffer) {

@@ -38,7 +38,6 @@ export class SlpGraphManager {
     _bestBlockHeight: number;
     _network: string;
     _startupTokenCount: number;
-    _slpMempool = new Map<txid, txhex>();
     _bit: Bit;
     _filter: TokenFilter;
 
@@ -142,47 +141,62 @@ export class SlpGraphManager {
 
     async _onBlockHash(hash: string): Promise<void> {
         while(!this.TnaSynced) {
-            console.log("[INFO] At _onBlockHash() - Waiting for TNA sync to complete before we update tokens included in block.")
+            console.log("[INFO] At _onBlockHash() - Waiting for TNA sync to complete before we update tokens included in block.");
             await sleep(1000);
         }
-        let blockTxns = await Query.getTransactionsForBlock(hash);
-        if(blockTxns) {
+        let block = await Query.getTransactionsForBlock(hash);
+        if(block) {
             // update tokens collection timestamps on confirmation for Genesis transactions
             let genesisBlockTxns = await Query.getGenesisTransactionsForBlock(hash);
             if(genesisBlockTxns) {
                 for(let i = 0; i < genesisBlockTxns.txns.length; i++) {
-                    let token = this._tokens.get(genesisBlockTxns.txns[i])
+                    let token = this._tokens.get(genesisBlockTxns.txns[i]);
                     if(token)
                         token._tokenDetails.timestamp = genesisBlockTxns.timestamp!;
                 }
             }
 
-            // update all statistics for tokens included in this block
-            let tokenIds: string[];
-            if(this._filter._rules.size > 0) {
-                tokenIds = Array.from(new Set<string>([
-                    ...blockTxns.txns
-                        .filter(t => t.slp && t.slp.valid && this._filter.passesAllFilterRules(t.slp.detail!.tokenIdHex))
-                        .map(t => t.slp.detail!.tokenIdHex)
-                    ]));
-            }
-            else {
-                tokenIds = Array.from(new Set<string>(
-                    [...blockTxns.txns
-                        .filter(t => t.slp && t.slp.valid)
-                        .map(t => t.slp.detail!.tokenIdHex)
-                    ]));
+            // TODO: NEED TO LOOP THROUGH ALL BLOCK TRANSACTIONS TO UPDATE BLOCK HASH
+            let blockTxids = new Set<string>([...block.txns.map(i => i.txid)]);
+            for(let i = 0; i < block.txns.length; i++) {
+                let tokenDetails = this.parseTokenTransactionDetails(await this._rpcClient.getRawTransaction(block.txns[i]!.txid));
+                let tokenId = tokenDetails ? tokenDetails.tokenIdHex : null;
+                if(tokenId && this._tokens.has(tokenId)) {
+                    let token = this._tokens.get(tokenId)!
+                    token.queueTokenGraphUpdateFrom({ txid: block.txns[i]!.txid, block: { hash: Buffer.from(hash, 'hex'), transactions: blockTxids } });
+                } else if(tokenId && tokenDetails!.transactionType === SlpTransactionType.GENESIS) {
+                    await this.createNewTokenGraph({ tokenId });
+                }
             }
 
-            // update statistics for each token
-            await Promise.all(tokenIds.map(async (tokenId) => {
-                await this._tokens.get(tokenId)!.UpdateStatistics();
-            }));
+            // // update all statistics for tokens included in this block
+            // let tokenIds: string[];
+            // if(this._filter._rules.size > 0) {
+            //     tokenIds = Array.from(new Set<string>([
+            //         ...block.txns
+            //             .filter(t => t.slp && t.slp.valid && this._filter.passesAllFilterRules(t.slp.detail!.tokenIdHex))
+            //             .map(t => t.slp.detail!.tokenIdHex)
+            //         ]));
+            // }
+            // else {
+            //     tokenIds = Array.from(new Set<string>(
+            //         [...block.txns
+            //             .filter(t => t.slp && t.slp.valid)
+            //             .map(t => t.slp.detail!.tokenIdHex)
+            //         ]));
+            // }
+
+            // Check any token graph for txns with remaining null blockHash to make sure they are in the mempool, otherwise delete.
+
+            // // update statistics for each token
+            // await Promise.all(tokenIds.map(async (tokenId) => {
+            //     await this._tokens.get(tokenId)!.UpdateStatistics();
+            // }));
 
             // zmq publish block events
             if(this.zmqPubSocket && Config.zmq.outgoing.enable) {
                 console.log("[ZMQ-PUB] SLP block txn notification", hash);
-                this.zmqPubSocket.send([ 'block', JSON.stringify(blockTxns) ]);
+                this.zmqPubSocket.send([ 'block', JSON.stringify(block) ]);
                 SlpdbStatus.updateTimeOutgoingBlockZmq();
             }
             await this.fixMissingTokenTimestamps();
@@ -245,7 +259,7 @@ export class SlpGraphManager {
             let txn: Primatives.Transaction = Primatives.Transaction.parseFromBuffer(txnbuf);
             let inputs: Primatives.TransactionInput[] = txn.inputs;
             for(let j=0; j < inputs.length; j++) {
-                var txid: string = inputs[j].previousTxHash!;
+                let txid: string = inputs[j].previousTxHash!;
                 let vout = inputs[j].previousTxOutIndex.toString();
                 let graph: SlpTokenGraph|undefined;
                 let send_txo: UtxoDbo|undefined;
@@ -315,7 +329,7 @@ export class SlpGraphManager {
                     tna.slp = {} as TNATxnSlpDetails;
                 if(tna.slp.schema_version !== Config.db.token_schema_version || !tna.slp.valid) {
                     console.log("[INFO] Updating", collection, "TNATxn SLP data for", txid);
-                    let isValid: boolean|null = null;
+                    let isValid: boolean|null|undefined = null;
                     let details: SlpTransactionDetailsTnaDbo|null = null;
                     let invalidReason: string|null = null;
                     let tokenDetails: SlpTransactionDetails|null = null;
@@ -567,6 +581,7 @@ export class SlpGraphManager {
         //let tokenTxns = await Query.queryForRecentTokenTxns(token.tokenIdHex, 0);
         if(this._tokens.has(tokenid)) {
             let tokenTxns = Array.from(this._tokens.get(tokenid)!._graphTxns.keys());
+            // TODO: Use a manager level queue with concurrency equal to RPC limit
             for (let j = 0; j < tokenTxns.length; j++) {
                 await this.updateTxnCollections(tokenTxns[j], tokenid);
             }
@@ -600,7 +615,20 @@ export class SlpGraphManager {
             tokenDetails.timestamp = timestamp ? timestamp : undefined;
             
             await graph.initFromScratch({ tokenDetails, processUpToBlock });
-            await this.setAndSaveTokenGraph(graph);
+
+            // TODO: remove temporary paranoia
+            for(let key of Array.from( graph._graphTxns.keys() )) {
+                if(!graph._graphTxns.get(key)!.blockHash && !this._bit.slpMempool.has(key)) {
+                    throw Error(`No blockhash for ${key}`);
+                }
+            }
+
+            if(graph.IsValid) {
+                let tokenId = graph._tokenDetails.tokenIdHex;
+                this._tokens.set(tokenId, graph);
+            }
+
+            //await this.setAndSaveTokenGraph(graph);
             await this.updateTxnCollectionsForTokenId(tokenId);
             return graph;
         }
