@@ -10,8 +10,9 @@ import * as zmq from 'zeromq';
 import { BlockHeaderResult } from 'bitcoin-com-rest';
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
+import { Primatives } from 'slpjs';
 import { RpcClient } from './rpc';
-import { SetCache } from './cache';
+import { SetCache, MapCache } from './cache';
 import { SlpGraphManager } from './slpgraphmanager';
 import { Notifications } from './notifications';
 import { SlpdbStatus } from './status';
@@ -58,6 +59,7 @@ export class Bit {
     _zmqItemQueue: pQueue<pQueue.DefaultAddOptions>;
     network!: string;
     notifications!: Notifications;
+    _spentTxoCache = new MapCache<string, string>(100000);
 
     constructor(db: Db, rpc: RpcClient) { 
         this.db = db;
@@ -119,7 +121,20 @@ export class Bit {
             return { isSlp: false, added: false };
         if(!txhex)
             txhex = <string>await this.rpc.getRawTransaction(txid);
-        this.rpc.loadTxnIntoCache(txid, Buffer.from(txhex, 'hex'));
+        let txnBuf = Buffer.from(txhex, 'hex');
+        this.rpc.loadTxnIntoCache(txid, txnBuf);
+
+        // check for double spending of inputs, if found delete double spent txid
+        // TODO: Need to test how this will work with BCHD!
+        let inputTxos = Primatives.Transaction.parseFromBuffer(txnBuf).inputs;
+        inputTxos.forEach(input => {
+            let txo = `${input.previousTxHash}:${input.previousTxOutIndex}`
+            if(this._spentTxoCache.has(txo)) {
+                this.slpMempool.delete(txo);
+            }
+            this._spentTxoCache.set(txo, txid);
+        });
+
         if(this.slp_txn_filter(txhex)) {
             this.slpMempool.set(txid, txhex);
             return { isSlp: true, added: true };
