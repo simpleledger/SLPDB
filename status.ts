@@ -165,10 +165,10 @@ export class SlpdbStatus {
                 }
             };
             let req = https.request(options, res => {
-                console.log(`statusCode: ${res.statusCode}`);
+                console.log(`[INFO] Telementry response code: ${res.statusCode}`);
                 res.on('data', d => {
-                    console.log(`[INFO] Telelmetry response from ${Config.telemetry.advertised_host}:`);
-                    console.log(d.toString('utf8'));
+                    console.log(`[INFO] Telemetry response from ${Config.telemetry.host}:`);
+                    console.log(`[INFO] Telemetry response: ${d.toString('utf8')}`);
                 });
             });
             req.on('error', error => {
@@ -177,6 +177,7 @@ export class SlpdbStatus {
                     reason = "Env var 'telemetry_host' is not set";
                 console.log("[ERROR] Telemetry update failed. Reason:", reason);
             });
+            console.log(`[INFO] Sending telemetry update to ${Config.telemetry.host} for ${Config.telemetry.advertised_host}...`);
             req.write(data);
             req.end();
         }
