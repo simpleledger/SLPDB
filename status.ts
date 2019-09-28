@@ -6,6 +6,7 @@ import { Config } from "./config";
 
 import * as https from 'https';
 var pjson = require('./package.json');
+var os = require('os-utils');
 
 enum context { 
     "SLPDB" = "SLPDB"
@@ -146,7 +147,8 @@ export class SlpdbStatus {
             pastStackTraces: stackTraces,
             doubleSpends: this.doubleSpendHistory,
             mongoDbStats: await this.db.db.stats({ scale: 1048576 }),
-            public_url: this.public_url
+            public_url: this.public_url,
+            system: { loadAvg1: os.loadavg(1), loadAvg5: os.loadavg(5), loadAvg15: os.loadavg(15), platform: os.platform(), cpuCount: os.cpuCount(), freeMem: os.freemem(), totalMem: os.totalmem(), uptime: os.sysUptime(), processUptime: os.processUptime() }
         };
         this.updateTelemetry(status);
         return status;
@@ -249,4 +251,5 @@ interface StatusDbo {
     doubleSpends: any[];
     mongoDbStats: any; 
     public_url: string; 
+    system: any;
 }
