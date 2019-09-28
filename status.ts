@@ -26,6 +26,7 @@ export class SlpdbStatus {
     static state: SlpdbState;
     static network: string = '';
     static pastStackTraces: any[] = [];
+    static doubleSpendHistory: any[] = [];
     static rpc: RpcClient;
     static getSlpMempoolSize = function() { return -1; }
     static getSlpTokensCount = function() { return -1; }
@@ -125,28 +126,29 @@ export class SlpdbStatus {
         })
         let date = new Date();
         let status = {
-            version: SlpdbStatus.version,            
-            versionHash: SlpdbStatus.versionHash,
-            deplVersionHash: SlpdbStatus.deplVersionHash,
-            context: SlpdbStatus.context,
+            version: this.version,            
+            versionHash: this.versionHash,
+            deplVersionHash: this.deplVersionHash,
+            context: this.context,
             lastStatusUpdate: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) },
-            lastIncomingTxnZmq: SlpdbStatus.lastIncomingTxnZmq,
-            lastIncomingBlockZmq: SlpdbStatus.lastIncomingBlockZmq,
-            lastOutgoingTxnZmq: SlpdbStatus.lastOutgoingTxnZmq,
-            lastOutgoingBlockZmq: SlpdbStatus.lastOutgoingBlockZmq,
-            state: SlpdbStatus.state,
-            network: SlpdbStatus.network,
+            lastIncomingTxnZmq: this.lastIncomingTxnZmq,
+            lastIncomingBlockZmq: this.lastIncomingBlockZmq,
+            lastOutgoingTxnZmq: this.lastOutgoingTxnZmq,
+            lastOutgoingBlockZmq: this.lastOutgoingBlockZmq,
+            state: this.state,
+            network: this.network,
             bchBlockHeight: checkpoint.height,
             bchBlockHash: checkpoint.hash,
-            slpProcessedBlockHeight: SlpdbStatus.slpProcessedBlockHeight,
+            slpProcessedBlockHeight: this.slpProcessedBlockHeight,
             mempoolInfoBch: mempoolInfo,
-            mempoolSizeSlp: SlpdbStatus.getSlpMempoolSize(),
-            tokensCount: SlpdbStatus.getSlpTokensCount(),
+            mempoolSizeSlp: this.getSlpMempoolSize(),
+            tokensCount: this.getSlpTokensCount(),
             pastStackTraces: stackTraces,
-            mongoDbStats: await SlpdbStatus.db.db.stats({ scale: 1048576 }),
-            public_url: SlpdbStatus.public_url
+            doubleSpends: this.doubleSpendHistory,
+            mongoDbStats: await this.db.db.stats({ scale: 1048576 }),
+            public_url: this.public_url
         };
-        SlpdbStatus.updateTelemetry(status);
+        this.updateTelemetry(status);
         return status;
     }
 
@@ -167,8 +169,7 @@ export class SlpdbStatus {
             let req = https.request(options, res => {
                 console.log(`[INFO] Telementry response code: ${res.statusCode}`);
                 res.on('data', d => {
-                    console.log(`[INFO] Telemetry response from ${Config.telemetry.host}:`);
-                    console.log(`[INFO] Telemetry response: ${d.toString('utf8')}`);
+                    console.log(`[INFO] Telemetry response from ${Config.telemetry.host}: ${d.toString('utf8')}`);
                 });
             });
             req.on('error', error => {
@@ -244,7 +245,8 @@ interface StatusDbo {
     mempoolInfoBch: {} | null; 
     mempoolSizeSlp: number; 
     tokensCount: number; 
-    pastStackTraces: any[]; 
+    pastStackTraces: string[]; 
+    doubleSpends: any[];
     mongoDbStats: any; 
     public_url: string; 
 }

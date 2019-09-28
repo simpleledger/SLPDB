@@ -23,6 +23,10 @@ export class SetCache<T> {
         return this.set.has(item);
     }
 
+    toSet() {
+        return this.set;
+    }
+
     shift(): T | undefined {
         let item = this.list.shift();
         if(item)
@@ -65,7 +69,7 @@ export class MapCache<T, M> {
         return this.map.has(key);
     }
 
-    getMap() {
+    toMap() {
         return this.map;
     }
 

@@ -53,6 +53,7 @@ export class Bit {
     tna: TNA = new TNA();
     outsock = zmq.socket('pub');
     slpMempool = new Map<txid, txhex>();
+    doubleSpendCacheList = new MapCache<string, any>(100);
     slpMempoolIgnoreSetList = new SetCache<string>(Config.core.slp_mempool_ignore_length);
     blockHashIgnoreSetList = new SetCache<string>(10);
     _slpGraphManager!: SlpGraphManager;
@@ -124,13 +125,18 @@ export class Bit {
         let txnBuf = Buffer.from(txhex, 'hex');
         this.rpc.loadTxnIntoCache(txid, txnBuf);
 
-        // check for double spending of inputs, if found delete double spent txid
+        // check for double spending of inputs, if found delete double spent txid from the mempool
         // TODO: Need to test how this will work with BCHD!
         let inputTxos = Primatives.Transaction.parseFromBuffer(txnBuf).inputs;
         inputTxos.forEach(input => {
             let txo = `${input.previousTxHash}:${input.previousTxOutIndex}`
             if(this._spentTxoCache.has(txo)) {
-                this.slpMempool.delete(txo);
+                let doubleSpentTxid = this._spentTxoCache.get(txo)!;
+                console.log(`[INFO] Detected double spent ${txo} --> original: ${doubleSpentTxid}, current: ${txid}`);
+                this.slpMempool.delete(doubleSpentTxid);
+                let date = new Date();
+                this.doubleSpendCacheList.set(txo, { originalTxid: doubleSpentTxid, current: txid, time: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }});
+                SlpdbStatus.doubleSpendHistory = Array.from(this.doubleSpendCacheList.toMap()).map(v => { return { txo: v[0], details: v[1]}});
             }
             this._spentTxoCache.set(txo, txid);
         });
@@ -241,6 +247,7 @@ export class Bit {
                 }
 
                 if(this.slpMempool.has(block.txs[i].txid())) {
+                    this.slpMempool.delete(block.txs[i].txid());
                     console.log("[INFO] Mempool has txid", block.txs[i].txid());
                     tasks.push(limit(async function() {
                         let timeout = 0;
