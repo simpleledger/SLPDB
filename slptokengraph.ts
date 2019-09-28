@@ -10,7 +10,7 @@ import { RpcClient } from './rpc';
 import * as pQueue from 'p-queue';
 import { DefaultAddOptions } from 'p-queue';
 import { SlpGraphManager } from './slpgraphmanager';
-import { MapCache } from './cache';
+import { CacheMap } from './cache';
 
 let cashaddr = require('cashaddrjs-slp');
 
@@ -34,8 +34,8 @@ export class SlpTokenGraph implements TokenGraph {
     _graphUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: false });
     _statsUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: true });
     _manager: SlpGraphManager;
-    _liveTxoSpendCache = new MapCache<string, SendTxnQueryResult>(100000);
-    _startupTxoSendCache?: MapCache<string, SpentTxos>;
+    _liveTxoSpendCache = new CacheMap<string, SendTxnQueryResult>(100000);
+    _startupTxoSendCache?: CacheMap<string, SpentTxos>;
 
     constructor(db: Db, manager: SlpGraphManager, network: string) {
         this._db = db;
@@ -308,7 +308,7 @@ export class SlpTokenGraph implements TokenGraph {
         return depth;
     }
 
-    async updateTokenGraphFrom({ txid, isParent = false, updateOutputs = true, processUpToBlock, block=null }: { txid: string; isParent?:boolean; updateOutputs?: boolean; processUpToBlock?: number; block?: { hash: Buffer; transactions: Set<string> }|null}): Promise<boolean> {
+    async updateTokenGraphFrom({ txid, isParent = false, updateOutputs = true, processUpToBlock, block=null }: { txid: string; isParent?:boolean; updateOutputs?: boolean; processUpToBlock?: number; block?: { hash: Buffer; transactions: Set<string> }|null}): Promise<boolean|null> {
 /**
  * purpose for "isParent":
  *      1) skips cached result, allow reprocessing/updating of a previously processed valid txn
@@ -316,26 +316,51 @@ export class SlpTokenGraph implements TokenGraph {
  *      3) prevents recursive processing of outputs (since the calling child will do this)
  */
 
-        if(!block && this._graphTxns.has(txid) && !isParent && this._graphTxns.get(txid)!.isComplete) {   
-            return true;
-        } else if(block) {
-            // verify that block of input is correct;
+        if(block) {
             if(!(block.transactions.has(txid))) {
-                if(!await this._rpcClient.getTransactionBlockHash(txid)) {
-                    return false;
-                } else {
-                    block = null;
+                try {
+                    await this._rpcClient.getTransactionBlockHash(txid);
+                } catch (_) {
+                    this.deleteAllChildren(txid, true);
+                    return null;
                 }
-            } else {
-                if(this._graphTxns.has(txid)) {
-                    let graphTxn = this._graphTxns.get(txid)!;
-                    if(block && graphTxn.blockHash && !block.hash!.equals(graphTxn.blockHash!)) {
-                        this.deleteAllChildren(txid);
-                        updateOutputs = true;
-                    }
-                    graphTxn.blockHash = block ? block.hash : null;
+                if(!this._graphTxns.has(txid)) {
+                    this.queueTokenGraphUpdateFrom({ txid });
                 }
+                return null;
             }
+
+            if(this._graphTxns.has(txid)) {
+                let graphTxn = this._graphTxns.get(txid)!;
+                // TODO: check each output. If the output is already marked spent, then verify the spend txid is correct.
+                for(let i=0; i< graphTxn.outputs.length;i++) {
+                    console.log(`[INFO] Checking block transaction output ${i} (${txid})`);
+                    let status = graphTxn.outputs[i].status;
+                    let spendTxid = graphTxn.outputs[i].spendTxid;
+                    let skip = [ TokenUtxoStatus.UNSPENT, 
+                                    TokenUtxoStatus.EXCESS_INPUT_BURNED, 
+                                    TokenUtxoStatus.MISSING_BCH_VOUT,
+                                    BatonUtxoStatus.BATON_UNSPENT,
+                                    BatonUtxoStatus.BATON_MISSING_BCH_VOUT ];
+                    if(!skip.includes(status)) {
+                        if(spendTxid) {
+                            try {
+                                await this._rpcClient.getRawTransaction(txid);
+                            } catch(_) {
+                                console.log(`[INFO] Found an output with non-existant spend txid.`);
+                                console.log(`[INFO] Will delete ${spendTxid} and all txns downstream.`);
+                                this.deleteAllChildren(spendTxid, true);
+                            }
+                        }
+                    }
+                }
+                graphTxn.blockHash = block ? block.hash : null;
+                isParent = true;
+            }
+        }
+
+        if(this._graphTxns.has(txid) && !isParent && this._graphTxns.get(txid)!.isComplete) {   
+            return true;
         }
 
         let isValid = await this._slpValidator.isValidSlpTxid(txid, this._tokenDetails.tokenIdHex);
@@ -549,11 +574,28 @@ export class SlpTokenGraph implements TokenGraph {
         }
         getChildTxids(txid);
         toDelete.forEach(txid => {
+            // must find any graphTxn with an output spendTxid equal to txid
+            this._graphTxns.get(txid)!.inputs.forEach((v, i) => {
+                if(this._graphTxns.has(v.txid)) {
+                    let g = this._graphTxns.get(v.txid)!;
+                    let output = g.outputs.find(o => o.vout === v.vout);
+                    output!.spendTxid = null;
+                    output!.status = TokenUtxoStatus.UNSPENT;
+                }
+            });
             this._graphTxns.delete(txid);
             delete this._slpValidator.cachedRawTransactions[txid];
             delete this._slpValidator.cachedValidations[txid];
         });
         if(deleteSelf) {
+            this._graphTxns.get(txid)!.inputs.forEach((v, i) => {
+                if(this._graphTxns.has(v.txid)) {
+                    let g = this._graphTxns.get(v.txid)!;
+                    let output = g.outputs.find(o => o.vout === v.vout);
+                    output!.spendTxid = null;
+                    output!.status = TokenUtxoStatus.UNSPENT;
+                }
+            });
             this._graphTxns.delete(txid);
             delete this._slpValidator.cachedRawTransactions[txid];
             delete this._slpValidator.cachedValidations[txid];
@@ -720,18 +762,11 @@ export class SlpTokenGraph implements TokenGraph {
         }
     }
 
-    async UpdateStatistics(): Promise<void> {
-        let self = this;
-        await this._statsUpdateQueue.add(async function() {
-            await self._updateStatistics();
-        });
-    }
-
     async _checkGraphBlockHashes() {
         // update blockHash for each graph item.
         if(this._startupTxoSendCache) {
             let blockHashes = new Map<string, Buffer|null>();
-            Array.from(this._startupTxoSendCache.getMap()).forEach(i => {
+            Array.from(this._startupTxoSendCache.toMap()).forEach(i => {
                 blockHashes.set(i[1].txid, i[1].blockHash);
             });
             blockHashes.forEach((v, k) => {
@@ -741,11 +776,15 @@ export class SlpTokenGraph implements TokenGraph {
         }
         let count = 0;
         for(let key of Array.from( this._graphTxns.keys() )) {
-            if(this._graphTxns.has(key) && !this._graphTxns.get(key)!.blockHash) {
+            if(this._graphTxns.has(key) && 
+                !this._graphTxns.get(key)!.blockHash && 
+                !this._manager._bit.slpMempool.has(key))
+            {
                 let hash: string;
                 console.log("[INFO] Querying block hash for graph transaction", key);
                 try {
                     hash = await this._rpcClient.getTransactionBlockHash(key);
+                    console.log(`[INFO] Block hash: ${hash} for ${key}`);
                     // add delay to prevent flooding rpc
                     if(count++ > 1000) {
                         await sleep(1000);
@@ -764,6 +803,11 @@ export class SlpTokenGraph implements TokenGraph {
                     continue;
                 } 
                 else {
+                    console.log("[INFO] Making sure thransaction is in BCH mempool.");
+                    let mempool = await this._rpcClient.getRawMemPool();
+                    if(mempool.includes) {
+                        continue;
+                    }
                     throw Error(`Unknown error occured in setting blockhash for ${key})`);
                 }
             }
@@ -777,7 +821,14 @@ export class SlpTokenGraph implements TokenGraph {
         }
     }
 
-    async _updateStatistics(): Promise<void> {
+    async UpdateStatistics(saveToDb=true): Promise<void> {
+        let self = this;
+        await this._statsUpdateQueue.add(async function() {
+            await self._updateStatistics(saveToDb);
+        });
+    }
+
+    async _updateStatistics(saveToDb=true): Promise<void> {
         if(this.IsValid && this._graphUpdateQueue.size === 0) {
             await this.updateAddressesFromScratch();
             await this._checkGraphBlockHashes();
@@ -814,10 +865,12 @@ export class SlpTokenGraph implements TokenGraph {
                 // TODO: handle this condition gracefully.
             }
 
-            await this._db.tokenInsertReplace(this.toTokenDbObject());
-            await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
-            await this._db.graphInsertReplace(this.toGraphDbObject(), this._tokenDetails.tokenIdHex);
-            await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
+            if(saveToDb) {
+                await this._db.tokenInsertReplace(this.toTokenDbObject());
+                await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
+                await this._db.graphInsertReplace(this.toGraphDbObject(), this._tokenDetails.tokenIdHex);
+                await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
+            }
 
             console.log("########################################################################################################")
             console.log("TOKEN STATS/ADDRESSES FOR", this._tokenDetails.name, this._tokenDetails.tokenIdHex)
@@ -1103,8 +1156,6 @@ export class SlpTokenGraph implements TokenGraph {
         // Map _tokenUtxos
         tg._tokenUtxos = new Set(utxos.map(u => u.utxo));
 
-        await tg.UpdateStatistics();
-        tg._graphUpdateQueue.start();
         return tg;
     }
 }
@@ -1118,7 +1169,7 @@ export interface TokenGraph {
     _graphTxns: Map<txid, GraphTxn>;
     _addresses: Map<cashAddr, AddressBalance>;    
     queueTokenGraphUpdateFrom(config: {txid: string, isParent: boolean, processUpToBlock?: number}): void;
-    updateTokenGraphFrom(config: { txid: string, isParent?: boolean }): Promise<boolean>;
+    updateTokenGraphFrom(config: { txid: string, isParent?: boolean }): Promise<boolean|null>;
     searchForNonSlpBurnTransactions(): Promise<void>;
 }
 

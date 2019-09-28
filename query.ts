@@ -4,7 +4,7 @@ import { SlpTransactionDetails, SlpTransactionType, Utils } from "slpjs";
 import BigNumber from "bignumber.js";
 import { TNATxnSlpDetails } from "./tna";
 import { TokenDBObject } from "./slptokengraph";
-import { MapCache } from "./cache";
+import { CacheMap } from "./cache";
 
 const bitqueryd = require('fountainhead-core').slpqueryd
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -379,7 +379,7 @@ export class Query {
         throw Error("Mongo DB ERROR.")
     }
 
-    static async getTxoInputSlpSendCache(tokenId: string): Promise<MapCache<string, { txid: string, block: number, blockHash: Buffer }>> {
+    static async getTxoInputSlpSendCache(tokenId: string): Promise<CacheMap<string, { txid: string, block: number, blockHash: Buffer }>> {
         console.log("[Query] getTxoInputSlpSpendCache(" + tokenId + ")");
         let q = {
             "v": 3,
@@ -394,7 +394,7 @@ export class Query {
             }
         }
         let response: {c: { prevTxid: string, prevIndex: number, txid: string, block: number, blockHash: string }[], errors?: any} = await this._dbQuery(q);
-        let cache = new MapCache<string, {txid: string, block: number, blockHash: Buffer }>(1000000);
+        let cache = new CacheMap<string, {txid: string, block: number, blockHash: Buffer }>(1000000);
         if(!response.errors) {
             response.c.forEach(txo => {
                 cache.set(txo.prevTxid + ":" + txo.prevIndex, { txid: txo.txid, block: txo.block, blockHash: Buffer.from(txo.blockHash, 'hex') });

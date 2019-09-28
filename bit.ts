@@ -12,7 +12,7 @@ import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { Primatives } from 'slpjs';
 import { RpcClient } from './rpc';
-import { SetCache, MapCache } from './cache';
+import { CacheSet, CacheMap } from './cache';
 import { SlpGraphManager } from './slpgraphmanager';
 import { Notifications } from './notifications';
 import { SlpdbStatus } from './status';
@@ -53,14 +53,14 @@ export class Bit {
     tna: TNA = new TNA();
     outsock = zmq.socket('pub');
     slpMempool = new Map<txid, txhex>();
-    doubleSpendCacheList = new MapCache<string, any>(100);
-    slpMempoolIgnoreSetList = new SetCache<string>(Config.core.slp_mempool_ignore_length);
-    blockHashIgnoreSetList = new SetCache<string>(10);
+    doubleSpendCacheList = new CacheMap<string, any>(100);
+    slpMempoolIgnoreSetList = new CacheSet<string>(Config.core.slp_mempool_ignore_length);
+    blockHashIgnoreSetList = new CacheSet<string>(10);
     _slpGraphManager!: SlpGraphManager;
     _zmqItemQueue: pQueue<pQueue.DefaultAddOptions>;
     network!: string;
     notifications!: Notifications;
-    _spentTxoCache = new MapCache<string, string>(100000);
+    _spentTxoCache = new CacheMap<string, string>(100000);
 
     constructor(db: Db, rpc: RpcClient) { 
         this.db = db;
@@ -75,7 +75,7 @@ export class Bit {
         await this.waitForFullNodeSync();
     }
 
-    slp_txn_filter(txnhex: string): boolean {
+    slpTransactionFilter(txnhex: string): boolean {
         if(txnhex.includes('6a04534c5000')) {
             return true;
         }
@@ -141,7 +141,7 @@ export class Bit {
             this._spentTxoCache.set(txo, txid);
         });
 
-        if(this.slp_txn_filter(txhex)) {
+        if(this.slpTransactionFilter(txhex)) {
             this.slpMempool.set(txid, txhex);
             return { isSlp: true, added: true };
         } else {
@@ -217,7 +217,7 @@ export class Bit {
             for(let i=1; i < block.txs.length; i++) { // skip coinbase with i=1
                 let txnhex = block.txs[i].toRaw().toString('hex');
 
-                if(this.slp_txn_filter(txnhex) && !this.slpMempool.has(block.txs[i].txid())) {
+                if(this.slpTransactionFilter(txnhex) && !this.slpMempool.has(block.txs[i].txid())) {
                     // This is used when SLP transactions are broadcasted for first time with a block 
                     if(triggerSlpProcessing) {
                         console.log("SLP transaction not in mempool:", block.txs[i].txid());
@@ -250,26 +250,7 @@ export class Bit {
                     this.slpMempool.delete(block.txs[i].txid());
                     console.log("[INFO] Mempool has txid", block.txs[i].txid());
                     tasks.push(limit(async function() {
-                        let timeout = 0;
                         let t: TNATxn|null = await self.db.unconfirmedFetch(block.txs[i].txid());
-                    
-                    // // ******************
-                    // // NOTE: The SLP property will be set by the SlpGraphManager after processing is completed.
-                    // //       Sometimes a block notification is received while processing a transaction notification is completed, therefore
-                    // //       we must wait until processing has completed before the block processing can complete.
-                    //     while(!t!.slp) {
-                    //         await sleep(1000);
-                    //         timeout++;
-                    //         // TODO: Can check the zmqSubscriber if SLP processing is underway
-                    //         if(timeout > 20) {
-                    //             console.log("[ERROR] SLP was not processed within timeout periods", block.txs[i].txid());
-                    //             process.exit();
-                    //         }
-                    //         t = await self.db.unconfirmedFetch(block.txs[i].txid());
-                    //     }
-                    // // 
-                    // // ******************
-
                         t!.blk = {
                             h: block_hash,
                             i: block_index,
@@ -450,7 +431,7 @@ export class Bit {
                 if(!txn && !self.slpMempoolIgnoreSetList.has(hash)) {
                     if(!txhex)
                         throw Error("Must provide 'txhex' if txid is not in the SLP mempool")
-                    if(self.slp_txn_filter(txhex))
+                    if(self.slpTransactionFilter(txhex))
                         txn = new bitcore.Transaction(txhex);
                 }
 

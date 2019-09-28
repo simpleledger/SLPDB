@@ -19,7 +19,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 import { RpcClient } from './rpc';
 import { BlockHeaderResult } from "bitcoin-com-rest";
-import { SetCache } from "./cache";
+import { CacheSet } from "./cache";
 import { SlpdbStatus } from "./status";
 import { TokenFilter } from "./filters";
 
@@ -31,7 +31,7 @@ export class SlpGraphManager {
     _tokens!: Map<string, SlpTokenGraph>;
     _rpcClient: RpcClient;
     zmqPubSocket?: zmq.Socket;
-    _zmqMempoolPubSetList = new SetCache<string>(1000);
+    _zmqMempoolPubSetList = new CacheSet<string>(1000);
     _TnaQueue?: pQueue<pQueue.DefaultAddOptions>;
     _startupQueue = new pQueue<pQueue.DefaultAddOptions>({ concurrency: 4, autoStart: true })
     _updatesQueue = new pQueue<pQueue.DefaultAddOptions>({ concurrency: 1, autoStart: false });
@@ -544,28 +544,37 @@ export class SlpGraphManager {
         
         let res: string[] = [];
         if(allowGraphUpdates) {
-            let potentialReorgFactor = 10; // determine how far back the token graph should be reprocessed
+            let potentialReorgFactor = 11; // determine how far back the token graph should be reprocessed
             let updateFromHeight = graph._lastUpdatedBlock - potentialReorgFactor;
-            if(reprocessFrom !== undefined && reprocessFrom !== null && reprocessFrom < updateFromHeight)
-            updateFromHeight = reprocessFrom;
-            console.log("[INFO] Checking for Graph Updates since:", updateFromHeight);
+            if(reprocessFrom !== undefined && reprocessFrom !== null && reprocessFrom < updateFromHeight) {
+                updateFromHeight = reprocessFrom;
+            }
+            console.log(`[INFO] Checking for Graph Updates since: ${updateFromHeight} (${graph._tokenDetails.tokenIdHex})`);
             res.push(...await Query.queryForRecentTokenTxns(graph._tokenDetails.tokenIdHex, updateFromHeight));
-            // update graph items
-            await this.asyncForEach(res, async (txid: string) => {
-                await graph.updateTokenGraphFrom({txid: txid});
-                console.log("[INFO] Updated graph from", txid);
-            });
             if (res.length === 0)
-                console.log("[INFO] No token transactions after block", updateFromHeight, "were found.");
+                console.log(`[INFO] No token transactions after block ${updateFromHeight} were found (${graph._tokenDetails.tokenIdHex})`);
             else {
-                console.log("[INFO] Token's graph was updated.");
-                await graph.UpdateStatistics();
+                if(res.length > 10) {
+                    graph._startupTxoSendCache = await Query.getTxoInputSlpSendCache(graph._tokenDetails.tokenIdHex);
+                }
+                // update graph items
+                await this.asyncForEach(res, async (txid: string) => {
+                    await graph.updateTokenGraphFrom({ txid: txid });
+                    console.log(`[INFO] Updated graph from ${txid} (${graph._tokenDetails.tokenIdHex})`);
+                });
+                console.log(`[INFO] Token graph updated (${graph._tokenDetails.tokenIdHex}).`);
+                if(graph._startupTxoSendCache) {
+                    graph._startupTxoSendCache.clear();
+                    graph._startupTxoSendCache = undefined;
+                }
             }
         } else {
-            console.log("[WARN] Token's graph loaded using allowGraphUpdates=false.");
+            console.log(`[WARN] Token's graph loaded using allowGraphUpdates=false (${graph._tokenDetails.tokenIdHex})`);
         }
         await this.updateTxnCollectionsForTokenId(token.tokenIdHex);
+        await graph.UpdateStatistics(false);
         await this.setAndSaveTokenGraph(graph);
+        graph._graphUpdateQueue.start();
     }
 
     private async deleteTokenFromDb(tokenId: string) {

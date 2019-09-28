@@ -1,7 +1,7 @@
 import { Config } from "./config";
 import { TxOutResult, BlockchainInfoResult, BlockHeaderResult, MempoolInfoResult } from "bitcoin-com-rest";
 import { GrpcClient, BlockInfo, GetUnspentOutputResponse } from "grpc-bchrpc-node";
-import { MapCache } from "./cache";
+import { CacheMap } from "./cache";
 
 const _rpcClient = require('bitcoin-rpc-promise-retry');
 const connectionString = 'http://' + Config.rpc.user + ':' + Config.rpc.pass + '@' + Config.rpc.host + ':' + Config.rpc.port
@@ -11,7 +11,7 @@ let rpc: any;
 
 export class RpcClient {
     useGrpc: boolean | undefined;
-    transactionCache = new MapCache<string, Buffer>(100000);
+    transactionCache = new CacheMap<string, Buffer>(100000);
     //spendCache = new MapCache<string, {txid: string, block: number|null, blockHash: string|null}>(10000);
     constructor({ useGrpc }: { useGrpc?: boolean }) {
         if(useGrpc) {

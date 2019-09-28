@@ -1,4 +1,4 @@
-export class SetCache<T> {
+export class CacheSet<T> {
     private set = new Set<T>()
     private list: T[] = [];
     private maxSize: number;
@@ -40,7 +40,7 @@ export class SetCache<T> {
     }
 }
 
-export class MapCache<T, M> {
+export class CacheMap<T, M> {
     private map = new Map<T, M>()
     private list: T[] = [];
     private maxSize: number;
