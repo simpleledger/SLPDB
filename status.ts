@@ -18,7 +18,7 @@ export class SlpdbStatus {
     static versionHash: string|null = null;
     static deplVersionHash: string|null = null;
     static context: context = context.SLPDB;
-    static public_url: string = Config.telemetry.advertised_host;
+    static publicUrl: string = Config.telemetry.advertised_host;
     static lastIncomingTxnZmq: { utc: string, unix: number}|null = null;
     static lastIncomingBlockZmq: { utc: string, unix: number}|null = null;
     static lastOutgoingTxnZmq: { utc: string, unix: number}|null = null;
@@ -147,7 +147,7 @@ export class SlpdbStatus {
             pastStackTraces: stackTraces,
             doubleSpends: this.doubleSpendHistory,
             mongoDbStats: await this.db.db.stats({ scale: 1048576 }),
-            public_url: this.public_url,
+            publicUrl: this.publicUrl,
             system: { loadAvg1: os.loadavg(1), loadAvg5: os.loadavg(5), loadAvg15: os.loadavg(15), platform: os.platform(), cpuCount: os.cpuCount(), freeMem: os.freemem(), totalMem: os.totalmem(), uptime: os.sysUptime(), processUptime: os.processUptime() }
         };
         this.updateTelemetry(status);
@@ -250,6 +250,6 @@ interface StatusDbo {
     pastStackTraces: string[]; 
     doubleSpends: any[];
     mongoDbStats: any; 
-    public_url: string; 
+    publicUrl: string; 
     system: any;
 }
