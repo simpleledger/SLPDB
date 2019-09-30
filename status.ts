@@ -97,9 +97,9 @@ export class SlpdbStatus {
         await SlpdbStatus.db.statusUpdate(dbo);
     }
 
-    static async logExitReason(error: string) {
-        if(error) {
-            await SlpdbStatus.changeStateToExitOnError(error);
+    static async logExitReason(errorMsg: string) {
+        if(errorMsg) {
+            await SlpdbStatus.changeStateToExitOnError(errorMsg);
         } else {
             SlpdbState.EXITED_NORMAL;
             await SlpdbStatus.saveStatus();

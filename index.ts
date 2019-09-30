@@ -182,10 +182,15 @@ const start = async function() {
 // @ts-ignore
 process.on('uncaughtException', async (err: any, origin: any) => {
     console.log("[ERROR] uncaughtException", err);
-    var message = err;
-    try {
+    var message;
+    if(err.stack)
         message = `[${(new Date()).toUTCString()}] ${err.stack}`;
-    } catch(_) {}
+    else if(err.message)
+        message = err.message;
+    else if(typeof message === 'string')
+        message = err;
+    else if(typeof message === 'object')
+        message = JSON.stringify(err);
     try {
         await SlpdbStatus.logExitReason(message);
         console.log(err);
@@ -200,10 +205,15 @@ process.on('uncaughtException', async (err: any, origin: any) => {
 
 process.on('unhandledRejection', async (err: any, promise: any) => {
     console.log("[ERROR] unhandledRejection", err);
-    var message = err;
-    try {
+    var message;
+    if(err.stack)
         message = `[${(new Date()).toUTCString()}] ${err.stack}`;
-    } catch(_) {}
+    else if(err.message)
+        message = err.message;
+    else if(typeof message === 'string')
+        message = err;
+    else if(typeof message === 'object')
+        message = JSON.stringify(err);
     try {
         await SlpdbStatus.logExitReason(message);
         console.log(err);
