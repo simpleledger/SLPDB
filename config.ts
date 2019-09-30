@@ -91,7 +91,7 @@ export class Config {
 		enable_graph_search: process.env.enable_graph_search ? process.env.enable_graph_search === '1' || process.env.enable_graph_search === 'true' : true
 	}
 	static telemetry = {
-		host: process.env.telemetry_host ? process.env.telemetry_host : 'spd-status.herokuapp.com',
+		host: process.env.telemetry_host ? process.env.telemetry_host : 'status.slpdb.io',
 		port: process.env.telemetry_port ? process.env.telemetry_port : 443,
 		advertised_host: process.env.telemetry_advertised_host ? process.env.telemetry_advertised_host : '',
 		secret: process.env.telemetry_secret ? process.env.telemetry_secret : ''
