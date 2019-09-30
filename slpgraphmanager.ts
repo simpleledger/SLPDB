@@ -611,7 +611,13 @@ export class SlpGraphManager {
     private async createNewTokenGraph({ tokenId, processUpToBlock }: { tokenId: string; processUpToBlock?: number; }): Promise<SlpTokenGraph|null> {
         //await this.deleteTokenFromDb(tokenId);
         let graph = new SlpTokenGraph(this.db, this, this._network);
-        let txn = <string>await this._rpcClient.getRawTransaction(tokenId);
+        let txn;
+        try {
+            txn = <string>await this._rpcClient.getRawTransaction(tokenId, false);
+        } catch(_) {
+            console.log(`[WARN] No such parent token ID exists on the blockchain (token ID: ${tokenId}`);
+            return null;
+        }
         let tokenDetails = this.parseTokenTransactionDetails(txn);
 
         if(tokenDetails) {

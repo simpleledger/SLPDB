@@ -8,6 +8,7 @@ const connectionString = 'http://' + Config.rpc.user + ':' + Config.rpc.pass + '
 
 let grpc: GrpcClient;
 let rpc: any;
+let rpc_retry: any;
 
 export class RpcClient {
     useGrpc: boolean | undefined;
@@ -21,7 +22,8 @@ export class RpcClient {
                 else
                     grpc = new GrpcClient({ url: Config.grpc.url });
         } else {
-            rpc = new _rpcClient(connectionString, { maxRetries: 10, retryDelayMs: 500 });
+            rpc = new _rpcClient(connectionString, { maxRetries: 0 });
+            rpc_retry = new _rpcClient(connectionString, { maxRetries: 10, retryDelayMs: 500 });
         }
     }
 
@@ -40,7 +42,7 @@ export class RpcClient {
             return (await grpc.getBlockchainInfo()).getBestHeight();
         }
         console.log("[INFO] JSON RPC: getBlockCount")
-        return await rpc.getBlockCount();
+        return await rpc_retry.getBlockCount();
     }
 
     async getBlockchainInfo(): Promise<BlockchainInfoResult> {
@@ -62,7 +64,7 @@ export class RpcClient {
               }
         }
         console.log("[INFO] JSON RPC: getBlockchainInfo")
-        return await rpc.getBlockchainInfo();
+        return await rpc_retry.getBlockchainInfo();
     }
 
     async getBlockHash(block_index: number): Promise<string> {
@@ -71,7 +73,7 @@ export class RpcClient {
             return Buffer.from((await grpc.getBlockInfo({ index: block_index })).getInfo()!.getHash_asU8().reverse()).toString('hex');
         }
         console.log("[INFO] JSON RPC: getBlockHash", block_index);
-        return await rpc.getBlockHash(block_index);
+        return await rpc_retry.getBlockHash(block_index);
     }
 
     async getRawBlock(hash: string): Promise<string> {
@@ -79,7 +81,7 @@ export class RpcClient {
             console.log("[INFO] gRPC: getRawBlock");
             return Buffer.from((await grpc.getRawBlock({ hash: hash, reverseOrder: true })).getBlock_asU8()).toString('hex')
         }
-        return await rpc.getBlock(hash, 0);
+        return await rpc_retry.getBlock(hash, 0);
     }
 
     async getBlockInfo({ hash, index }: { hash?: string, index?: number}): Promise<BlockHeaderResult> {
@@ -110,13 +112,13 @@ export class RpcClient {
 
         if(index) {
             console.log("[INFO] JSON RPC: getBlockInfo/getBlockHash", index);
-            hash = await rpc.getBlockHash(index);
+            hash = await rpc_retry.getBlockHash(index);
         }
         else if(!hash)
             throw Error("No index or hash provided for block")
 
         console.log("[INFO] JSON RPC: getBlockInfo/getBlockHeader", hash, true);
-        return <BlockHeaderResult>await rpc.getBlockHeader(hash);
+        return <BlockHeaderResult>await rpc_retry.getBlockHeader(hash);
     }
 
     async getRawMemPool(): Promise<string[]> {
@@ -125,10 +127,10 @@ export class RpcClient {
             return (await grpc.getRawMempool()).getTransactionDataList().map(t => Buffer.from(t.getTransactionHash_asU8().reverse()).toString('hex'))
         }
         console.log("[INFO] JSON RPC: getRawMemPool")
-        return await rpc.getRawMemPool();
+        return await rpc_retry.getRawMemPool();
     }
 
-    async getRawTransaction(hash: string): Promise<string> { 
+    async getRawTransaction(hash: string, retryRpc=true): Promise<string> { 
         if(this.transactionCache.has(hash)) {
             console.log("[INFO] cache: getRawTransaction");
             return this.transactionCache.get(hash)!.toString('hex');
@@ -138,7 +140,10 @@ export class RpcClient {
             return Buffer.from((await grpc.getRawTransaction({ hash: hash, reverseOrder: true })).getTransaction_asU8()).toString('hex');
         } 
         console.log("[INFO] JSON RPC: getRawTransaction", hash);
-        return await rpc.getRawTransaction(hash);
+        if(retryRpc)
+            return await rpc_retry.getRawTransaction(hash);
+        else
+            return await rpc.getRawTransaction(hash);
     }
 
     async getTransactionBlockHash(hash: string): Promise<string> {
@@ -148,7 +153,7 @@ export class RpcClient {
             return Buffer.from(txn.getTransaction()!.getBlockHash_asU8().reverse()).toString('hex');
         }
         console.log("[INFO] JSON RPC: getRawTransaction", hash, 1);
-        return (await rpc.getRawTransaction(hash, 1)).blockhash;
+        return (await rpc_retry.getRawTransaction(hash, 1)).blockhash;
     }
 
     async getTxOut(hash: string, vout: number): Promise<TxOutResult|GetUnspentOutputResponse|null> {
@@ -162,7 +167,7 @@ export class RpcClient {
             }
         }
         console.log("[INFO] JSON RPC: getTxOut", hash, vout, true);
-        return await rpc.getTxOut(hash, vout, true);
+        return await rpc_retry.getTxOut(hash, vout, true);
     }
 
     async getMempoolInfo(): Promise<MempoolInfoResult|{}> {
@@ -170,7 +175,7 @@ export class RpcClient {
             return {};
         }
         console.log("[INFO] JSON RPC: getMempoolInfo");
-        return await rpc.getMemPoolInfo();
+        return await rpc_retry.getMemPoolInfo();
     }
 
     // DO NOT USE, THIS IS DEPRECIATED ON SOME NODES
