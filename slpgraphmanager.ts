@@ -20,7 +20,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 import { RpcClient } from './rpc';
 import { BlockHeaderResult } from "bitcoin-com-rest";
 import { CacheSet } from "./cache";
-import { SlpdbStatus } from "./status";
+import { SlpdbStatus, SlpdbState } from "./status";
 import { TokenFilter } from "./filters";
 
 const bitcoin = new BITBOX();
@@ -634,7 +634,10 @@ export class SlpGraphManager {
             // TODO: remove temporary paranoia
             for(let key of Array.from( graph._graphTxns.keys() )) {
                 if(!graph._graphTxns.get(key)!.blockHash && !this._bit.slpMempool.has(key)) {
-                    //throw Error(`No blockhash for ${key}`);
+                    if(SlpdbStatus.state === SlpdbState.RUNNING)
+                        throw Error(`No blockhash for ${key}`);
+                    else
+                        console.log('[INFO] Allowing missing block hash during startup conditions.');                
                 }
             }
 

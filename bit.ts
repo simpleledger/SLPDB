@@ -134,6 +134,7 @@ export class Bit {
                 let doubleSpentTxid = this._spentTxoCache.get(txo)!;
                 console.log(`[INFO] Detected double spent ${txo} --> original: ${doubleSpentTxid}, current: ${txid}`);
                 this.slpMempool.delete(doubleSpentTxid);
+                this.db.unconfirmedDelete(doubleSpentTxid);
                 let date = new Date();
                 this.doubleSpendCacheList.set(txo, { originalTxid: doubleSpentTxid, current: txid, time: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }});
                 SlpdbStatus.doubleSpendHistory = Array.from(this.doubleSpendCacheList.toMap()).map(v => { return { txo: v[0], details: v[1]}});
@@ -151,13 +152,8 @@ export class Bit {
     }
 
     async removeMempoolTransaction(txid: string) {
-        if(this.slpMempool.has(txid)) {
-            this.slpMempool.delete(txid);
-        }
-        let tna = await this.db.unconfirmedFetch(txid);
-        if(tna) {
-            await this.db.unconfirmedDelete(txid);
-        }
+        this.slpMempool.delete(txid);
+        this.db.unconfirmedDelete(txid);
     }
 
     async requestSlpMempool(): Promise<TNATxn[]> {
@@ -247,7 +243,6 @@ export class Bit {
                 }
 
                 if(this.slpMempool.has(block.txs[i].txid())) {
-                    this.slpMempool.delete(block.txs[i].txid());
                     console.log("[INFO] Mempool has txid", block.txs[i].txid());
                     tasks.push(limit(async function() {
                         let t: TNATxn|null = await self.db.unconfirmedFetch(block.txs[i].txid());
@@ -398,6 +393,9 @@ export class Bit {
                     if(content) {
                         let array = Array.from(content.values()).map(c => c.tnaTxn);
                         await self.db.confirmedReplace(array, requireSlpData, index);
+                        array.forEach(tna => {
+                            self.removeMempoolTransaction(tna.tx.h);
+                        });
                     }
 
                     await Info.deleteBlockCheckpointHash(index - 11);
