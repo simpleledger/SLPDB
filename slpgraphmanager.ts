@@ -634,7 +634,7 @@ export class SlpGraphManager {
             // TODO: remove temporary paranoia
             for(let key of Array.from( graph._graphTxns.keys() )) {
                 if(!graph._graphTxns.get(key)!.blockHash && !this._bit.slpMempool.has(key)) {
-                    throw Error(`No blockhash for ${key}`);
+                    //throw Error(`No blockhash for ${key}`);
                 }
             }
 

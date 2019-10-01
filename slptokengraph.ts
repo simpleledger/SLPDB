@@ -816,7 +816,7 @@ export class SlpTokenGraph implements TokenGraph {
         // TODO: remove temporary paranoia
         for(let key of Array.from( this._graphTxns.keys() )) {
             if(!this._graphTxns.get(key)!.blockHash && !this._manager._bit.slpMempool.has(key)) {
-                throw Error(`No blockhash for ${key}`);
+                //throw Error(`No blockhash for ${key}`);
             }
         }
     }
