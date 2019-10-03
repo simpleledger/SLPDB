@@ -12,6 +12,7 @@ import { DefaultAddOptions } from 'p-queue';
 import { SlpGraphManager } from './slpgraphmanager';
 import { CacheMap } from './cache';
 import { SlpdbStatus, SlpdbState } from './status';
+import { ftruncate } from 'fs';
 
 let cashaddr = require('cashaddrjs-slp');
 
@@ -98,11 +99,74 @@ export class SlpTokenGraph implements TokenGraph {
         }
     }
 
+    async _updateUtxos(txid: string) {
+        let txnHex = (await this._slpValidator.getRawTransactions([txid]))[0];
+        let txn = Primatives.Transaction.parseFromBuffer(Buffer.from(txnHex, 'hex'));
+        let validation = this._slpValidator.cachedValidations[txid];
+        if(validation.validity) {
+            if(validation!.details!.transactionType === SlpTransactionType.SEND) {
+                txn.inputs.forEach(txo => {
+                    if(this._tokenUtxos.delete(`${txo.previousTxHash}:${txo.previousTxOutIndex}`)) {
+                        console.log(`[INFO] Token UTXO deleted: ${txo.previousTxHash}:${txo.previousTxOutIndex}`);
+                    }
+                });
+                this._graphTxns.get(txid)!.outputs.forEach(o => {
+                    if(!this._tokenUtxos.has(txid + ":" + o.vout) && 
+                        o.status !== TokenUtxoStatus.EXCESS_INPUT_BURNED &&
+                        o.status !== TokenUtxoStatus.MISSING_BCH_VOUT &&
+                        o.status !== TokenUtxoStatus.SPENT_INVALID_SLP &&
+                        o.status !== TokenUtxoStatus.SPENT_NON_SLP &&
+                        o.status !== TokenUtxoStatus.SPENT_NOT_IN_SEND &&
+                        o.status !== TokenUtxoStatus.SPENT_WRONG_TOKEN
+                    ){
+                        console.log(`[INFO] Token UTXO added: ${txid}:${o.vout}}`);
+                        this._tokenUtxos.add(txid + ":" + o.vout);
+                    }
+                });
+            }
+            else if(validation!.details!.transactionType === SlpTransactionType.MINT) {
+                console.log(`[INFO] Token UTXO added: ${txid}:1`);
+                this._tokenUtxos.add(txid + ":" + 1);
+                txn.inputs.forEach(txo => {
+                    if(this._mintBatonUtxo === txo.previousTxHash + ':' + txo.previousTxOutIndex) {
+                        let baton = validation.details!.batonVout;
+                        let out = this._graphTxns.get(txid)!.outputs.find(o => o.vout === baton);
+                        if(baton &&
+                            out!.status !== BatonUtxoStatus.BATON_MISSING_BCH_VOUT &&
+                            out!.status !== BatonUtxoStatus.BATON_SPENT_INVALID_SLP &&
+                            out!.status !== BatonUtxoStatus.BATON_SPENT_NON_SLP &&
+                            out!.status !== BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT
+                        ){
+                            this._mintBatonUtxo = txid + ':' + baton;
+                            console.log(`[INFO] Mint baton replaced: ${txid}:${baton}`);
+                        } else {
+                            this._mintBatonUtxo = '';
+                            console.log(`[INFO] Mint baton ended: ${txo.previousTxHash}:${txo.previousTxOutIndex}`);
+                        }
+                    }
+                });
+            }
+            else if(validation!.details!.transactionType === SlpTransactionType.GENESIS) {
+                if(!this._tokenUtxos.has(txid + ":" + 1)) {
+                    console.log(`[INFO] Token UTXO added: ${txid}:1`);
+                    this._tokenUtxos.add(txid + ":" + 1);
+                }
+
+                let baton = validation!.details!.batonVout;
+                if(baton && this._mintBatonUtxo !== txid + ':' + baton) {
+                    this._mintBatonUtxo = txid + ':' + baton;
+                    console.log(`[INFO] Mint baton created: ${txid}:${baton}`);
+                }
+            }
+            else {
+                throw Error("Unknown transction type");
+            }
+        }
+    }
+
     async getMintBatonSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number; processUpTo?: number }): Promise<MintSpendDetails> {
         let txOut = await this._rpcClient.getTxOut(txid, vout);
         if(txOut === null) {
-            if(this._mintBatonUtxo === txid + ":" + vout)
-                this._mintBatonUtxo = "";
             try {
                 let spendTxnInfo = await Query.queryForTxoInputAsSlpMint(txid, vout);
                 if(!spendTxnInfo) {
@@ -111,7 +175,7 @@ export class SlpTokenGraph implements TokenGraph {
                     return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
                 } else {
                     if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
-                        this._mintBatonUtxo = txid + ":" + vout;
+                        //this._mintBatonUtxo = txid + ":" + vout;
                         return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, invalidReason: null };
                     }
                     if(typeof spendTxnInfo!.txid === 'string') {
@@ -131,7 +195,7 @@ export class SlpTokenGraph implements TokenGraph {
                 return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
             }
         }
-        this._mintBatonUtxo = txid + ":" + vout;
+        //this._mintBatonUtxo = txid + ":" + vout;
         return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, invalidReason: null };
     }
 
@@ -146,7 +210,8 @@ export class SlpTokenGraph implements TokenGraph {
         if(!cachedSpendTxnInfo)
             txOut = await this._rpcClient.getTxOut(txid, vout);
         if(cachedSpendTxnInfo || !txOut) {
-            this._tokenUtxos.delete(txid + ":" + vout);
+            //await this.addNewUtxo()
+            //this._tokenUtxos.delete(txid + ":" + vout);
             try {
                 let spendTxnInfo: SendTxnQueryResult|{txid: string, block: number|null}|null|undefined;
 
@@ -176,7 +241,7 @@ export class SlpTokenGraph implements TokenGraph {
                     return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
                 } else {
                     if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
-                        this._tokenUtxos.add(txid + ":" + vout);
+                        //this._tokenUtxos.add(txid + ":" + vout);
                         return { status: TokenUtxoStatus.UNSPENT, txid: null, invalidReason: null };
                     }
                     if(typeof spendTxnInfo!.txid === 'string') {
@@ -195,8 +260,9 @@ export class SlpTokenGraph implements TokenGraph {
                     return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
                 return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
             }
-        } 
-        this._tokenUtxos.add(txid + ":" + vout);
+        }
+        //await this.addNewUtxo(txid, vout);
+        //this._tokenUtxos.add(txid + ":" + vout);
         return { status: TokenUtxoStatus.UNSPENT, txid: null, invalidReason: null };
     }
 
@@ -236,77 +302,6 @@ export class SlpTokenGraph implements TokenGraph {
                 await self.UpdateStatistics();
             }
         })
-    }
-
-    //recursive method to do breadth-first run toward genesis adding each txn to cache, and populating depthMap
-    buildGraphStats(txns: Map<string, GraphTxn>, txCache: Set<string>, depthMap: {[key:string]: [number, number]}, depth=0): number {
-        let txnsNew = new Map<string, GraphTxn>();
-        for(let i = 0; i < txns.size; i++) {
-            txns.forEach((txn, txid) => {
-                if(txn.details.transactionType !== SlpTransactionType.GENESIS) {
-                    if(txn.inputs.length === 0 && 
-                        txid !== this._tokenDetails.tokenIdHex && 
-                        this._slpValidator.cachedValidations[txid] && 
-                        this._slpValidator.cachedValidations[txid].validity) {
-                        if(txn.outputs.map(o => o.slpAmount).reduce((p, c) => p.plus(c), new BigNumber(0)).isGreaterThan(0)) {
-                            // NO INPUTS!
-                            depthMap = {};
-                            txCache.clear();
-                            return -1
-                        } else if(txn.outputs.map(o => o.slpAmount).reduce((p, c) => p.plus(c), new BigNumber(0)).isEqualTo(0)) {
-                            if(txn.details.transactionType !== SlpTransactionType.MINT)
-                                this._graphTxns.delete(txid); // here we prune any valid transactions which have 0 inputs and 0 outputs, don't prune MINT 
-                        }
-                    }
-                    txn.inputs.forEach(input => {
-                        let previd = input.txid;
-                        if(this._slpValidator.cachedValidations[previd] && this._slpValidator.cachedValidations[previd].validity && !txCache.has(previd)) {
-                            if(this._graphTxns.has(previd)) {
-                                txnsNew.set(previd, this._graphTxns.get(previd)!);
-                                txCache.add(previd);
-                            } else {
-                                // MISSING TXN INPUT!
-                                depthMap = {};
-                                txCache.clear();
-                                return -1
-                            }
-                        }
-                    })
-                }
-            })
-        }
-
-        if(txCache.size > 0)
-            depth++;
-        
-        let txCounts = [...Object.keys(depthMap)].map(i => parseInt(i)).sort((a,b)=>a-b); // [1000, 2000, 3000, 4000, 5000] 
-        let increment = 1000;
-        if(txCounts.length === 0) {
-            depthMap[increment] = [0, 0];
-            txCounts = [ increment ];
-        } else if(txCache.size > txCounts[txCounts.length-1]) {
-            depthMap[txCounts[txCounts.length-1]+increment] = [0, 0];
-            txCounts = [...Object.keys(depthMap)].map(i => parseInt(i)).sort((a,b)=>a-b); 
-        }
-
-        let selectedTxnIndex = txCounts.filter(i => i >= txCache.size)[0]; 
-        if(selectedTxnIndex) {
-            txCounts.filter(i => i >= selectedTxnIndex).forEach(i => {
-                depthMap[i.toString()] = [depth, txCache.size];
-            })
-        }
-
-        if(txnsNew.size > 0) {
-            if(depth % 1000 === 0) {
-                let self = this;
-                setTimeout(function() {
-                    depth = self.buildGraphStats(txnsNew, txCache, depthMap, depth);
-                }, 0)
-            } else {
-                depth = this.buildGraphStats(txnsNew, txCache, depthMap, depth);
-            }
-        }
-        return depth;
     }
 
     async updateTokenGraphFrom({ txid, isParent = false, updateOutputs = true, processUpToBlock, block=null }: { txid: string; isParent?:boolean; updateOutputs?: boolean; processUpToBlock?: number; block?: { hash: Buffer; transactions: Set<string> }|null}): Promise<boolean|null> {
@@ -388,6 +383,36 @@ export class SlpTokenGraph implements TokenGraph {
         }
         console.log("[INFO] Valid txns", this._graphTxns.size);
 
+        // Add contributing SLP inputs
+        if(graphTxn.inputs.length === 0) {
+            await this.asyncForEach(txn.inputs, async (i: bitcore.TxnInput) => {
+                let previd = i.prevTxId.toString('hex');
+                if(!this._slpValidator.cachedValidations[previd]) {
+                    await this._slpValidator.isValidSlpTxid(previd, this._tokenDetails.tokenIdHex);
+                }
+                if(this._slpValidator.cachedValidations[previd] && 
+                    this._slpValidator.cachedValidations[previd].validity && 
+                    this._slpValidator.cachedValidations[previd].details!.tokenIdHex === this._tokenDetails.tokenIdHex
+                ){
+                    if(!this._graphTxns.has(previd)) {
+                        console.log("[INFO] updateTokenGraphFrom: Add contributing SLP inputs");
+                        await this.updateTokenGraphFrom({ txid: previd, isParent: true, updateOutputs: false });
+                    }
+                    let input = this._graphTxns.get(i.prevTxId.toString('hex'))!
+                    let o = input.outputs.find(o => o.vout === i.outputIndex);
+                    if(o) {
+                        graphTxn.inputs.push({
+                            txid: i.prevTxId.toString('hex'),
+                            vout: i.outputIndex,
+                            slpAmount: o.slpAmount,
+                            address: o.address,
+                            bchSatoshis: o.bchSatoshis
+                        })
+                    }
+                }
+            })
+        }
+
         // Wait for mempool and block sync to complete before proceeding to update anything on graph.
         while(!this._manager.TnaSynced) {
             console.log("[INFO] At updateTokenGraphFrom() - Waiting for TNA sync to complete before starting graph updates.");
@@ -448,35 +473,7 @@ export class SlpTokenGraph implements TokenGraph {
             else {
                 console.log("[WARNING]: Transaction is not valid or is unknown token type!", txid);
             }
-        }
-
-        // Add contributing SLP inputs
-        if(graphTxn.inputs.length === 0) {
-            await this.asyncForEach(txn.inputs, async (i: bitcore.TxnInput) => {
-                let previd = i.prevTxId.toString('hex');
-                if(!this._slpValidator.cachedValidations[previd]) {
-                    await this._slpValidator.isValidSlpTxid(previd, this._tokenDetails.tokenIdHex);
-                }
-                if(this._slpValidator.cachedValidations[previd] && 
-                    this._slpValidator.cachedValidations[previd].validity && 
-                    this._slpValidator.cachedValidations[previd].details!.tokenIdHex === this._tokenDetails.tokenIdHex) {
-                    if(!this._graphTxns.has(previd)) {
-                        console.log("[INFO] updateTokenGraphFrom: Add contributing SLP inputs");
-                        await this.updateTokenGraphFrom({ txid: previd, isParent: true, updateOutputs: false });
-                    }
-                    let input = this._graphTxns.get(i.prevTxId.toString('hex'))!
-                    let o = input.outputs.find(o => o.vout === i.outputIndex);
-                    if(o) {
-                        graphTxn.inputs.push({
-                            txid: i.prevTxId.toString('hex'),
-                            vout: i.outputIndex,
-                            slpAmount: o.slpAmount,
-                            address: o.address,
-                            bchSatoshis: o.bchSatoshis
-                        })
-                    }
-                }
-            })
+            await this._updateUtxos(txid);
         }
 
         // check for possible inputs burned due to outputs < inputs
@@ -488,44 +485,6 @@ export class SlpTokenGraph implements TokenGraph {
                     slpAmount: inputQty.minus(outputQty),
                     status: TokenUtxoStatus.EXCESS_INPUT_BURNED
                 })
-            }
-        }
-
-        // compute node's graph search stats once all inputs have been mapped
-        if(Config.core.enable_graph_search) {
-            try {
-                if(!isParent && !graphTxn.stats) {
-                    console.time("GRAPH STATS " + txid);
-                    let depthMap: {[key:string]: [number, number] } = {};
-                    let init_cache = new Set<string>();
-                    let parentGraphTxns = new Map<string, GraphTxn>();
-                    for(let i = 0; i < graphTxn.inputs.length; i++) {
-                        let previd = graphTxn.inputs[i].txid;
-                        if(this._slpValidator.cachedValidations[previd] && this._slpValidator.cachedValidations[previd].validity && !init_cache.has(previd)) {
-                            let gt = this._graphTxns.get(previd)!
-                            if(!gt)
-                                throw Error("No txn graph found.");
-    
-                            // if(gt.inputs.length === 0) {
-                            //     await this.updateTokenGraphFrom({ txid: previd, isParent: true, updateOutputs: false }); 
-                            // }
-    
-                            if(gt.outputs.length === 0)
-                                throw Error("MISSING OUTPUTS " + previd);
-
-                            parentGraphTxns.set(previd, gt);
-                            init_cache.add(previd);
-                            console.log("START", previd);
-                        }
-                    }
-                    console.log("FROM", txid);
-                    let depth = this.buildGraphStats(parentGraphTxns, init_cache, depthMap);
-                    console.timeEnd("GRAPH STATS " + txid);
-                    graphTxn.stats = { depth: depth, txcount: init_cache.size, depthMap: depthMap }
-                }
-            } catch(err) {
-                console.log(err);
-                graphTxn.stats = { depth: -2, txcount: 0, depthMap: {} }
             }
         }
 
@@ -574,6 +533,8 @@ export class SlpTokenGraph implements TokenGraph {
             }
         }
         getChildTxids(txid);
+        if(deleteSelf)
+            toDelete.add(txid);
         toDelete.forEach(txid => {
             // must find any graphTxn with an output spendTxid equal to txid
             this._graphTxns.get(txid)!.inputs.forEach((v, i) => {
@@ -582,25 +543,18 @@ export class SlpTokenGraph implements TokenGraph {
                     let output = g.outputs.find(o => o.vout === v.vout);
                     output!.spendTxid = null;
                     output!.status = TokenUtxoStatus.UNSPENT;
+                    this._tokenUtxos.add(`${txid}:${v.vout}`);
                 }
             });
             this._graphTxns.delete(txid);
             delete this._slpValidator.cachedRawTransactions[txid];
             delete this._slpValidator.cachedValidations[txid];
         });
-        if(deleteSelf) {
-            this._graphTxns.get(txid)!.inputs.forEach((v, i) => {
-                if(this._graphTxns.has(v.txid)) {
-                    let g = this._graphTxns.get(v.txid)!;
-                    let output = g.outputs.find(o => o.vout === v.vout);
-                    output!.spendTxid = null;
-                    output!.status = TokenUtxoStatus.UNSPENT;
-                }
-            });
-            this._graphTxns.delete(txid);
-            delete this._slpValidator.cachedRawTransactions[txid];
-            delete this._slpValidator.cachedValidations[txid];
-        }
+        this._tokenUtxos.forEach(txo => {
+            let txid = txo.split(':')[0];
+            if(toDelete.has(txid))
+                this._tokenUtxos.delete(txo);
+        });
     }
 
     private getAddressStringFromTxnOutput(txn: bitcore.Transaction, outputIndex: number) {
