@@ -60,8 +60,9 @@ export class SlpdbStatus {
         SlpdbStatus.lastOutgoingTxnZmq = { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }    
     }
 
-    static updateSlpProcessedBlockHeight(height: number) {
+    static async updateSlpProcessedBlockHeight(height: number) {
         SlpdbStatus.slpProcessedBlockHeight = height;
+        await SlpdbStatus.saveStatus();
     }
 
     static async changeStateToStartupBlockSync({ network, getSyncdCheckpoint }: { network: string, getSyncdCheckpoint: () => Promise<ChainSyncCheckpoint> }) {
