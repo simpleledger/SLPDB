@@ -98,11 +98,16 @@ export class SlpdbStatus {
     }
 
     static async logExitReason(errorMsg: string) {
-        if(errorMsg) {
-            await SlpdbStatus.changeStateToExitOnError(errorMsg);
-        } else {
-            SlpdbState.EXITED_NORMAL;
+        if(errorMsg === 'SIGINT') {
+            SlpdbStatus.state = SlpdbState.EXITED_SIGINT;
             await SlpdbStatus.saveStatus();
+        } 
+        else if(errorMsg === 'SIGTERM') {
+            SlpdbStatus.state = SlpdbState.EXITED_SIGTERM;
+            await SlpdbStatus.saveStatus();
+        }
+        else {
+            await SlpdbStatus.changeStateToExitOnError(errorMsg);
         }
     }
 
@@ -226,7 +231,8 @@ export enum SlpdbState {
     "STARTUP_TOKEN_PROCESSING" = "STARTUP_TOKEN_PROCESSING",  // phase 3) load/update token graphs, hold a cache (allows fastest SLP validation)
     "RUNNING" = "RUNNING",                                    // phase 4) startup completed, running normally
     "EXITED_ON_ERROR" = "EXITED_ON_ERROR",                    // process exited due to an error during normal operation
-    "EXITED_NORMAL" = "EXITED_NORMAL"                         // process exited normally, clean shutdown or finished running a command
+    "EXITED_SIGINT" = "EXITED_SIGINT",                        // process exited normally, clean shutdown or finished running a command
+    "EXITED_SIGTERM" = "EXITED_SIGTERM"                       // process exited normally, clean shutdown or finished running a command
 }
 
 interface StatusDbo {

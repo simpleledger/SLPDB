@@ -13,6 +13,7 @@ import { TokenFilterRule, TokenFilter } from './filters';
 const db = new Db();
 const rpc = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
 const bit = new Bit(db, rpc);
+let tokenManager: SlpGraphManager;
 new SlpdbStatus(db, rpc);
 
 const daemon = {
@@ -78,7 +79,7 @@ const daemon = {
 
         console.log('[INFO] Starting to processing SLP Data.', new Date());
         let currentHeight = await rpc.getBlockCount();
-        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
+        tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
         bit._slpGraphManager = tokenManager;
         bit.listenToZmq();
         await bit.checkForMissingMempoolTxns(undefined, true);
@@ -225,5 +226,51 @@ process.on('unhandledRejection', async (err: any, promise: any) => {
         process.exit(0);
     }
 });
+
+process.on('SIGINT', async () => {
+    await shutdown('SIGINT');
+});
+
+process.on('SIGTERM', async () => {
+    await shutdown('SIGTERM');
+});
+
+async function shutdown(signal: string) {
+    console.log(`[INFO] Got ${signal}. Graceful shutdown start ${new Date().toISOString()}`);
+
+    try {
+
+        console.log('[INFO] Block sync processing stopped.');
+    } catch(_) {}
+
+    try {
+        bit._zmqItemQueue.pause();
+        console.log('[INFO] ZMQ processing stopped.');
+    } catch (_) {}
+
+    try {
+        tokenManager.stop();
+        let tokens = Array.from(tokenManager._tokens);
+        for (let i = 0; i < tokens.length; i++) {
+            tokens[i][1].stop();
+        }
+        console.log('[INFO] Token graph processing stopped.');
+    } catch (_) {}
+
+    try {
+        await SlpdbStatus.logExitReason(signal);
+        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        await sleep(2000);
+        console.log('[INFO] Final telemetry update complete.');
+    } catch(_) {}
+
+    try {
+        await db.exit();
+        console.log('[INFO] Closed mongo DB connection.');
+    } catch (_) {}
+
+    console.log(`[INFO] Graceful shutdown completed ${new Date().toISOString()}`);
+    process.exit();
+}
 
 start();

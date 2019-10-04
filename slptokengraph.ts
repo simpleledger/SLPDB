@@ -38,6 +38,7 @@ export class SlpTokenGraph implements TokenGraph {
     _manager: SlpGraphManager;
     _liveTxoSpendCache = new CacheMap<string, SendTxnQueryResult>(100000);
     _startupTxoSendCache?: CacheMap<string, SpentTxos>;
+    _exit = false;
 
     constructor(db: Db, manager: SlpGraphManager, network: string) {
         this._db = db;
@@ -72,6 +73,17 @@ export class SlpTokenGraph implements TokenGraph {
         this._startupTxoSendCache.clear();
         this._startupTxoSendCache = undefined;
         this._graphUpdateQueue.start();
+    }
+
+    async stop() {
+        this._graphUpdateQueue.pause();
+        this._graphUpdateQueue.clear();
+        if (this._graphUpdateQueue.pending)
+            await this._graphUpdateQueue.onIdle();
+        this._statsUpdateQueue.pause();
+        this._statsUpdateQueue.clear();
+        if (this._statsUpdateQueue.pending)
+            await this._graphUpdateQueue.onIdle();
     }
 
     private async setNftParentId() {
@@ -823,7 +835,7 @@ export class SlpTokenGraph implements TokenGraph {
                 // TODO: handle this condition gracefully.
             }
 
-            if(saveToDb) {
+            if(saveToDb && !this._exit) {
                 await this._db.tokenInsertReplace(this.toTokenDbObject());
                 await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
                 await this._db.graphInsertReplace(this.toGraphDbObject(), this._tokenDetails.tokenIdHex);

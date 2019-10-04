@@ -40,6 +40,7 @@ export class SlpGraphManager {
     _startupTokenCount: number;
     _bit: Bit;
     _filter: TokenFilter;
+    _exit = false;
 
     get TnaSynced(): boolean {
         if(this._TnaQueue)
@@ -591,6 +592,18 @@ export class SlpGraphManager {
         await this.db.addressDelete(tokenId);
     }
 
+    async stop() {
+        this._exit = true;
+        this._updatesQueue.pause();
+        this._updatesQueue.clear();
+        if(this._updatesQueue.pending)
+            await this._updatesQueue.onIdle();
+            this._startupQueue.pause();
+            this._startupQueue.clear();
+        if(this._startupQueue.pending)
+            await this._startupQueue.onIdle();
+    }
+
     private async updateTxnCollectionsForTokenId(tokenid: string) {
         console.log("[INFO] Updating confirmed/unconfirmed collections for:", tokenid);
         await this.updateTxnCollections(tokenid, tokenid);
@@ -599,13 +612,14 @@ export class SlpGraphManager {
             let tokenTxns = Array.from(this._tokens.get(tokenid)!._graphTxns.keys());
             // TODO: Use a manager level queue with concurrency equal to RPC limit
             for (let j = 0; j < tokenTxns.length; j++) {
-                await this.updateTxnCollections(tokenTxns[j], tokenid);
+                if(!this._exit)
+                    await this.updateTxnCollections(tokenTxns[j], tokenid);
             }
         }
     }
 
     private async setAndSaveTokenGraph(graph: SlpTokenGraph) {
-        if(graph.IsValid) {
+        if(graph.IsValid && !this._exit) {
             let tokenId = graph._tokenDetails.tokenIdHex;
             this._tokens.set(tokenId, graph);
             await this.db.tokenInsertReplace(graph.toTokenDbObject());
