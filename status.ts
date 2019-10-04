@@ -1,6 +1,6 @@
 import { Db } from "./db";
 import { RpcClient } from "./rpc";
-import { ChainSyncCheckpoint } from "./info";
+import { ChainSyncCheckpoint, Info } from "./info";
 import * as fs from 'fs';
 import { Config } from "./config";
 
@@ -18,7 +18,6 @@ export class SlpdbStatus {
     static versionHash: string|null = null;
     static deplVersionHash: string|null = null;
     static context: context = context.SLPDB;
-    static publicUrl: string = Config.telemetry.advertised_host;
     static lastIncomingTxnZmq: { utc: string, unix: number}|null = null;
     static lastIncomingBlockZmq: { utc: string, unix: number}|null = null;
     static lastOutgoingTxnZmq: { utc: string, unix: number}|null = null;
@@ -147,43 +146,43 @@ export class SlpdbStatus {
             pastStackTraces: stackTraces,
             doubleSpends: this.doubleSpendHistory,
             mongoDbStats: await this.db.db.stats({ scale: 1048576 }),
-            publicUrl: this.publicUrl,
+            publicUrl: await Info.getTelemetryName(),
+            telemetryHash: await Info.getTelemetrySecretHash(),
             system: { loadAvg1: os.loadavg(1), loadAvg5: os.loadavg(5), loadAvg15: os.loadavg(15), platform: os.platform(), cpuCount: os.cpuCount(), freeMem: os.freemem(), totalMem: os.totalmem(), uptime: os.sysUptime(), processUptime: os.processUptime() }
         };
-        this.updateTelemetry(status);
+        await this.updateTelemetry(status);
         return status;
     }
 
-    private static updateTelemetry(status: StatusDbo) {
-        if (Config.telemetry.advertised_host !== '') {
-            let data = JSON.stringify({ status: status });
-            let options = {
-                hostname: Config.telemetry.host,
-                port: Config.telemetry.port,
-                path: '/status',
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Content-Length': data.length, 
-                    'Authorization': Config.telemetry.secret
-                }
-            };
-            let req = https.request(options, res => {
-                console.log(`[INFO] Telementry response code: ${res.statusCode}`);
-                res.on('data', d => {
-                    console.log(`[INFO] Telemetry response from ${Config.telemetry.host}: ${d.toString('utf8')}`);
-                });
+    private static async updateTelemetry(status: StatusDbo) {
+        let data = JSON.stringify({ status: status });
+        let options = {
+            hostname: Config.telemetry.host,
+            port: Config.telemetry.port,
+            path: '/status',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': data.length, 
+                'Authorization': await Info.getTelemetrySecret()
+            }
+        };
+        let req = https.request(options, res => {
+            console.log(`[INFO] Telementry response code: ${res.statusCode}`);
+            res.on('data', d => {
+                console.log(`[INFO] Telemetry response from ${Config.telemetry.host}: ${d.toString('utf8')}`);
+                Info.setTelemetrySecret(d.secretKey);
             });
-            req.on('error', error => {
-                let reason = error.message;
-                if (Config.telemetry.host === '')
-                    reason = "Env var 'telemetry_host' is not set";
-                console.log("[ERROR] Telemetry update failed. Reason:", reason);
-            });
-            console.log(`[INFO] Sending telemetry update to ${Config.telemetry.host} for ${Config.telemetry.advertised_host}...`);
-            req.write(data);
-            req.end();
-        }
+        });
+        req.on('error', error => {
+            let reason = error.message;
+            if (Config.telemetry.host === '')
+                reason = "Env var 'telemetry_host' is not set";
+            console.log("[ERROR] Telemetry update failed. Reason:", reason);
+        });
+        console.log(`[INFO] Sending telemetry update to ${Config.telemetry.host} for ${await Info.getTelemetryName()}...`);
+        req.write(data);
+        req.end();
     }
 
     static async loadPreviousAttributes() {
@@ -251,5 +250,6 @@ interface StatusDbo {
     doubleSpends: any[];
     mongoDbStats: any; 
     publicUrl: string; 
+    telemetryHash: string|null;
     system: any;
 }

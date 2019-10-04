@@ -1,5 +1,6 @@
 const level = require('level');
 var kv = level('./_leveldb');
+import * as crypto from 'crypto';
 
 import { Config } from './config';
 
@@ -13,6 +14,7 @@ export interface ChainSyncCheckpoint {
 }
 
 export module Info {
+
 	export const setNetwork =  async function(network: string): Promise<void> {
 		try {
 			if(network === 'testnet')
@@ -20,12 +22,57 @@ export module Info {
 			await kv.put('network', network);
 		} catch(_) { }
 	}
+
 	export const getNetwork =  async function(): Promise<string> {
 		try {
 			return await kv.get('network');
 		} catch(_) { 
 			throw Error("Cannot get network");
 		}
+	}
+
+	export const getTelemetryName = async function(): Promise<string> {
+		if(Config.telemetry.advertised_host) {
+			return Config.telemetry.advertised_host;
+		} else {
+			try {
+				return await kv.get('telname');
+			} catch(_) {
+				let name = 'unknown-' + Math.floor(Math.random()*100000).toFixed(0);
+				await kv.put('telname', name);
+				return name;
+			}
+		}
+	}
+
+	export const setTelemetrySecret = async function(secret: string): Promise<void> {
+		if(Config.telemetry.secret)
+			await kv.put('telsecret', Config.telemetry.secret);
+		else if(secret)
+			await kv.put('telsecret', secret);
+	}
+
+	export const getTelemetrySecret = async function(): Promise<string> {
+		try {
+			return await kv.get('telsecret');
+		} catch(_) {
+			return '';
+		}
+	}
+
+	export const getTelemetrySecretHash = async function(): Promise<string|null> {
+		let secret;
+		if(Config.telemetry.secret)
+			secret = Config.telemetry.secret;
+		else {
+			try {
+				secret = await kv.get('telsecret');
+			} catch(_) {
+				return null;
+			}
+		}
+		let hash = crypto.createHash('sha256');
+        return hash.update(Buffer.from(secret, 'hex')).digest().toString('hex').substring(0, 40);
 	}
 
 	export const getBlockCheckpoint = async function(fallback_index?: number): Promise<ChainSyncCheckpoint> {
