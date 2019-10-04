@@ -246,14 +246,18 @@ export class Bit {
                     console.log("[INFO] Mempool has txid", block.txs[i].txid());
                     tasks.push(limit(async function() {
                         let t: TNATxn|null = await self.db.unconfirmedFetch(block.txs[i].txid());
-                        t!.blk = {
+                        if(!t) {
+                            let txn: bitcore.Transaction = new bitcore.Transaction(txnhex);
+                            t = await self.tna.fromTx(txn, { network: self.network });
+                        }
+                        t.blk = {
                             h: block_hash,
                             i: block_index,
                             t: block_time
                         };
-                        result.set(block.txs[i].txid(), { txHex: txnhex, tnaTxn: t! });
+                        result.set(block.txs[i].txid(), { txHex: txnhex, tnaTxn: t });
                         return t;
-                    }))
+                    }));
                 }
             }
             let btxs = (await Promise.all(tasks)).filter(i => i);
