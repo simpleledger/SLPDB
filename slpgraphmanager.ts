@@ -573,7 +573,14 @@ export class SlpGraphManager {
         }
         await this.updateTxnCollectionsForTokenId(token.tokenIdHex);
         await graph.UpdateStatistics(false);
-        await this.setAndSaveTokenGraph(graph);
+        if(res.length) {
+            await this.setAndSaveTokenGraph(graph);
+        } else {
+            if(graph.IsValid) {
+                let tokenId = graph._tokenDetails.tokenIdHex;
+                this._tokens.set(tokenId, graph);
+            }
+        }
         graph._graphUpdateQueue.start();
     }
 
