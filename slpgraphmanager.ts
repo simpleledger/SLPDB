@@ -631,16 +631,6 @@ export class SlpGraphManager {
             
             await graph.initFromScratch({ tokenDetails, processUpToBlock });
 
-            // TODO: remove temporary paranoia
-            for(let key of Array.from( graph._graphTxns.keys() )) {
-                if(!graph._graphTxns.get(key)!.blockHash && !this._bit.slpMempool.has(key)) {
-                    if(SlpdbStatus.state === SlpdbState.RUNNING)
-                        throw Error(`No blockhash for ${key}`);
-                    else
-                        console.log('[INFO] Allowing missing block hash during startup conditions.');                
-                }
-            }
-
             if(graph.IsValid) {
                 let tokenId = graph._tokenDetails.tokenIdHex;
                 this._tokens.set(tokenId, graph);

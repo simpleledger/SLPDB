@@ -597,7 +597,7 @@ export class SlpTokenGraph implements TokenGraph {
                 let bal;
                 if(graph.outputs[vout-1].status !== TokenUtxoStatus.UNSPENT && graph.outputs[vout-1].status !== BatonUtxoStatus.BATON_UNSPENT) {
                     console.log(graph.outputs);
-                    console.log("[WARN] TXO is not unspent:", txid, vout);
+                    console.log(`[INFO] TXO is not unspent (deleting from token UTXO set): ${txid}:${vout}`);
                     this._tokenUtxos.delete(utxo);
                     return;
                 }
