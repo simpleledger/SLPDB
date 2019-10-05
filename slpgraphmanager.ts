@@ -598,8 +598,8 @@ export class SlpGraphManager {
         this._updatesQueue.clear();
         if(this._updatesQueue.pending)
             await this._updatesQueue.onIdle();
-            this._startupQueue.pause();
-            this._startupQueue.clear();
+        this._startupQueue.pause();
+        this._startupQueue.clear();
         if(this._startupQueue.pending)
             await this._startupQueue.onIdle();
     }

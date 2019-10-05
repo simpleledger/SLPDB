@@ -76,6 +76,7 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async stop() {
+        this._exit = true;
         this._graphUpdateQueue.pause();
         this._graphUpdateQueue.clear();
         if (this._graphUpdateQueue.pending)

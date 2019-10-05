@@ -239,7 +239,6 @@ async function shutdown(signal: string) {
     console.log(`[INFO] Got ${signal}. Graceful shutdown start ${new Date().toISOString()}`);
 
     try {
-
         console.log('[INFO] Block sync processing stopped.');
     } catch(_) {}
 
@@ -249,10 +248,10 @@ async function shutdown(signal: string) {
     } catch (_) {}
 
     try {
-        tokenManager.stop();
+        await tokenManager.stop();
         let tokens = Array.from(tokenManager._tokens);
         for (let i = 0; i < tokens.length; i++) {
-            tokens[i][1].stop();
+            await tokens[i][1].stop();
         }
         console.log('[INFO] Token graph processing stopped.');
     } catch (_) {}
