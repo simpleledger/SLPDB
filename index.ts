@@ -14,7 +14,7 @@ const db = new Db();
 const rpc = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
 const bit = new Bit(db, rpc);
 let tokenManager: SlpGraphManager;
-new SlpdbStatus(db, rpc);
+new SlpdbStatus(db, rpc, process.argv);
 
 const daemon = {
     run: async function({ startHeight, loadFromDb=true }: { startHeight?: number, loadFromDb?: boolean} ) {

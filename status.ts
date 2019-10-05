@@ -14,6 +14,7 @@ enum context {
 
 export class SlpdbStatus {
     static db: Db;
+    static startCmd: string;
     static version = pjson.version;
     static versionHash: string|null = null;
     static deplVersionHash: string|null = null;
@@ -32,12 +33,14 @@ export class SlpdbStatus {
     static getSlpTokensCount = function() { return -1; }
     static getSyncdCheckpoint: () => Promise<ChainSyncCheckpoint> = async function() { return { hash: '', height: -1 }; }
 
-    constructor(db: Db, rpc: RpcClient) {
+    constructor(db: Db, rpc: RpcClient, startCmd: string[]) {
         SlpdbStatus.db = db;
         SlpdbStatus.rpc = rpc;
         SlpdbStatus.state = SlpdbState.PRE_STARTUP;
         SlpdbStatus.versionHash = SlpdbStatus.getVersion();
         SlpdbStatus.deplVersionHash = SlpdbStatus.getDeplVersion();
+        let last = (a: string[]) => { let i = a.length-1; return a[i]; }
+        SlpdbStatus.startCmd = "".concat(...startCmd.map(s => last(s.split('/')).concat(' '))).trimEnd();
     }
    
     static updateTimeIncomingTxnZmq() {
@@ -135,6 +138,7 @@ export class SlpdbStatus {
             version: this.version,            
             versionHash: this.versionHash,
             deplVersionHash: this.deplVersionHash,
+            startCmd: this.startCmd,
             context: this.context,
             lastStatusUpdate: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) },
             lastIncomingTxnZmq: this.lastIncomingTxnZmq,
@@ -239,6 +243,7 @@ interface StatusDbo {
     version: string; 
     versionHash: string | null; 
     deplVersionHash: string | null;
+    startCmd: string;
     context: context; 
     lastStatusUpdate: { utc: string; unix: number; }; 
     lastIncomingTxnZmq: { utc: string; unix: number; } | null; 
