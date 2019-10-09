@@ -12,7 +12,6 @@ import { DefaultAddOptions } from 'p-queue';
 import { SlpGraphManager } from './slpgraphmanager';
 import { CacheMap } from './cache';
 import { SlpdbStatus, SlpdbState } from './status';
-import { ftruncate } from 'fs';
 
 let cashaddr = require('cashaddrjs-slp');
 

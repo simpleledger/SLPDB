@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import { Config } from "./config";
 
 import * as https from 'https';
+import { CacheSet } from "./cache";
 var pjson = require('./package.json');
 var os = require('os-utils');
 
@@ -25,6 +26,7 @@ export class SlpdbStatus {
     static lastOutgoingBlockZmq: { utc: string, unix: number}|null = null;
     static slpProcessedBlockHeight: number|null = null;
     static state: SlpdbState;
+    static stateHistory = new CacheSet<{ utc: string, state: SlpdbState }>(10);
     static network: string = '';
     static pastStackTraces: any[] = [];
     static doubleSpendHistory: any[] = [];
@@ -36,11 +38,16 @@ export class SlpdbStatus {
     constructor(db: Db, rpc: RpcClient, startCmd: string[]) {
         SlpdbStatus.db = db;
         SlpdbStatus.rpc = rpc;
-        SlpdbStatus.state = SlpdbState.PRE_STARTUP;
+        SlpdbStatus.setState(SlpdbState.PRE_STARTUP);
         SlpdbStatus.versionHash = SlpdbStatus.getVersion();
         SlpdbStatus.deplVersionHash = SlpdbStatus.getDeplVersion();
         let last = (a: string[]) => { let i = a.length-1; return a[i]; }
         SlpdbStatus.startCmd = "".concat(...startCmd.map(s => last(s.split('/')).concat(' '))).trimEnd();
+    }
+
+    static setState(state: SlpdbState) {
+        SlpdbStatus.state = state;
+        SlpdbStatus.stateHistory.push({ utc: (new Date()).toUTCString(), state });
     }
    
     static updateTimeIncomingTxnZmq() {
@@ -71,24 +78,24 @@ export class SlpdbStatus {
     static async changeStateToStartupBlockSync({ network, getSyncdCheckpoint }: { network: string, getSyncdCheckpoint: () => Promise<ChainSyncCheckpoint> }) {
         SlpdbStatus.network = network;
         SlpdbStatus.getSyncdCheckpoint = getSyncdCheckpoint;
-        SlpdbStatus.state = SlpdbState.STARTUP_BLOCK_SYNC;
+        SlpdbStatus.setState(SlpdbState.STARTUP_BLOCK_SYNC);
         await SlpdbStatus.saveStatus();
     }
 
     static async changeStateToStartupSlpProcessing({ getSlpTokensCount }: { getSlpTokensCount: () => number }) {
-        SlpdbStatus.state = SlpdbState.STARTUP_TOKEN_PROCESSING;
+        SlpdbStatus.setState(SlpdbState.STARTUP_TOKEN_PROCESSING);
         SlpdbStatus.getSlpTokensCount = getSlpTokensCount;
         await SlpdbStatus.saveStatus();
     }
 
     static async changeStateToRunning({ getSlpMempoolSize }: { getSlpMempoolSize: () => number }) {
-        SlpdbStatus.state = SlpdbState.RUNNING;
+        SlpdbStatus.setState(SlpdbState.RUNNING);
         SlpdbStatus.getSlpMempoolSize = getSlpMempoolSize;
         await SlpdbStatus.saveStatus();
     }
 
     static async changeStateToExitOnError(trace: string) {
-        SlpdbStatus.state = SlpdbState.EXITED_ON_ERROR;
+        SlpdbStatus.setState(SlpdbState.EXITED_ON_ERROR);
         SlpdbStatus.pastStackTraces.unshift(trace);
         if(SlpdbStatus.pastStackTraces.length > 5)
             SlpdbStatus.pastStackTraces.pop();
@@ -102,11 +109,11 @@ export class SlpdbStatus {
 
     static async logExitReason(errorMsg: string) {
         if(errorMsg === 'SIGINT') {
-            SlpdbStatus.state = SlpdbState.EXITED_SIGINT;
+            SlpdbStatus.setState(SlpdbState.EXITED_SIGINT);
             await SlpdbStatus.saveStatus();
         } 
         else if(errorMsg === 'SIGTERM') {
-            SlpdbStatus.state = SlpdbState.EXITED_SIGTERM;
+            SlpdbStatus.setState(SlpdbState.EXITED_SIGTERM);
             await SlpdbStatus.saveStatus();
         }
         else {
@@ -149,6 +156,7 @@ export class SlpdbStatus {
             lastOutgoingTxnZmq: this.lastOutgoingTxnZmq,
             lastOutgoingBlockZmq: this.lastOutgoingBlockZmq,
             state: this.state,
+            stateHistory: Array.from(this.stateHistory.toSet()),
             network: this.network,
             bchBlockHeight: checkpoint.height,
             bchBlockHash: checkpoint.hash,
@@ -202,6 +210,7 @@ export class SlpdbStatus {
         let dbo = await SlpdbStatus.db.statusFetch("SLPDB");
         try {
             SlpdbStatus.pastStackTraces = dbo.pastStackTraces;
+            dbo.stateHistory.array.forEach((state: { utc: string, state: SlpdbState }) => { SlpdbStatus.stateHistory.push(state); });
         } catch(_) {}
     }
 
@@ -254,6 +263,7 @@ interface StatusDbo {
     lastOutgoingTxnZmq: { utc: string; unix: number; } | null; 
     lastOutgoingBlockZmq: { utc: string; unix: number; } | null; 
     state: SlpdbState; 
+    stateHistory: { utc: string, state: SlpdbState }[];
     network: string; 
     bchBlockHeight: number; 
     bchBlockHash: string | null; 
