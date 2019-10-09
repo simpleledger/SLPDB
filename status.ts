@@ -128,8 +128,11 @@ export class SlpdbStatus {
             else {
                 try {
                     return t.toString();
-                } catch(_) { 
-                    return "Unknown stack trace."
+                } catch(_) { }
+                try {
+                    return JSON.stringify(t);
+                } catch(_) {
+                    return "Unknown stack trace.";
                 }
             }
         })

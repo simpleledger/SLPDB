@@ -187,11 +187,13 @@ process.on('uncaughtException', async (err: any, origin: any) => {
     if(err.stack)
         message = `[${(new Date()).toUTCString()}] ${err.stack}`;
     else if(err.message)
-        message = err.message;
+        message = `[${(new Date()).toUTCString()}] ${err.message}`;
     else if(typeof message === 'string')
-        message = err;
+        message = `[${(new Date()).toUTCString()}] ${err}`;
     else if(typeof message === 'object')
-        message = JSON.stringify(err);
+        message = `[${(new Date()).toUTCString()}] ${JSON.stringify(err)}`;
+    else
+        message = `[${(new Date()).toUTCString()}] SLPDB exited for an unknown reason.`
     try {
         await SlpdbStatus.logExitReason(message);
         console.log(err);
@@ -210,11 +212,13 @@ process.on('unhandledRejection', async (err: any, promise: any) => {
     if(err.stack)
         message = `[${(new Date()).toUTCString()}] ${err.stack}`;
     else if(err.message)
-        message = err.message;
+        message = `[${(new Date()).toUTCString()}] ${err.message}`;
     else if(typeof message === 'string')
-        message = err;
+        message = `[${(new Date()).toUTCString()}] ${err}`;
     else if(typeof message === 'object')
-        message = JSON.stringify(err);
+        message = `[${(new Date()).toUTCString()}] ${JSON.stringify(err)}`;
+    else
+        message = `[${(new Date()).toUTCString()}] SLPDB exited for an unknown reason.`
     try {
         await SlpdbStatus.logExitReason(message);
         console.log(err);
