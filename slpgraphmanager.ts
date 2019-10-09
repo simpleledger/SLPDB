@@ -401,7 +401,7 @@ export class SlpGraphManager {
                         invalidReason = 'Token is invalid, most likely because it is an invalid Genesis.';
                         isValid = false;
                     } else if(tokenId) {
-                        invalidReason = 'Token ID is not currently being tracked because SLPDB is still syncing.';
+                        invalidReason = "Token validity is unknown because SLPDB is too busy.";
                         isValid = null;
                     }
 
