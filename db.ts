@@ -1,7 +1,7 @@
-import { MongoClient, Db as MongoDb, ClientSession } from 'mongodb';
+import { MongoClient, Db as MongoDb } from 'mongodb';
 import { Config, DbConfig } from './config';
 import { TNATxn } from './tna';
-import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject, SlpTokenGraph } from './slptokengraph';
+import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from './slptokengraph';
 import { Info } from './info';
 
 export class Db {
@@ -16,7 +16,7 @@ export class Db {
     async init() {
         let network = await Info.getNetwork();
         console.log("[INFO] Initializing MongoDB...")
-        this.mongo = await MongoClient.connect(this.config.url, { useNewUrlParser: true, useUnifiedTopology: true })
+        this.mongo = await MongoClient.connect(this.config.url, { useNewUrlParser: true })
         let dbname = network === 'mainnet' ? this.config.name : this.config.name_testnet;
         this.db = this.mongo.db(dbname);
         console.log("[INFO] MongoDB initialized.")
@@ -24,21 +24,6 @@ export class Db {
 
     async exit() {
         await this.mongo.close();
-    }
-
-    async updateTokenGraph(tokenGraph: SlpTokenGraph) {
-        const session = this.mongo.startSession();
-        let self = this;
-        try {
-            await session.withTransaction(async function() {
-                await self.tokenInsertReplace(tokenGraph.toTokenDbObject(), session);
-                await self.addressInsertReplace(tokenGraph.toAddressesDbObject(), tokenGraph._tokenDetails.tokenIdHex, session);
-                await self.graphInsertReplace(tokenGraph.toGraphDbObject(), tokenGraph._tokenDetails.tokenIdHex, session);
-                await self.utxoInsertReplace(tokenGraph.toUtxosDbObject(), tokenGraph._tokenDetails.tokenIdHex, session);
-            });
-        } catch(err) {
-            console.log(err);
-        }
     }
 
     async statusUpdate(status: any) {
@@ -50,9 +35,9 @@ export class Db {
         return await this.db.collection('statuses').findOne({ "context": context });
     }
 
-    async tokenInsertReplace(token: any, session: ClientSession) {
-        await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex }, { session })
-        return await this.db.collection('tokens').insertMany([ token ], { session });
+    async tokenInsertReplace(token: any) {
+        await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex })
+        return await this.db.collection('tokens').insertMany([ token ]);
     }
 
     // async tokenreplace(token: any) {
@@ -76,10 +61,10 @@ export class Db {
         })
     }
 
-    async graphInsertReplace(graph: GraphTxnDbo[], tokenIdHex: string, session: ClientSession) {
-        await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex }, { session });
+    async graphInsertReplace(graph: GraphTxnDbo[], tokenIdHex: string) {
+        await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
         if(graph.length > 0) {
-            return await this.db.collection('graphs').insertMany(graph, { session });
+            return await this.db.collection('graphs').insertMany(graph);
         }
     }
 
@@ -104,10 +89,10 @@ export class Db {
         })
     }
 
-    async addressInsertReplace(addresses: AddressBalancesDbo[], tokenIdHex: string, session: ClientSession) {
-        await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex }, { session })
+    async addressInsertReplace(addresses: AddressBalancesDbo[], tokenIdHex: string) {
+        await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
         if(addresses.length > 0) {
-            return await this.db.collection('addresses').insertMany(addresses, { session });
+            return await this.db.collection('addresses').insertMany(addresses);
         }
     }
 
@@ -132,10 +117,10 @@ export class Db {
         })
     }
 
-    async utxoInsertReplace(utxos: UtxoDbo[], tokenIdHex: string, session: ClientSession) {
-        await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex }, { session })
+    async utxoInsertReplace(utxos: UtxoDbo[], tokenIdHex: string) {
+        await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
         if(utxos.length > 0) {
-            return await this.db.collection('utxos').insertMany(utxos, { session });
+            return await this.db.collection('utxos').insertMany(utxos);
         }
     }
 
