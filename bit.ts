@@ -52,7 +52,7 @@ export class Bit {
     tna: TNA = new TNA();
     outsock = zmq.socket('pub');
     slpMempool = new Map<txid, txhex>();
-    doubleSpendCacheList = new CacheMap<string, any>(100);
+    doubleSpendCacheList = new CacheMap<string, any>(20);
     slpMempoolIgnoreSetList = new CacheSet<string>(Config.core.slp_mempool_ignore_length);
     blockHashIgnoreSetList = new CacheSet<string>(10);
     _slpGraphManager!: SlpGraphManager;
