@@ -159,7 +159,13 @@ export class SlpGraphManager {
             // TODO: NEED TO LOOP THROUGH ALL BLOCK TRANSACTIONS TO UPDATE BLOCK HASH
             let blockTxids = new Set<string>([...block.txns.map(i => i.txid)]);
             for(let i = 0; i < block.txns.length; i++) {
-                let tokenDetails = this.parseTokenTransactionDetails(await RpcClient.getRawTransaction(block.txns[i]!.txid));
+                let tokenDetails;
+                try {
+                    tokenDetails = this.parseTokenTransactionDetails(await RpcClient.getRawTransaction(block.txns[i]!.txid));
+                } catch(err) {
+                    console.log(`[ERROR] Could not get transaction ${block.txns[i]!.txid} in _onBlockHash: ${err}`)
+                    continue;
+                }
                 let tokenId = tokenDetails ? tokenDetails.tokenIdHex : null;
                 if(tokenId && this._tokens.has(tokenId)) {
                     let token = this._tokens.get(tokenId)!
@@ -334,7 +340,13 @@ export class SlpGraphManager {
                     let tokenDetails: SlpTransactionDetails|null = null;
 
                     if(!tokenId) {
-                        let txhex = <string>await RpcClient.getRawTransaction(tna.tx.h);
+                        let txhex;
+                        try {
+                            txhex = <string>await RpcClient.getRawTransaction(tna.tx.h);
+                        } catch (err) {
+                            console.log(`[ERROR] Could not get transaction ${tna.tx.h} in updateTxnCollections for ${collection}: ${err}`);
+                            return;
+                        }
                         let bt = new bitcore.Transaction(txhex);
                         try {
                             tokenDetails = slp.parseSlpOutputScript(bt.outputs[0]._scriptBuffer);

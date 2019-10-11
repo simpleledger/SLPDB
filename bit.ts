@@ -118,8 +118,14 @@ export class Bit {
             return { isSlp: true, added: false };  
         if(this.slpMempoolIgnoreSetList.has(txid))
             return { isSlp: false, added: false };
-        if(!txhex)
-            txhex = <string>await RpcClient.getRawTransaction(txid);
+        if(!txhex) {
+            try {
+                txhex = <string>await RpcClient.getRawTransaction(txid);
+            } catch(err) {
+                console.log(`[ERROR] Could not find tranasaction ${txhex} in handleMempoolTransaction: ${err}`);
+                return { isSlp: false, added: false }
+            }
+        }
         let txnBuf = Buffer.from(txhex, 'hex');
         RpcClient.loadTxnIntoCache(txid, txnBuf);
 

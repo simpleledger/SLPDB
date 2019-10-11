@@ -28,7 +28,16 @@ export class SlpTokenGraph implements TokenGraph {
     _nftParentId?: string;
     _graphTxns = new Map<string, GraphTxn>();
     _addresses = new Map<cashAddr, AddressBalance>();
-    _slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await RpcClient.getRawTransaction(txids[0]) ], console);
+    _slpValidator = new LocalValidator(bitbox, async (txids) => { 
+        let txn;
+        try {
+            txn = <string>await RpcClient.getRawTransaction(txids[0]);
+        } catch(err) {
+            console.log(`[ERROR] Could not get transaction ${txids[0]} in local validator: ${err}`);
+            return [ Buffer.alloc(60).toString('hex') ];
+        }
+        return [ txn ];
+    }, console);
     _network: string;
     _db: Db;
     _graphUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: false });
@@ -300,7 +309,8 @@ export class SlpTokenGraph implements TokenGraph {
                         if(!mempool.includes(txid)) {
                             try {
                                 await RpcClient.getRawTransaction(txid);
-                            } catch(_) {
+                            } catch(err) {
+                                console.log(`[ERROR] Could not get transaction ${txid} in queueTokenGraphUpdateFrom: ${err}`)
                                 self._graphTxns.delete(txid);
                                 delete self._slpValidator.cachedRawTransactions[txid];
                                 delete self._slpValidator.cachedValidations[txid];
@@ -353,7 +363,8 @@ export class SlpTokenGraph implements TokenGraph {
                         if(spendTxid) {
                             try {
                                 await RpcClient.getRawTransaction(txid);
-                            } catch(_) {
+                            } catch(err) {
+                                console.log(`[ERROR] Could not get transaction ${txid} in updateTokenGraphFrom: ${err}`)
                                 console.log(`[INFO] Found an output with non-existant spend txid.`);
                                 console.log(`[INFO] Will delete ${spendTxid} and all txns downstream.`);
                                 this.deleteAllChildren(spendTxid, true);
@@ -699,7 +710,9 @@ export class SlpTokenGraph implements TokenGraph {
             let txn;
             try {
                 txn = await RpcClient.getRawTransaction(txid);
-            } catch(_) {}
+            } catch(err) {
+                console.log(`[ERROR] Could not get transaction ${txid} in updateTxoIfSpent: ${err}`);
+            }
             if(txn) {
                 console.log("[INFO] updateTxoIfSpent(): Updating token graph for TXO",txo);
                 await this.updateTokenGraphFrom({ txid, isParent: true });
