@@ -49,7 +49,6 @@ export type txid = string;
 
 export class Bit {
     db: Db;
-    rpc: RpcClient;
     tna: TNA = new TNA();
     outsock = zmq.socket('pub');
     slpMempool = new Map<txid, txhex>();
@@ -62,9 +61,8 @@ export class Bit {
     notifications!: Notifications;
     _spentTxoCache = new CacheMap<string, string>(100000);
 
-    constructor(db: Db, rpc: RpcClient) { 
+    constructor(db: Db) { 
         this.db = db;
-        this.rpc = rpc;
         this._zmqItemQueue = new pQueue({ concurrency: 1, autoStart: true });
         if(Config.zmq.outgoing.enable)
             this.outsock.bindSync('tcp://' + Config.zmq.outgoing.host + ':' + Config.zmq.outgoing.port);
@@ -87,7 +85,7 @@ export class Bit {
         let isSyncd = false;
         let lastReportedSyncBlocks = 0;
         while (!isSyncd) {
-            let syncdBlocks = (await this.rpc.getBlockchainInfo()).blocks;
+            let syncdBlocks = (await RpcClient.getBlockchainInfo()).blocks;
             let networkBlocks = (await bitbox.Blockchain.getBlockchainInfo()).blocks;
             isSyncd = syncdBlocks === networkBlocks ? true : false;
             if (syncdBlocks !== lastReportedSyncBlocks)
@@ -101,7 +99,7 @@ export class Bit {
     
     async requestheight(): Promise<number> {
         try{
-            return await this.rpc.getBlockCount();
+            return await RpcClient.getBlockCount();
         } catch(err) {
             console.log('Check your RPC connection. Could not get height from full node rpc call.')
             throw err;
@@ -121,9 +119,9 @@ export class Bit {
         if(this.slpMempoolIgnoreSetList.has(txid))
             return { isSlp: false, added: false };
         if(!txhex)
-            txhex = <string>await this.rpc.getRawTransaction(txid);
+            txhex = <string>await RpcClient.getRawTransaction(txid);
         let txnBuf = Buffer.from(txhex, 'hex');
-        this.rpc.loadTxnIntoCache(txid, txnBuf);
+        RpcClient.loadTxnIntoCache(txid, txnBuf);
 
         // check for double spending of inputs, if found delete double spent txid from the mempool
         // TODO: Need to test how this will work with BCHD!
@@ -134,6 +132,7 @@ export class Bit {
                 let doubleSpentTxid = this._spentTxoCache.get(txo)!;
                 console.log(`[INFO] Detected double spent ${txo} --> original: ${doubleSpentTxid}, current: ${txid}`);
                 this.slpMempool.delete(doubleSpentTxid);
+                RpcClient.transactionCache.delete(doubleSpentTxid);
                 this.db.unconfirmedDelete(doubleSpentTxid);
                 let date = new Date();
                 this.doubleSpendCacheList.set(txo, { originalTxid: doubleSpentTxid, current: txid, time: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }});
@@ -183,7 +182,7 @@ export class Bit {
     }
 
     async syncSlpMempool() {
-        let currentBchMempoolList = await this.rpc.getRawMemPool();
+        let currentBchMempoolList = await RpcClient.getRawMemPool();
         console.log('[INFO] BCH mempool txs =', currentBchMempoolList.length);
         
         // Remove cached txs not in the mempool.
@@ -198,7 +197,7 @@ export class Bit {
 
     async crawl(block_index: number, triggerSlpProcessing: boolean): Promise<CrawlResult|null> {
         let result = new Map<txid, CrawlTxnInfo>();
-        let block_content = await this.rpc.getBlockInfo({ index: block_index });
+        let block_content = await RpcClient.getBlockInfo({ index: block_index });
         let block_hash = block_content.hash;
         let block_time = block_content.time;
         
@@ -208,7 +207,7 @@ export class Bit {
             const limit = pLimit(Config.rpc.limit);
             const self = this;
 
-            let blockHex = <string>await this.rpc.getRawBlock(block_content.hash);
+            let blockHex = <string>await RpcClient.getRawBlock(block_content.hash);
             let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
             for(let i=1; i < block.txs.length; i++) { // skip coinbase with i=1
                 let txnhex = block.txs[i].toRaw().toString('hex');
@@ -331,7 +330,7 @@ export class Bit {
 
     async checkForMissingMempoolTxns(currentBchMempoolList?: string[], recursive=false, log=true) {
         if(!currentBchMempoolList)
-            currentBchMempoolList = await this.rpc.getRawMemPool();
+            currentBchMempoolList = await RpcClient.getRawMemPool();
 
         // add missing SLP transactions and process
         await this.asyncForEach(currentBchMempoolList, async (txid: string) => {
@@ -342,13 +341,13 @@ export class Bit {
         });
 
         if(recursive) {
-            let residualMempoolList = (await this.rpc.getRawMemPool()).filter(id => !this.slpMempoolIgnoreSetList.has(id) && !Array.from(this.slpMempool.keys()).includes(id))
+            let residualMempoolList = (await RpcClient.getRawMemPool()).filter(id => !this.slpMempoolIgnoreSetList.has(id) && !Array.from(this.slpMempool.keys()).includes(id))
             if(residualMempoolList.length > 0)
                 await this.checkForMissingMempoolTxns(residualMempoolList, true, false)
         }
 
         if(log) {
-            console.log('[INFO] BCH mempool txn count:', (await this.rpc.getRawMemPool()).length);
+            console.log('[INFO] BCH mempool txn count:', (await RpcClient.getRawMemPool()).length);
             console.log("[INFO] SLP mempool txn count:", this.slpMempool.size);
         }
     }
@@ -362,7 +361,7 @@ export class Bit {
     // }
 
     async removeExtraneousMempoolTxns() {
-        let currentBchMempoolList = await this.rpc.getRawMemPool();
+        let currentBchMempoolList = await RpcClient.getRawMemPool();
         
         // remove extraneous SLP transactions no longer in the mempool
         let cacheCopyForRemovals = new Map(this.slpMempool);
@@ -403,7 +402,7 @@ export class Bit {
                     }
 
                     await Info.deleteBlockCheckpointHash(index - 11);
-                    await Info.updateBlockCheckpoint(index, await self.rpc.getBlockHash(index));
+                    await Info.updateBlockCheckpoint(index, await RpcClient.getBlockHash(index));
                     console.timeEnd('[PERF] DB Insert ' + index);
 
                     // re-check current height in case it was updated during crawl()
@@ -466,7 +465,7 @@ export class Bit {
     }
 
     private static async checkForBlockReorg(self: Bit, lastCheckpoint: ChainSyncCheckpoint): Promise<ChainSyncCheckpoint> {
-        let actualHash = await self.rpc.getBlockHash(lastCheckpoint.height);
+        let actualHash = await RpcClient.getBlockHash(lastCheckpoint.height);
         // ignore this re-org check if the checkpoint block hash is null
         if (lastCheckpoint.hash) {
             let lastCheckedHash = lastCheckpoint.hash;
@@ -475,7 +474,7 @@ export class Bit {
             while (lastCheckedHash !== actualHash && lastCheckedHeight > from) {
                 await Info.updateBlockCheckpoint(lastCheckedHeight, null);
                 lastCheckedHash = await Info.getCheckpointHash(--lastCheckedHeight);
-                actualHash = (<BlockHeaderResult>await self.rpc.getBlockInfo({hash: actualHash})).previousblockhash;
+                actualHash = (<BlockHeaderResult>await RpcClient.getBlockInfo({hash: actualHash})).previousblockhash;
             }
             if(lastCheckpoint.hash !== lastCheckedHash)
                 await Info.updateBlockCheckpoint(lastCheckedHeight, lastCheckedHash);

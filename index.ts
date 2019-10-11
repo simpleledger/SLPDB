@@ -11,15 +11,15 @@ import { SlpGraphManager } from './slpgraphmanager';
 import { TokenFilterRule, TokenFilter } from './filters';
 
 const db = new Db();
-const rpc = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
-const bit = new Bit(db, rpc);
+new RpcClient({ useGrpc: Boolean(Config.grpc.url) });
+const bit = new Bit(db);
 let tokenManager: SlpGraphManager;
-new SlpdbStatus(db, rpc, process.argv);
+new SlpdbStatus(db, process.argv);
 
 const daemon = {
     run: async function({ startHeight, loadFromDb=true }: { startHeight?: number, loadFromDb?: boolean} ) {
         let network!: string;
-        network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
+        network = (await RpcClient.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
         await Info.setNetwork(network);
         await db.init();
 
@@ -33,7 +33,7 @@ const daemon = {
 
         // test RPC connection
         console.log("[INFO] Testing RPC connection...");
-        await rpc.getBlockCount();
+        await RpcClient.getBlockCount();
         console.log("[INFO] RPC is initialized.");
 
         // set start height override
@@ -78,7 +78,7 @@ const daemon = {
         console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
 
         console.log('[INFO] Starting to processing SLP Data.', new Date());
-        let currentHeight = await rpc.getBlockCount();
+        let currentHeight = await RpcClient.getBlockCount();
         tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
         bit._slpGraphManager = tokenManager;
         bit.listenToZmq();
@@ -111,7 +111,7 @@ const daemon = {
 
 const util = {
     reprocess_token: async function(tokenId: string) {
-        let network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet'
+        let network = (await RpcClient.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet'
         await Info.setNetwork(network);
         await db.init();
         await bit.init();
@@ -123,7 +123,7 @@ const util = {
         console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
         let filter = new TokenFilter();
         filter.addRule(new TokenFilterRule({ name: "unknown", info: tokenId, type: 'include-single'}));
-        let currentHeight = await rpc.getBlockCount();
+        let currentHeight = await RpcClient.getBlockCount();
         let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
         bit._slpGraphManager = tokenManager;
         bit.listenToZmq();
@@ -140,14 +140,14 @@ const util = {
         includeTokenIds.forEach(i => {
             filter.addRule(new TokenFilterRule({ name: "unknown", info: i, type: 'include-single'}));
         });
-        let network = (await rpc.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
+        let network = (await RpcClient.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
         await Info.setNetwork(network);
         await db.init();
-        let currentHeight = await rpc.getBlockCount();
+        let currentHeight = await RpcClient.getBlockCount();
         let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
         await tokenManager.initAllTokens({ reprocessFrom: 0, reprocessTo: block_height });
         await tokenManager._startupQueue.onIdle();
-        let blockhash = await rpc.getBlockHash(block_height+1);
+        let blockhash = await RpcClient.getBlockHash(block_height+1);
         await tokenManager.onBlockHash(blockhash);
         await Info.updateBlockCheckpoint(block_height, null);
         console.log("[INFO] Reset block done.")

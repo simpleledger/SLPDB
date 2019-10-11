@@ -23,6 +23,11 @@ export class CacheSet<T> {
         return this.set.has(item);
     }
 
+    delete(item: T) {
+        if(this.set.delete(item))
+            this.list = this.list.filter(k => k !== item);
+    }
+
     toSet() {
         return this.set;
     }
@@ -67,6 +72,11 @@ export class CacheMap<T, M> {
 
     has(key: T) {
         return this.map.has(key);
+    }
+
+    delete(key: T) {
+        if(this.map.delete(key))
+            this.list = this.list.filter(k => k !== key);
     }
 
     toMap() {

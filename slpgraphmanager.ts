@@ -29,7 +29,6 @@ const slp = new Slp(bitcoin);
 export class SlpGraphManager {
     db: Db;
     _tokens!: Map<string, SlpTokenGraph>;
-    _rpcClient: RpcClient;
     zmqPubSocket?: zmq.Socket;
     _zmqMempoolPubSetList = new CacheSet<string>(1000);
     _TnaQueue?: pQueue<pQueue.DefaultAddOptions>;
@@ -115,7 +114,7 @@ export class SlpGraphManager {
     }
 
     async simulateOnTransactionHash(txid: string) {
-        let txhex = <txhex>await this._rpcClient.getRawTransaction(txid);
+        let txhex = <txhex>await RpcClient.getRawTransaction(txid);
         let txmap = new Map<txid, txhex>();
         txmap.set(txid, txhex);
         let content = new Map<SyncFilterTypes, Map<txid, txhex>>();
@@ -160,7 +159,7 @@ export class SlpGraphManager {
             // TODO: NEED TO LOOP THROUGH ALL BLOCK TRANSACTIONS TO UPDATE BLOCK HASH
             let blockTxids = new Set<string>([...block.txns.map(i => i.txid)]);
             for(let i = 0; i < block.txns.length; i++) {
-                let tokenDetails = this.parseTokenTransactionDetails(await this._rpcClient.getRawTransaction(block.txns[i]!.txid));
+                let tokenDetails = this.parseTokenTransactionDetails(await RpcClient.getRawTransaction(block.txns[i]!.txid));
                 let tokenId = tokenDetails ? tokenDetails.tokenIdHex : null;
                 if(tokenId && this._tokens.has(tokenId)) {
                     let token = this._tokens.get(tokenId)!
@@ -213,7 +212,6 @@ export class SlpGraphManager {
         this._bestBlockHeight = currentBestHeight;
         this._network = network;
         this._tokens = new Map<string, SlpTokenGraph>();
-        this._rpcClient = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
         this._bit = bit;
         this._filter = filter;
         let self = this;
@@ -251,7 +249,7 @@ export class SlpGraphManager {
 
     async searchBlockForBurnedSlpTxos(block_hash: string) {
         console.log('[INFO] Starting to look for any burned tokens resulting from non-SLP transactions');
-        let blockHex = <string>await this._rpcClient.getRawBlock(block_hash);
+        let blockHex = <string>await RpcClient.getRawBlock(block_hash);
         let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
         let graphPromises: Promise<void>[] = [];
         console.time("BlockSearchForBurn-"+block_hash);
@@ -316,8 +314,8 @@ export class SlpGraphManager {
                 // Here we fix missing block data
                 if(collection === 'confirmed' && !tna.blk) {
                     console.log("[INFO] Updating", collection, "TNATxn block data for", txid);
-                    let txnBlockhash = <string>await this._rpcClient.getTransactionBlockHash(txid);
-                    let block = <BlockHeaderResult>await this._rpcClient.getBlockInfo({ hash: txnBlockhash});
+                    let txnBlockhash = <string>await RpcClient.getTransactionBlockHash(txid);
+                    let block = <BlockHeaderResult>await RpcClient.getBlockInfo({ hash: txnBlockhash});
                     tna.blk = {
                         h: txnBlockhash, 
                         i: block.height, 
@@ -336,7 +334,7 @@ export class SlpGraphManager {
                     let tokenDetails: SlpTransactionDetails|null = null;
 
                     if(!tokenId) {
-                        let txhex = <string>await this._rpcClient.getRawTransaction(tna.tx.h);
+                        let txhex = <string>await RpcClient.getRawTransaction(tna.tx.h);
                         let bt = new bitcore.Transaction(txhex);
                         try {
                             tokenDetails = slp.parseSlpOutputScript(bt.outputs[0]._scriptBuffer);
@@ -631,7 +629,7 @@ export class SlpGraphManager {
         let graph = new SlpTokenGraph(this.db, this, this._network);
         let txn;
         try {
-            txn = <string>await this._rpcClient.getRawTransaction(tokenId, false);
+            txn = <string>await RpcClient.getRawTransaction(tokenId, false);
         } catch(_) {
             console.log(`[WARN] No such parent token ID exists on the blockchain (token ID: ${tokenId}`);
             return null;

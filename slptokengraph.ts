@@ -28,8 +28,7 @@ export class SlpTokenGraph implements TokenGraph {
     _nftParentId?: string;
     _graphTxns = new Map<string, GraphTxn>();
     _addresses = new Map<cashAddr, AddressBalance>();
-    _rpcClient = new RpcClient({useGrpc: Boolean(Config.grpc.url) });
-    _slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await this._rpcClient.getRawTransaction(txids[0]) ], console);
+    _slpValidator = new LocalValidator(bitbox, async (txids) => [ <string>await RpcClient.getRawTransaction(txids[0]) ], console);
     _network: string;
     _db: Db;
     _graphUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: false });
@@ -63,7 +62,7 @@ export class SlpTokenGraph implements TokenGraph {
             }
 
             // set genesis block hash
-            let genesisBlockHash = await this._rpcClient.getTransactionBlockHash(this._tokenDetails.tokenIdHex);
+            let genesisBlockHash = await RpcClient.getTransactionBlockHash(this._tokenDetails.tokenIdHex);
             if(genesisBlockHash)
                 this._graphTxns.get(this._tokenDetails.tokenIdHex)!.blockHash = Buffer.from(genesisBlockHash, 'hex');
 
@@ -131,7 +130,7 @@ export class SlpTokenGraph implements TokenGraph {
                         o.status !== TokenUtxoStatus.SPENT_NOT_IN_SEND &&
                         o.status !== TokenUtxoStatus.SPENT_WRONG_TOKEN
                     ){
-                        console.log(`[INFO] Token UTXO added: ${txid}:${o.vout}}`);
+                        console.log(`[INFO] Token UTXO added: ${txid}:${o.vout}`);
                         this._tokenUtxos.add(txid + ":" + o.vout);
                     }
                 });
@@ -177,7 +176,7 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     async getMintBatonSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number; processUpTo?: number }): Promise<MintSpendDetails> {
-        let txOut = await this._rpcClient.getTxOut(txid, vout);
+        let txOut = await RpcClient.getTxOut(txid, vout);
         if(txOut === null) {
             try {
                 let spendTxnInfo = await Query.queryForTxoInputAsSlpMint(txid, vout);
@@ -220,7 +219,7 @@ export class SlpTokenGraph implements TokenGraph {
         if(!cachedSpendTxnInfo)
             cachedSpendTxnInfo = this._liveTxoSpendCache.get(txid + ":" + vout);
         if(!cachedSpendTxnInfo)
-            txOut = await this._rpcClient.getTxOut(txid, vout);
+            txOut = await RpcClient.getTxOut(txid, vout);
         if(cachedSpendTxnInfo || !txOut) {
             //await this.addNewUtxo()
             //this._tokenUtxos.delete(txid + ":" + vout);
@@ -295,12 +294,12 @@ export class SlpTokenGraph implements TokenGraph {
                 // if block then we should check for double-spends for all graph txns with null blockHash
                 if(block) {
                     let txnsWithNoBlock = Array.from(self._graphTxns).filter(i => !i[1].blockHash);
-                    let mempool = await self._rpcClient.getRawMemPool();
+                    let mempool = await RpcClient.getRawMemPool();
                     await self.asyncForEach(txnsWithNoBlock, async (i: [string, GraphTxn]) => {
                         let txid = i[0];
                         if(!mempool.includes(txid)) {
                             try {
-                                await self._rpcClient.getRawTransaction(txid);
+                                await RpcClient.getRawTransaction(txid);
                             } catch(_) {
                                 self._graphTxns.delete(txid);
                                 delete self._slpValidator.cachedRawTransactions[txid];
@@ -327,7 +326,7 @@ export class SlpTokenGraph implements TokenGraph {
         if(block) {
             if(!(block.transactions.has(txid))) {
                 try {
-                    await this._rpcClient.getTransactionBlockHash(txid);
+                    await RpcClient.getTransactionBlockHash(txid);
                 } catch (_) {
                     this.deleteAllChildren(txid, true);
                     return null;
@@ -353,7 +352,7 @@ export class SlpTokenGraph implements TokenGraph {
                     if(!skip.includes(status)) {
                         if(spendTxid) {
                             try {
-                                await this._rpcClient.getRawTransaction(txid);
+                                await RpcClient.getRawTransaction(txid);
                             } catch(_) {
                                 console.log(`[INFO] Found an output with non-existant spend txid.`);
                                 console.log(`[INFO] Will delete ${spendTxid} and all txns downstream.`);
@@ -693,13 +692,13 @@ export class SlpTokenGraph implements TokenGraph {
         let vout = parseInt(txo.split(":")[1]);
         let txout = null;
         try {
-            txout = await this._rpcClient.getTxOut(txid, vout);
+            txout = await RpcClient.getTxOut(txid, vout);
         } catch(_) { }
         if(!txout) {
             // check for a double spent transaction
             let txn;
             try {
-                txn = await this._rpcClient.getRawTransaction(txid);
+                txn = await RpcClient.getRawTransaction(txid);
             } catch(_) {}
             if(txn) {
                 console.log("[INFO] updateTxoIfSpent(): Updating token graph for TXO",txo);
@@ -750,7 +749,7 @@ export class SlpTokenGraph implements TokenGraph {
                 let hash: string;
                 console.log("[INFO] Querying block hash for graph transaction", key);
                 try {
-                    hash = await this._rpcClient.getTransactionBlockHash(key);
+                    hash = await RpcClient.getTransactionBlockHash(key);
                     console.log(`[INFO] Block hash: ${hash} for ${key}`);
                     // add delay to prevent flooding rpc
                     if(count++ > 1000) {
@@ -771,7 +770,7 @@ export class SlpTokenGraph implements TokenGraph {
                 } 
                 else {
                     console.log("[INFO] Making sure thransaction is in BCH mempool.");
-                    let mempool = await this._rpcClient.getRawMemPool();
+                    let mempool = await RpcClient.getRawMemPool();
                     if(mempool.includes) {
                         continue;
                     }

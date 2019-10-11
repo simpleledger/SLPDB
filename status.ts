@@ -35,9 +35,8 @@ export class SlpdbStatus {
     static getSlpTokensCount = function() { return -1; }
     static getSyncdCheckpoint: () => Promise<ChainSyncCheckpoint> = async function() { return { hash: '', height: -1 }; }
 
-    constructor(db: Db, rpc: RpcClient, startCmd: string[]) {
+    constructor(db: Db, startCmd: string[]) {
         SlpdbStatus.db = db;
-        SlpdbStatus.rpc = rpc;
         SlpdbStatus.setState(SlpdbState.PRE_STARTUP);
         SlpdbStatus.versionHash = SlpdbStatus.getVersion();
         SlpdbStatus.deplVersionHash = SlpdbStatus.getDeplVersion();
@@ -126,7 +125,7 @@ export class SlpdbStatus {
 
         let mempoolInfo = null;
         try {
-            mempoolInfo = await SlpdbStatus.rpc.getMempoolInfo();
+            mempoolInfo = await RpcClient.getMempoolInfo();
         } catch (_) { }
 
         let stackTraces = SlpdbStatus.pastStackTraces.map(t => {
