@@ -622,10 +622,7 @@ export class SlpGraphManager {
         if(graph.IsValid && !this._exit) {
             let tokenId = graph._tokenDetails.tokenIdHex;
             this._tokens.set(tokenId, graph);
-            await this.db.tokenInsertReplace(graph.toTokenDbObject());
-            await this.db.graphInsertReplace(graph.toGraphDbObject(), tokenId);
-            await this.db.utxoInsertReplace(graph.toUtxosDbObject(), tokenId);
-            await this.db.addressInsertReplace(graph.toAddressesDbObject(), tokenId);
+            await this.db.updateTokenGraph(graph);
         }
     }
 

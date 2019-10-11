@@ -836,10 +836,8 @@ export class SlpTokenGraph implements TokenGraph {
             }
 
             if(saveToDb && !this._exit) {
-                await this._db.tokenInsertReplace(this.toTokenDbObject());
-                await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
-                await this._db.graphInsertReplace(this.toGraphDbObject(), this._tokenDetails.tokenIdHex);
-                await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
+                // mongoDB transaction 
+                await this._db.updateTokenGraph(this);
             }
 
             console.log("########################################################################################################")
