@@ -176,34 +176,38 @@ export class SlpdbStatus {
     }
 
     private static async updateTelemetry(status: StatusDbo) {
-        let data = JSON.stringify({ status: status });
-        let options = {
-            hostname: Config.telemetry.host,
-            port: Config.telemetry.port,
-            path: '/status',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': data.length, 
-                'Authorization': await Info.getTelemetrySecret()
-            }
-        };
-        let req = https.request(options, res => {
-            console.log(`[INFO] Telementry response code: ${res.statusCode}`);
-            res.on('data', d => {
-                console.log(`[INFO] Telemetry response from ${Config.telemetry.host}: ${d.toString('utf8')}`);
-                Info.setTelemetrySecret(d.secretKey);
+        try {
+            let data = JSON.stringify({ status: status });
+            let options = {
+                hostname: Config.telemetry.host,
+                port: Config.telemetry.port,
+                path: '/status',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': data.length, 
+                    'Authorization': await Info.getTelemetrySecret()
+                }
+            };
+            let req = https.request(options, res => {
+                console.log(`[INFO] Telementry response code: ${res.statusCode}`);
+                res.on('data', d => {
+                    console.log(`[INFO] Telemetry response from ${Config.telemetry.host}: ${d.toString('utf8')}`);
+                    Info.setTelemetrySecret(d.secretKey);
+                });
             });
-        });
-        req.on('error', error => {
-            let reason = error.message;
-            if (Config.telemetry.host === '')
-                reason = "Env var 'telemetry_host' is not set";
-            console.log("[ERROR] Telemetry update failed. Reason:", reason);
-        });
-        console.log(`[INFO] Sending telemetry update to ${Config.telemetry.host} for ${await Info.getTelemetryName()}...`);
-        req.write(data);
-        req.end();
+            req.on('error', error => {
+                let reason = error.message;
+                if (Config.telemetry.host === '')
+                    reason = "Env var 'telemetry_host' is not set";
+                console.log("[ERROR] Telemetry update failed. Reason:", reason);
+            });
+            console.log(`[INFO] Sending telemetry update to ${Config.telemetry.host} for ${await Info.getTelemetryName()}...`);
+            req.write(data);
+            req.end();
+        } catch (err) {
+            console.log(`[ERROR] Could not updateTelemetry: ${err}`);
+        }
     }
 
     static async loadPreviousAttributes() {
