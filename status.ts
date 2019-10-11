@@ -213,7 +213,10 @@ export class SlpdbStatus {
         let dbo = await SlpdbStatus.db.statusFetch("SLPDB");
         try {
             SlpdbStatus.pastStackTraces = dbo.pastStackTraces;
-            dbo.stateHistory.array.forEach((state: { utc: string, state: SlpdbState }) => { SlpdbStatus.stateHistory.push(state); });
+            let history = new CacheSet<{ utc: string, state: SlpdbState }>(10);
+            dbo.stateHistory.forEach((state: { utc: string, state: SlpdbState }) => { history.push(state); });
+            Array.from(SlpdbStatus.stateHistory.toSet()).forEach((state: { utc: string, state: SlpdbState }) => { history.push(state); });
+            SlpdbStatus.stateHistory = history;
         } catch(_) {}
     }
 
