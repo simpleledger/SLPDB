@@ -477,7 +477,9 @@ export class Bit {
             let lastCheckedHash = lastCheckpoint.hash;
             let lastCheckedHeight = lastCheckpoint.height;
             let from = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
-            while (lastCheckedHash !== actualHash && lastCheckedHeight > from) {
+            let maxRollback = 10;
+            let rollbackCount = 0;
+            while (lastCheckedHash !== actualHash && lastCheckedHeight > from && rollbackCount++ < maxRollback) {
                 await Info.updateBlockCheckpoint(lastCheckedHeight, null);
                 lastCheckedHash = await Info.getCheckpointHash(--lastCheckedHeight);
                 actualHash = (<BlockHeaderResult>await RpcClient.getBlockInfo({hash: actualHash})).previousblockhash;
