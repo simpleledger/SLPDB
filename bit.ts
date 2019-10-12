@@ -136,13 +136,15 @@ export class Bit {
             let txo = `${input.previousTxHash}:${input.previousTxOutIndex}`
             if(this._spentTxoCache.has(txo)) {
                 let doubleSpentTxid = this._spentTxoCache.get(txo)!;
-                console.log(`[INFO] Detected double spent ${txo} --> original: ${doubleSpentTxid}, current: ${txid}`);
-                this.slpMempool.delete(doubleSpentTxid);
-                RpcClient.transactionCache.delete(doubleSpentTxid);
-                this.db.unconfirmedDelete(doubleSpentTxid);
-                let date = new Date();
-                this.doubleSpendCacheList.set(txo, { originalTxid: doubleSpentTxid, current: txid, time: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }});
-                SlpdbStatus.doubleSpendHistory = Array.from(this.doubleSpendCacheList.toMap()).map(v => { return { txo: v[0], details: v[1]}});
+                if(doubleSpentTxid !== txid) {
+                    console.log(`[INFO] Detected double spent ${txo} --> original: ${doubleSpentTxid}, current: ${txid}`);
+                    this.slpMempool.delete(doubleSpentTxid);
+                    RpcClient.transactionCache.delete(doubleSpentTxid);
+                    this.db.unconfirmedDelete(doubleSpentTxid);
+                    let date = new Date();
+                    this.doubleSpendCacheList.set(txo, { originalTxid: doubleSpentTxid, current: txid, time: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }});
+                    SlpdbStatus.doubleSpendHistory = Array.from(this.doubleSpendCacheList.toMap()).map(v => { return { txo: v[0], details: v[1]}});
+                }
             }
             this._spentTxoCache.set(txo, txid);
         });
