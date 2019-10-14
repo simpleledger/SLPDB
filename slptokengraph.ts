@@ -436,7 +436,7 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
         // Wait for mempool and block sync to complete before proceeding to update anything on graph.
-        while(!this._manager.TnaSynced) {
+        while(!this._manager.TnaSynced && !this._exit) {
             console.log("[INFO] At updateTokenGraphFrom() - Waiting for TNA sync to complete before starting graph updates.");
             await sleep(500);
         }
@@ -759,6 +759,8 @@ export class SlpTokenGraph implements TokenGraph {
         }
         let count = 0;
         for(let key of Array.from( this._graphTxns.keys() )) {
+            if(this._exit)
+                return;
             if(this._graphTxns.has(key) && 
                 !this._graphTxns.get(key)!.blockHash && 
                 !this._manager._bit.slpMempool.has(key))

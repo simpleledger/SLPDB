@@ -252,6 +252,11 @@ async function shutdown(signal: string) {
     } catch (_) {}
 
     try {
+        bit.notifications.sock.close();
+        console.log('[INFO] ZMQ socket closed.');
+    } catch (_) {}
+
+    try {
         await tokenManager.stop();
         let tokens = Array.from(tokenManager._tokens);
         for (let i = 0; i < tokens.length; i++) {

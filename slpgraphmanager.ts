@@ -140,7 +140,7 @@ export class SlpGraphManager {
     }
 
     async _onBlockHash(hash: string): Promise<void> {
-        while(!this.TnaSynced) {
+        while(!this.TnaSynced && !this._exit) {
             console.log("[INFO] At _onBlockHash() - Waiting for TNA sync to complete before we update tokens included in block.");
             await sleep(1000);
         }
@@ -314,6 +314,8 @@ export class SlpGraphManager {
         let count = 0;
         let collections = [ 'confirmed', 'unconfirmed' ];
         await this.asyncForEach(collections, async (collection: string) => {
+            if(this._exit)
+                return;
             let tna: TNATxn | null = await this.db.db.collection(collection).findOne({ "tx.h": txid });
             if (tna) {
                 count++;
