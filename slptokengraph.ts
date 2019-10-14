@@ -604,12 +604,16 @@ export class SlpTokenGraph implements TokenGraph {
 
             let txout: GraphTxnOutput|undefined;
             try {
-                txout = this._graphTxns.get(txid)!.outputs[vout-1]
+                txout = this._graphTxns.get(txid)!.outputs.find(o => vout === o.vout);
             } catch(_) {
-                await this.updateTokenGraphFrom({ txid })
+                await this.updateTokenGraphFrom({ txid });
                 if(!this._tokenUtxos.has(utxo))
                     return
-                txout = this._graphTxns.get(txid)!.outputs[vout-1]
+                if(!this._graphTxns.has(txid)) {
+                    this._tokenUtxos.delete(utxo);
+                    return
+                }
+                txout = this._graphTxns.get(txid)!.outputs.find(o => vout === o.vout);
             }
             
             if(txout) {
