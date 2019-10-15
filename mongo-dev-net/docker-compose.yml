@@ -1,0 +1,50 @@
+version: "3"
+services:
+  mongo1:
+    hostname: mongo1
+    container_name: mongo1
+    image: mongo:4.2
+    volumes:
+      - ./data1/db:/data/db
+      - ./data1/configdb:/data/configdb
+    networks:
+      - replicaset
+    expose:
+      - 27017
+    ports:
+      - 27017:27017
+    restart: always
+    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "devrs" ]
+  # mongo2:
+  #   hostname: mongo2
+  #   container_name: mongo2
+  #   image: mongo:4.2
+  #   volumes:
+  #     - ./data2/db:/data/db
+  #     - ./data2/configdb:/data/configdb
+  #   networks:
+  #     - replicaset
+  #   expose:
+  #     - 27017
+  #   ports:
+  #     - 30002:27017
+  #   restart: always
+  #   entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "devrs" ]
+  # mongo3:
+  #   hostname: mongo3
+  #   container_name: mongo3
+  #   image: mongo:4.2
+  #   volumes:
+  #     - ./data3/db:/data/db
+  #     - ./data3/configdb:/data/configdb
+  #   networks:
+  #     - replicaset
+  #   expose:
+  #     - 27017
+  #   ports:
+  #     - 30003:27017
+  #   restart: always
+  #   entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "devrs" ]
+
+networks:
+  replicaset:
