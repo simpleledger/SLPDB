@@ -144,6 +144,8 @@ export class SlpGraphManager {
             console.log("[INFO] At _onBlockHash() - Waiting for TNA sync to complete before we update tokens included in block.");
             await sleep(1000);
         }
+        if(this._exit)
+            return;
         let block = await Query.getTransactionsForBlock(hash);
         if(block) {
             // update tokens collection timestamps on confirmation for Genesis transactions
@@ -608,12 +610,8 @@ export class SlpGraphManager {
         this._exit = true;
         this._updatesQueue.pause();
         this._updatesQueue.clear();
-        if(this._updatesQueue.pending)
-            await this._updatesQueue.onIdle();
         this._startupQueue.pause();
         this._startupQueue.clear();
-        if(this._startupQueue.pending)
-            await this._startupQueue.onIdle();
     }
 
     private async updateTxnCollectionsForTokenId(tokenid: string) {

@@ -86,12 +86,8 @@ export class SlpTokenGraph implements TokenGraph {
         this._exit = true;
         this._graphUpdateQueue.pause();
         this._graphUpdateQueue.clear();
-        if (this._graphUpdateQueue.pending)
-            await this._graphUpdateQueue.onIdle();
         this._statsUpdateQueue.pause();
         this._statsUpdateQueue.clear();
-        if (this._statsUpdateQueue.pending)
-            await this._graphUpdateQueue.onIdle();
     }
 
     private async setNftParentId() {
@@ -440,6 +436,8 @@ export class SlpTokenGraph implements TokenGraph {
             console.log("[INFO] At updateTokenGraphFrom() - Waiting for TNA sync to complete before starting graph updates.");
             await sleep(500);
         }
+        if(this._exit)
+            return false;
 
         // Create or update SLP graph outputs for each valid SLP output
         if(updateOutputs || graphTxn.outputs.length === 0) {
