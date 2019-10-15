@@ -2,6 +2,7 @@ export interface DbConfig {
 	name: string; 
 	name_testnet: string;
 	url: string; 
+	mongo_replica_set: boolean;
 	index: { [key: string]: { [key: string]: string[] } };
 	token_schema_version: number;
 	confirmed_schema_version: number;
@@ -30,6 +31,7 @@ export class Config {
 		name: process.env.db_name ? process.env.db_name : 'slpdb',
 		name_testnet: process.env.db_name ? process.env.db_name + "_test" : 'slpdb_testnet',
 		url: process.env.db_url ? process.env.db_url : 'mongodb://localhost:27017',
+		mongo_replica_set: process.env.mongo_replica_set ? Boolean(process.env.mongo_replica_set) : true,
 		confirmed_schema_version: 2,
 		token_schema_version: 73,
 		index: {

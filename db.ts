@@ -16,10 +16,22 @@ export class Db {
     async init() {
         let network = await Info.getNetwork();
         console.log("[INFO] Initializing MongoDB...")
-        this.mongo = await MongoClient.connect(this.config.url, { useNewUrlParser: true, useUnifiedTopology: true })
+        this.mongo = new MongoClient(this.config.url, { useNewUrlParser: true, useUnifiedTopology: true });
+        await this.mongo.connect();
         let dbname = network === 'mainnet' ? this.config.name : this.config.name_testnet;
         this.db = this.mongo.db(dbname);
-        console.log("[INFO] MongoDB initialized.")
+        if(Config.db.mongo_replica_set) {
+            let res = await this.db.executeDbAdminCommand( { getParameter: 1, featureCompatibilityVersion: 1  });
+            if(res.featureCompatibilityVersion.version !== "4.2") {
+                try {
+                    await this.db.executeDbAdminCommand({ setFeatureCompatibilityVersion: "4.2" });
+                } catch(err) {        
+                    throw Error(`You must install MongoDB 4.2 and restart the DB.`);
+                }
+                throw Error(`You must restart SLPDB.`);
+            }
+        }
+        console.log("[INFO] MongoDB initialized.");
     }
 
     async exit() {
@@ -27,17 +39,25 @@ export class Db {
     }
 
     async updateTokenGraph(tokenGraph: SlpTokenGraph) {
-        const session = this.mongo.startSession();
-        let self = this;
-        try {
-            await session.withTransaction(async function() {
-                await self.tokenInsertReplace(tokenGraph.toTokenDbObject(), session);
-                await self.addressInsertReplace(tokenGraph.toAddressesDbObject(), tokenGraph._tokenDetails.tokenIdHex, session);
-                await self.graphInsertReplace(tokenGraph.toGraphDbObject(), tokenGraph._tokenDetails.tokenIdHex, session);
-                await self.utxoInsertReplace(tokenGraph.toUtxosDbObject(), tokenGraph._tokenDetails.tokenIdHex, session);
-            });
-        } catch(err) {
-            console.log(err);
+        if(Config.db.mongo_replica_set) {
+            const session = this.mongo.startSession();
+            session.startTransaction();
+            try {
+                await this.tokenInsertReplace(tokenGraph.toTokenDbObject(), session);
+                await this.addressInsertReplace(tokenGraph.toAddressesDbObject(), tokenGraph._tokenDetails.tokenIdHex, session);
+                await this.graphInsertReplace(tokenGraph.toGraphDbObject(), tokenGraph._tokenDetails.tokenIdHex, session);
+                await this.utxoInsertReplace(tokenGraph.toUtxosDbObject(), tokenGraph._tokenDetails.tokenIdHex, session);
+            } catch(error) {
+                session.abortTransaction();
+                throw error;
+            }
+            await session.commitTransaction();
+            session.endSession();
+        } else {
+            await this.tokenInsertReplace(tokenGraph.toTokenDbObject());
+            await this.addressInsertReplace(tokenGraph.toAddressesDbObject(), tokenGraph._tokenDetails.tokenIdHex);
+            await this.graphInsertReplace(tokenGraph.toGraphDbObject(), tokenGraph._tokenDetails.tokenIdHex);
+            await this.utxoInsertReplace(tokenGraph.toUtxosDbObject(), tokenGraph._tokenDetails.tokenIdHex);
         }
     }
 
@@ -50,9 +70,9 @@ export class Db {
         return await this.db.collection('statuses').findOne({ "context": context });
     }
 
-    async tokenInsertReplace(token: any, session: ClientSession) {
-        await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex }, { session })
-        return await this.db.collection('tokens').insertMany([ token ], { session });
+    async tokenInsertReplace(token: any, session?: ClientSession) {
+        await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex }, session ? { session } : undefined)
+        return await this.db.collection('tokens').insertMany([ token ], session ? { session } : undefined);
     }
 
     // async tokenreplace(token: any) {
@@ -76,10 +96,10 @@ export class Db {
         })
     }
 
-    async graphInsertReplace(graph: GraphTxnDbo[], tokenIdHex: string, session: ClientSession) {
-        await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex }, { session });
+    async graphInsertReplace(graph: GraphTxnDbo[], tokenIdHex: string, session?: ClientSession) {
+        await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex }, session ? { session } : undefined);
         if(graph.length > 0) {
-            return await this.db.collection('graphs').insertMany(graph, { session });
+            return await this.db.collection('graphs').insertMany(graph, session ? { session } : undefined);
         }
     }
 
@@ -104,10 +124,10 @@ export class Db {
         })
     }
 
-    async addressInsertReplace(addresses: AddressBalancesDbo[], tokenIdHex: string, session: ClientSession) {
-        await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex }, { session })
+    async addressInsertReplace(addresses: AddressBalancesDbo[], tokenIdHex: string, session?: ClientSession) {
+        await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex }, session ? { session } : undefined)
         if(addresses.length > 0) {
-            return await this.db.collection('addresses').insertMany(addresses, { session });
+            return await this.db.collection('addresses').insertMany(addresses, session ? { session } : undefined);
         }
     }
 
@@ -132,10 +152,10 @@ export class Db {
         })
     }
 
-    async utxoInsertReplace(utxos: UtxoDbo[], tokenIdHex: string, session: ClientSession) {
-        await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex }, { session })
+    async utxoInsertReplace(utxos: UtxoDbo[], tokenIdHex: string, session?: ClientSession) {
+        await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex }, session ? { session } : undefined)
         if(utxos.length > 0) {
-            return await this.db.collection('utxos').insertMany(utxos, { session });
+            return await this.db.collection('utxos').insertMany(utxos, session ? { session } : undefined);
         }
     }
 
