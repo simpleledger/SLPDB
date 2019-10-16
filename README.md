@@ -119,7 +119,7 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 
 ###  4.5. <a name='RunningSLPDB'></a>Running SLPDB
 
-**1)** Run MongoDB (`config.ts` default port is 27017)
+**1)** Run MongoDB (see [config.ts](./config.ts) "db" section for possible db environment variables). It is recommended that you setup mongoDB as a replica set deployment so that [mongoDB transactions](https://docs.mongodb.com/manual/core/transactions/) can be utilized and ensure data integrity.  The environment variable `mongo_replica_set` should be set to `false` if you do not wish to utilize a mongoDB transactions.  You can setup a dockerized mongoDB replica set by following [these](./mongo-dev-net/README.md) instructions.
 
 **2)** Run Bitcoin Cash full node using `bitcoin.conf` settings from above.
 * [BitcoinABC](https://www.bitcoinabc.org)
