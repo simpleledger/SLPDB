@@ -22,7 +22,7 @@ export class Db {
         this.db = this.mongo.db(dbname);
         if(Config.db.mongo_replica_set) {
             let res = await this.db.executeDbAdminCommand( { getParameter: 1, featureCompatibilityVersion: 1  });
-            if(res.featureCompatibilityVersion.version !== "4.2") {
+            if(parseFloat(res.featureCompatibilityVersion.version) >= 4.2) {
                 try {
                     await this.db.executeDbAdminCommand({ setFeatureCompatibilityVersion: "4.2" });
                 } catch(err) {        

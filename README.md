@@ -82,7 +82,7 @@ The services `SlpServe` and `SlpSockServer` return query results as a JSON objec
 ###  4.1. <a name='Prerequisites'></a>Prerequisites
 * Node.js 12
 * TypeScript 3+ (`npm install -g typescript`)
-* MongoDB 4.0+
+* MongoDB 4.2+
 * BitcoinABC, BitcoinUnlimited or other Bitcoin Cash full node with:
   * RPC-JSON and 
   * ZeroMQ event notifications
