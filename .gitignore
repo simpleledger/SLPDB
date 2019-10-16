@@ -6,6 +6,7 @@ node_modules
 _leveldb
 _leveldb_testnet
 _mongo
+mongo-dev-net/data*
 .env
 
 .DS_Store
