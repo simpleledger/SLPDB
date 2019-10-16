@@ -215,24 +215,30 @@ export class Db {
     }
 
     async unconfirmedSync(items: TNATxn[]) {
-
-        await this.db.collection('unconfirmed').deleteMany({})
-        .catch(function(err) {
-            console.log('[ERROR] unconfirmedSync ERR ', err)
-        })
-
-        while (true) {
-            let chunk = items.splice(0, 1000)
-            if (chunk.length > 0) {
-                await this.db.collection('unconfirmed').insertMany(chunk, { ordered: false }).catch(function(err) {
-                    if (err.code !== 11000) {
-                        console.log('[ERROR] ## ERR ', err, items)
-                        throw err;
-                    }
-                })
-            } else {
-                break
+        let session: ClientSession|undefined;
+        try {
+            if(Config.db.mongo_replica_set) {
+                session = this.mongo.startSession();
+                session.startTransaction();
             }
+            await this.db.collection('unconfirmed').deleteMany({}, session ? { session } : undefined);
+            while (true) {
+                let chunk = items.splice(0, 1000);
+                if (chunk.length > 0) {
+                    try {
+                        await this.db.collection('unconfirmed').insertMany(chunk, session ? { session, ordered: false } : { ordered: false });
+                    } catch(error) {
+                        if (error.code !== 11000) {
+                            console.log('[ERROR] ## ERR ', error, items);
+                            throw error;
+                        }
+                    }
+                } else {
+                    break;
+                }
+            }
+        } catch(error) {
+            console.log('[ERROR] unconfirmedSync ERR ', error);
         }
     }
 
@@ -248,83 +254,92 @@ export class Db {
     }
 
     async confirmedReplace(items: TNATxn[], requireSlpMetadata=true, block_index?: number) {
-
-        if(requireSlpMetadata) {
-            if(items.filter(i => !i.slp).length > 0) {
-                console.log(items.filter(i => !i.slp).map(i => i.tx.h));
-                //throw Error("Attempted to add items without SLP property.");
+        let session: ClientSession|undefined;
+        try {
+            if(Config.db.mongo_replica_set) {
+                session = this.mongo.startSession();
+                session.startTransaction();
             }
-        }
-
-        if(items.filter(i => !i.blk).length > 0) {
-            //console.log(items.filter(i => !i.slp).map(i => i.tx.h));
-            throw Error("Attempted to add items without BLK property.");
-        }
-
-        if(block_index) {
-            console.log('[INFO] Deleting confirmed transactions in block:', block_index)
-            try {
-                await this.db.collection('confirmed').deleteMany({ 'blk.i': block_index })
-            } catch(err) {
-                console.log('confirmedReplace ERR ', err)
-                throw err;
-            }
-            console.log('[INFO] Updating block', block_index, 'with', items.length, 'items')
-        } else {
-            for(let i=0; i < items.length; i++) {
-                await this.db.collection('confirmed').deleteMany({ "tx.h": items[i].tx.h })
-            }
-        }
-
-
-        let index = 0
-        while (true) {
-            let chunk = items.slice(index, index+1000)
-            if (chunk.length > 0) {
-                try {
-                    await this.db.collection('confirmed').insertMany(chunk, { ordered: false })
-                } catch(err) {
-                    // duplicates are ok because they will be ignored
-                    if (err.code !== 11000) {
-                        console.log('[ERROR] confirmedReplace ERR ', err, items)
-                        throw err;
-                    }
+            if(requireSlpMetadata) {
+                if(items.filter(i => !i.slp).length > 0) {
+                    console.log(items.filter(i => !i.slp).map(i => i.tx.h));
+                    //throw Error("Attempted to add items without SLP property.");
                 }
-                index+=1000
-            } else {
-                break
             }
+
+            if(items.filter(i => !i.blk).length > 0) {
+                //console.log(items.filter(i => !i.slp).map(i => i.tx.h));
+                throw Error("Attempted to add items without BLK property.");
+            }
+
+            if(block_index) {
+                console.log('[INFO] Deleting confirmed transactions in block:', block_index)
+                await this.db.collection('confirmed').deleteMany({ 'blk.i': block_index }, session ? { session } : undefined);
+                console.log('[INFO] Updating block', block_index, 'with', items.length, 'items');
+            } else {
+                for(let i=0; i < items.length; i++) {
+                    await this.db.collection('confirmed').deleteMany({ "tx.h": items[i].tx.h }, session ? { session } : undefined);
+                }
+            }
+
+            let index = 0
+            while (true) {
+                let chunk = items.slice(index, index+1000);
+                if (chunk.length > 0) {
+                    try {
+                        await this.db.collection('confirmed').insertMany(chunk, session ? { session, ordered: false } : { ordered: false });
+                    } catch(err) {
+                        // duplicates are ok because they will be ignored
+                        if (err.code !== 11000) {
+                            console.log('[ERROR] confirmedReplace ERR ', err, items);
+                            throw err;
+                        }
+                    }
+                    index+=1000;
+                } else {
+                    break;
+                }
+            }
+        } catch(error) {
+            console.log('[ERROR] confirmedReplace ERR');
+            if(session)
+                session.abortTransaction();
+            throw error;
+        }
+        if(session) {
+            await session.commitTransaction();
+            session.endSession();
         }
     }
 
-    async confirmedInsert(items: TNATxn[], requireSlpMetadata: boolean) {
+    // async confirmedInsert(items: TNATxn[], requireSlpMetadata: boolean) {
 
-        if(requireSlpMetadata) {
-            if(items.filter(i => !i.slp).length > 0) {
-                console.log(items.filter(i => !i.slp).map(i => i.tx.h));
-                //throw Error("Attempted to add items without SLP property.");
-            }
-        }
+    //     if(requireSlpMetadata) {
+    //         if(items.filter(i => !i.slp).length > 0) {
+    //             console.log(items.filter(i => !i.slp).map(i => i.tx.h));
+    //             //throw Error("Attempted to add items without SLP property.");
+    //         }
+    //     }
 
-        let index = 0
-        while (true) {
-            let chunk = items.slice(index, index + 1000)
-            if (chunk.length > 0) {
-                try {
-                    await this.db.collection('confirmed').insertMany(chunk, { ordered: false })
-                } catch (e) {
-                // duplicates are ok because they will be ignored
-                    if (e.code !== 11000) {
-                        console.log('[ERROR] confirmedInsert error:', e, items)
-                        throw e
-                    }
-                }
-                index+=1000
-            } else {
-                break
-            }
-        }
-    }
+    //     let index = 0
+    //     while (true) {
+    //         let chunk = items.slice(index, index + 1000)
+    //         if (chunk.length > 0) {
+    //             try {
+    //                 await this.db.collection('confirmed').insertMany(chunk, { ordered: false })
+    //             } catch (e) {
+    //             // duplicates are ok because they will be ignored
+    //                 if (e.code !== 11000) {
+    //                     console.log('[ERROR] confirmedInsert error:', e, items)
+    //                     throw e
+    //                 }
+    //             }
+    //             index+=1000
+    //         } else {
+    //             break
+    //         }
+    //     }
+    // }
 
     async confirmedIndex() {
         console.log('[INFO] * Indexing MongoDB...')
