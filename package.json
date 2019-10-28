@@ -1,6 +1,6 @@
 {
   "name": "slpdb",
-  "version": "0.15.5",
+  "version": "0.15.6",
   "description": "Token graph data layer for Simple Ledger Protocol",
   "main": "index.js",
   "scripts": {
@@ -53,7 +53,7 @@
     "os-utils": "0.0.14",
     "p-limit": "2.0.0",
     "p-queue": "3.1.0",
-    "slpjs": "0.21.3",
+    "slpjs": "0.21.4",
     "traverse": "^0.6.6",
     "zeromq": "^5.1.0"
   },
