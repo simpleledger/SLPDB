@@ -85,17 +85,17 @@ export module Info {
 			hash = await kv.get(value + '-hash');
 		} catch(_) { hash = null; }
 
-		if (value && hash) {
+		if (value !== null && hash) {
 			console.log("[INFO] Block checkpoint retrieved: ", value, hash);
 			return { height: value!, hash: hash }
-		} else if(value) {
+		} else if (value !== null) {
 			console.log("[INFO] Block checkpoint retrieved without block hash:", value);
 			return { height: value!, hash: null }
-		} else if(fallback_index) {
+		} else if(fallback_index !== undefined && fallback_index >= 0) {
 			console.log("[INFO] Block checkpoint not found, falling back to block", fallback_index);
 			return { height: fallback_index, hash: null }
 		}
-		throw Error("Could not retrieve checkpoint from storage.");
+		throw Error("Could not retrieve checkpoint from storage for block: " + value);
 	}
 
 	export const updateBlockCheckpoint = async function(index: number, hash: string|null): Promise<void> {

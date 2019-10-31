@@ -85,7 +85,12 @@ export class Bit {
         let isSyncd = false;
         let lastReportedSyncBlocks = 0;
         while (!isSyncd) {
-            let syncdBlocks = (await RpcClient.getBlockchainInfo()).blocks;
+            let info = await RpcClient.getBlockchainInfo();
+            let chain = info.chain;
+            if(chain === 'regtest') {
+                break;
+            }
+            let syncdBlocks = info.blocks;
             let networkBlocks = (await bitbox.Blockchain.getBlockchainInfo()).blocks;
             isSyncd = syncdBlocks === networkBlocks ? true : false;
             if (syncdBlocks !== lastReportedSyncBlocks)

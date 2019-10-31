@@ -19,7 +19,8 @@ new SlpdbStatus(db, process.argv);
 const daemon = {
     run: async function({ startHeight, loadFromDb=true }: { startHeight?: number, loadFromDb?: boolean} ) {
         let network!: string;
-        network = (await RpcClient.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
+        let chain = (await RpcClient.getBlockchainInfo())!.chain
+        network = chain === 'test' || chain  === 'regtest' ? 'testnet' : 'mainnet';
         await Info.setNetwork(network);
         await db.init();
 
