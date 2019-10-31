@@ -3,6 +3,9 @@ node_modules
 *.js.map
 !migrate-mongo-config.js
 
+mongo-dev-net/data*
+regtest/mongo/db
+regtets/mongo/configdb
 _leveldb
 _leveldb_testnet
 _mongo

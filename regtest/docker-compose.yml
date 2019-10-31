@@ -1,0 +1,60 @@
+version: "3.5"
+services:
+  bitcoin:
+    image: "bitcoin-abc"
+    restart: always
+    build:
+      context: "./bitcoin-abc"
+    command: "bitcoind"
+    healthcheck:
+      test: ["CMD", "/entrypoint.sh", "bitcoin-cli", "getblockchaininfo"]
+    expose:
+      - "8333"
+    ports:
+      # JSON-RPC
+      - "8332:8332"
+      # ZMQ
+      - "18332:18332"
+    volumes:
+      # using a custom path for data dir
+      #- ./data/${BITCOIND_IMPL}/data:/data
+      # using a custom path for custom bitcoin.conf
+      - ./bitcoin-abc/bitcoin.conf:/data/bitcoin.conf
+    networks:
+      - regnet
+  mongo:
+    image: mongo:4.2
+    restart: always
+    networks:
+      - regnet
+    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "devrs" ]
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo --quiet 1
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    ports:
+      - "27017:27017"
+    volumes:
+       - ./mongo/db:/data/db
+       - ./mongo/configdb:/data/configdb
+  slpdb:
+    build:
+      context: "./slpdb"
+    image: slpdb
+    restart: always
+    networks:
+      - regnet
+    depends_on:
+      - mongo
+      - bitcoin
+    ports:
+      # ZMQ SLP outgoing
+      - "28339:28339"
+    #volumes:
+      #- ./data/slpdb/_leveldb:/usr/src/SLPDB/_leveldb
+      #- ./.git:/usr/src/SLPDB/._git
+
+networks:
+  regnet:
