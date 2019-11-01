@@ -15,7 +15,7 @@ WORKDIR /usr/src
 RUN git clone https://github.com/simpleledger/SLPDB.git && cd SLPDB
 WORKDIR /usr/src/SLPDB
 RUN npm install
-RUN git fetch --all && git checkout 2a5ca70acdabe9b984916ed95c55633200c04c5d
+RUN git fetch --all && git checkout 0dc09b34c97493b3602b363a0b3f72698231e885
 RUN npm install
 
 COPY regtest.env .env

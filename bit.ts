@@ -139,9 +139,9 @@ export class Bit {
         let inputTxos = Primatives.Transaction.parseFromBuffer(txnBuf).inputs;
         inputTxos.forEach(input => {
             let txo = `${input.previousTxHash}:${input.previousTxOutIndex}`
-            if(this._spentTxoCache.has(txo)) {
+            if (this._spentTxoCache.has(txo)) {
                 let doubleSpentTxid = this._spentTxoCache.get(txo)!;
-                if(doubleSpentTxid !== txid) {
+                if (doubleSpentTxid !== txid) {
                     console.log(`[INFO] Detected double spent ${txo} --> original: ${doubleSpentTxid}, current: ${txid}`);
                     this.slpMempool.delete(doubleSpentTxid);
                     RpcClient.transactionCache.delete(doubleSpentTxid);
@@ -151,7 +151,9 @@ export class Bit {
                     SlpdbStatus.doubleSpendHistory = Array.from(this.doubleSpendCacheList.toMap()).map(v => { return { txo: v[0], details: v[1]}});
                 }
             }
-            this._spentTxoCache.set(txo, txid);
+            if (!txo.startsWith('0'.repeat(64))) { // i.e., ignore coinbase
+                this._spentTxoCache.set(txo, txid);
+            }
         });
 
         if(this.slpTransactionFilter(txhex)) {

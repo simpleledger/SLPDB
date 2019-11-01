@@ -28,7 +28,7 @@ export class Config {
 	}
 	static db: DbConfig = {
 		name: process.env.db_name ? process.env.db_name : 'slpdb',
-		name_testnet: process.env.db_name ? process.env.db_name + "_test" : 'slpdb_testnet',
+		name_testnet: process.env.db_name ? process.env.db_name + "_test" : 'slpdb_test',
 		url: process.env.db_url ? process.env.db_url : 'mongodb://localhost:27017',
 		confirmed_schema_version: 2,
 		token_schema_version: 73,
@@ -81,7 +81,7 @@ export class Config {
 			port: process.env.zmq_incoming_port ? process.env.zmq_incoming_port : '28332',
 		},
 		outgoing: {
-			enable: process.env.zmq_outgoing_enable ? process.env.zmq_outgoing_enable === '1' || process.env.zmq_outgoing_enable === 'true' : true,
+			enable: process.env.zmq_outgoing_enable ? ['1', 'true'].includes(process.env.zmq_outgoing_enable) : true,
 			host: process.env.zmq_outgoing_host ? process.env.zmq_outgoing_host : '0.0.0.0',
 			port: process.env.zmq_outgoing_port ? process.env.zmq_outgoing_port : '28339',
 		}
@@ -92,6 +92,7 @@ export class Config {
 		slp_mempool_ignore_length: Number.parseInt(process.env.core_slp_mempool_ignore_length ? process.env.core_slp_mempool_ignore_length : "1000000"),
 	}
 	static telemetry = {
+		enable: process.env.telemetry_enable ? ['1', 'true'].includes(process.env.telemetry_enable) : true,
 		host: process.env.telemetry_host ? process.env.telemetry_host : 'status.slpdb.io',
 		port: process.env.telemetry_port ? process.env.telemetry_port : 443,
 		advertised_host: process.env.telemetry_advertised_host ? process.env.telemetry_advertised_host : '',
