@@ -44,5 +44,13 @@
             "args": ["fix", "580609"],
             "console": "integratedTerminal"
         },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Current File",
+            "program": "${file}",
+            "outFiles": ["${workspaceFolder}/regtest/**/*.js"], 
+            "console": "integratedTerminal"
+        },
     ]
 }
