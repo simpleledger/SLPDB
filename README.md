@@ -27,7 +27,8 @@
 * 8. [Future Updates & Features](#FutureUpdatesFeatures)
 	* 8.1. [TokenID Filtering](#TokenIDFiltering)
 	* 8.2. [Make compatible with other Lokad IDs](#MakecompatiblewithotherLokadIDs)
-* 9. [Change Log](#ChangeLog)
+* 9. [Unit Tests](#UnitTests)
+* 10. [Change Log](#ChangeLog)
 
 ##  1. <a name='WhatisSLPDB'></a>What is SLPDB?
 
@@ -382,7 +383,15 @@ SLPDB will soon include a filtering configuration so that only user specified to
 
 We want to make SLPDB more easily forkable for other OP_RETURN projects which may be unrelated to SLP tokens.
 
-## 9. <a name='ChangeLog'></a>Change Log
+## 9. <a name='UnitTests'></a>Unit Tests
+
+Unit tests can be run after the regtest network is setup as described in [./regtest/README.md](./regtest/README.md).
+
+Run tests using: 
+
+`$ npm test`
+
+## 10. <a name='ChangeLog'></a>Change Log
 
 * 0.15.6
     * Bug fixes and improvements in slpjs

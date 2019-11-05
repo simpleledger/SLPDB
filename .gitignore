@@ -1,5 +1,5 @@
 node_modules
-/*.js
+*.js
 *.js.map
 !migrate-mongo-config.js
 

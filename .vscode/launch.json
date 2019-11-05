@@ -15,6 +15,16 @@
         {
             "type": "node",
             "request": "launch",
+            //"preLaunchTask": "tsc",
+            "name": "Run Mocha",
+            "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+            "args": ["--timeout", "100000", "--exit", "${workspaceRoot}/test/**/*.js"],
+            "cwd": "${workspaceRoot}",
+            "outFiles": []
+        },
+        {
+            "type": "node",
+            "request": "launch",
             "name": "Start From 574710",
             "program": "${workspaceFolder}/index.js",
             "args": ["run", "--startHeight", "574710"],
