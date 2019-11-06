@@ -9,8 +9,15 @@ export class Db {
     db!: MongoDb;
     mongo!: MongoClient;
 
-    constructor() {
+    constructor({ url, dbName }: { url?: string, dbName?: string }) {
         this.config = Config.db;
+        if (url) {
+            this.config.url = url;
+        }
+        if(dbName) {
+            this.config.name = dbName;
+            this.config.name_testnet = dbName;
+        }
     }
 
     async init() {
@@ -79,6 +86,11 @@ export class Db {
 
     async graphFetch(tokenIdHex: string): Promise<GraphTxnDbo[]> {
         return await this.db.collection('graphs').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
+
+        // return await this.db.collection('graphs').find({ 
+        //     "tokenDetails.tokenIdHex": tokenIdHex, 
+        //     "$or": [ { "graphTxn.hasUnspent": true }, { "graphTxn.hasUnspent": { "$exists": false } } ]
+        //     }).toArray();
     }
 
     async graphReset() {

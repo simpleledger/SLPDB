@@ -1317,7 +1317,7 @@ enum TokenUtxoStatus {
     //"UNKNOWN_UNTIL_BLOCK_SYNC" = "UNKNOWN_UNTIL_BLOCK_SYNC"  // may resolve to anything
 }
 
-enum BatonUtxoStatus {
+export enum BatonUtxoStatus {
     "BATON_UNSPENT" = "BATON_UNSPENT", 
     "BATON_SPENT_IN_MINT" = "BATON_SPENT_IN_MINT",
     "BATON_SPENT_NOT_IN_MINT" = "BATON_SPENT_NOT_IN_MINT", 
@@ -1326,7 +1326,7 @@ enum BatonUtxoStatus {
     "BATON_MISSING_BCH_VOUT" = "BATON_MISSING_BCH_VOUT"
 }
 
-enum TokenBatonStatus {
+export enum TokenBatonStatus {
     "NEVER_CREATED" = "NEVER_CREATED",
     "ALIVE" = "ALIVE",
     "DEAD_BURNED" = "DEAD_BURNED",

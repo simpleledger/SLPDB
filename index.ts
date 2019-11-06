@@ -10,7 +10,7 @@ import { Info, ChainSyncCheckpoint } from './info';
 import { SlpGraphManager } from './slpgraphmanager';
 import { TokenFilterRule, TokenFilter } from './filters';
 
-const db = new Db();
+const db = new Db({});
 new RpcClient({ useGrpc: Boolean(Config.grpc.url) });
 const bit = new Bit(db);
 let tokenManager: SlpGraphManager;

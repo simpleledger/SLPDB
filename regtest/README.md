@@ -23,12 +23,14 @@ Take a look at the tests in the `test` directory for guidance on how to create u
 
 
 
-<!-- ### Setting up mongoDB from scratch as a replica set
-1. Delete `regtest/mongo/db` and `regtest/mongo/configdb` directories
-2. Run `docker-compose up -d`
-3. Run `docker exec -it regtest_mongo_1 mongo`
-4. Run `rs.initiate()`
-5. Run `rs.status()` to make sure `ok: 1`
-6. Run `cfg = rs.config()`
-7. Run `cfg.members[0].host = "localhost:27017"`
-8. Run `cfg.reconfig(cfg, {force:true})` -->
+
+### Optional: Setting up mongoDB replica set for testing
+1. Uncomment mongo entrypoint/volume lines in `docker-compose.yml`
+2. Delete `regtest/mongo/db` and `regtest/mongo/configdb` directories
+3. Run `docker-compose up -d`
+4. Run `docker exec -it regtest_mongo_1 mongo`
+5. Run `rs.initiate()`
+6. Run `rs.status()` to make sure `ok: 1`
+7. Run `cfg = rs.config()`
+8. Run `cfg.members[0].host = "localhost:27017"`
+9. Run `cfg.reconfig(cfg, {force:true})`

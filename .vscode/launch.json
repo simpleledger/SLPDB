@@ -18,7 +18,7 @@
             //"preLaunchTask": "tsc",
             "name": "Run Mocha",
             "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-            "args": ["--timeout", "100000", "--exit", "${workspaceRoot}/test/**/*.js"],
+            "args": ["--timeout", "100000", "--exit", "--require", "mocha-steps", "${workspaceRoot}/test/**/*.js"],
             "cwd": "${workspaceRoot}",
             "outFiles": []
         },

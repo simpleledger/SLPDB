@@ -38,7 +38,7 @@ services:
     restart: always
     networks:
       - regnet
-    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "devrs" ]
+    # entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "devrs" ]
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongo --quiet 1
       interval: 10s
@@ -47,9 +47,9 @@ services:
       start_period: 40s
     ports:
       - "26017:27017"
-    volumes:
-       - ./mongo/db:/data/db
-       - ./mongo/configdb:/data/configdb
+    # volumes:
+    #    - ./mongo/db:/data/db
+    #    - ./mongo/configdb:/data/configdb
   slpdb:
     build:
       context: "./slpdb"
