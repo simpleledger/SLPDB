@@ -441,9 +441,9 @@ export class SlpGraphManager {
             } catch(err) {
                 console.log(err);
             }
-            let checkpoint = await Info.getBlockCheckpoint();
-            await Info.updateBlockCheckpoint(checkpoint.height - 1, checkpoint.hash);
-            console.log("[ERROR] Transaction not found! Block checkpoint has been updated to ", (checkpoint.height - 1), checkpoint.hash)
+            //let checkpoint = await Info.getBlockCheckpoint();
+            //await Info.updateBlockCheckpoint(checkpoint.height - 1, checkpoint.hash);
+            //console.log("[ERROR] Transaction not found! Block checkpoint has been updated to ", (checkpoint.height - 1), checkpoint.hash)
         }
     }
 
