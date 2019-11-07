@@ -197,12 +197,8 @@ describe("Token-Type-1", () => {
         assert.equal(t!.tokenStats!.block_created! > 0, true);
         assert.equal(t!.tokenStats!.block_last_active_mint, null);
         assert.equal(t!.tokenStats!.block_last_active_send, null);
-        try {
-            assert.equal(t!.tokenStats!.qty_token_burned.toString() === "0", true);
-            assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), "1");
-        } catch(_) {
-            //console.log(t!.tokenStats!.qty_token_burned.toString());
-        }
+        assert.equal(t!.tokenStats!.qty_token_burned.toString() === "0", true);
+        assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), "1");
         assert.equal(t!.tokenStats!.qty_token_minted.toString(), "1");
         assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE);
     });
