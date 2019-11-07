@@ -21,7 +21,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 import { RpcClient } from './rpc';
 import { BlockHeaderResult } from "bitcoin-com-rest";
 import { CacheSet } from "./cache";
-import { SlpdbStatus, SlpdbState } from "./status";
+import { SlpdbStatus } from "./status";
 import { TokenFilter } from "./filters";
 
 const bitcoin = new BITBOX();
@@ -53,7 +53,7 @@ export class SlpGraphManager {
         let self = this;
         await this._updatesQueue.add(async function() {
             await self._onTransactionHash(syncResult);
-        })
+        }, { priority: 1 })
     }
 
     async onBlockHash(hash: string): Promise<void> {
@@ -61,7 +61,7 @@ export class SlpGraphManager {
         let self = this;
         await this._updatesQueue.add(async function() {
             await self._onBlockHash(hash);
-        })
+        });
     }
 
     async _onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
@@ -412,7 +412,7 @@ export class SlpGraphManager {
                         invalidReason = 'Token is invalid, most likely because it is an invalid Genesis.';
                         isValid = false;
                     } else if(tokenId) {
-                        invalidReason = "Token validity is unknown because SLPDB is too busy.";
+                        invalidReason = "Token validity is unknown because SLPDB has not yet processed this transaction.";
                         isValid = null;
                     }
 
