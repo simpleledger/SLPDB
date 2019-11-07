@@ -39,6 +39,7 @@
     "bitcore-lib-cash": "^0.19.0",
     "bufio": "^1.0.4",
     "cashaddrjs-slp": "^0.2.12",
+    "synchronized-promise": "0.2.0",
     "dotenv": "^6.0.0",
     "fountainhead-core": "0.0.4",
     "grpc-bchrpc-node": "0.6.2",

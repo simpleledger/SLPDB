@@ -1,12 +1,15 @@
 import * as assert from "assert";
-import { Slp, LocalValidator, TransactionHelpers, Utils, SlpAddressUtxoResult, SlpTransactionDetails } from 'slpjs';
+import { Slp, LocalValidator, TransactionHelpers, Utils, SlpAddressUtxoResult } from 'slpjs';
 import * as zmq from 'zeromq';
 import { BITBOX } from 'bitbox-sdk';
 import BigNumber from 'bignumber.js';
-import { Db } from '../db';
 import { step } from 'mocha-steps';
+
+import { Config } from "../config";
+import { Db } from '../db';
 import { TNATxn, TNATxnSlpDetails } from "../tna";
-import { GraphTxnDbo, AddressBalancesDbo, UtxoDbo, TokenDBObject, TokenBatonStatus } from "../slptokengraph";
+import { TokenBatonStatus } from "../interfaces";
+import { GraphTxnDbo, AddressBalancesDbo, UtxoDbo, TokenDBObject } from "../interfaces";
 
 const bitbox = new BITBOX();
 const slp = new Slp(bitbox);
@@ -47,8 +50,7 @@ sock.on('message', async function(topic: string, message: Buffer) {
 });
 
 // connect to the regtest mongoDB
-let db = new Db({ url: "mongodb://0.0.0.0:26017", dbName: "slpdb_test" });
-
+let db = new Db({ dbUrl: "mongodb://0.0.0.0:26017", dbName: "slpdb_test", config: Config.db });
 
 // produced and shared between tests.
 let receiver: string;
@@ -59,8 +61,6 @@ let blockHash: string;
 describe("Token-Type-1", () => {
 
     step("setup the test's GENESIS txn", async () => {
-        // init db client
-        await db.init();
 
         // (optional) connect miner node to a full node that is connected to slpdb
         // try {
@@ -186,7 +186,7 @@ describe("Token-Type-1", () => {
 
     step("stores in tokens collection (after block)", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-        while(t && t!.tokenStats!.block_created === null) {
+        while(!t || t!.tokenStats!.block_created === null) {
             await sleep(50);
             t = await db.tokenFetch(tokenId);
         }
@@ -207,7 +207,7 @@ describe("Token-Type-1", () => {
         let g: GraphTxnDbo | null = await db.db.collection("graphs").findOne({ "graphTxn.txid": tokenId });
         assert.equal(g!.graphTxn.txid, tokenId);
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        while(g === null || g!.graphTxn.blockHash === null) {
+        while(!g || g!.graphTxn.blockHash === null) {
             await sleep(50);
             g = await db.db.collection("graphs").findOne({ "graphTxn.txid": tokenId });
         }

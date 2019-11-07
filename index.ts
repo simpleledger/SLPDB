@@ -9,20 +9,29 @@ import { SlpdbStatus } from './status';
 import { Info, ChainSyncCheckpoint } from './info';
 import { SlpGraphManager } from './slpgraphmanager';
 import { TokenFilterRule, TokenFilter } from './filters';
+import { BlockchainInfoResult } from 'bitcoin-com-rest';
+const sp = require("synchronized-promise");
 
-const db = new Db({});
 new RpcClient({ useGrpc: Boolean(Config.grpc.url) });
-const bit = new Bit(db);
-let tokenManager: SlpGraphManager;
+
+let getBlockchainInfoSync: () => BlockchainInfoResult = sp(RpcClient.getBlockchainInfo);
+let setNetworkSync: (network: string) => void = sp(Info.setNetwork);
+let chain = getBlockchainInfoSync().chain;
+let network = chain === 'test' || chain  === 'regtest' ? 'testnet' : 'mainnet';
+setNetworkSync(network);
+
+let db = new Db({ 
+    dbName: network === 'mainnet' ? Config.db.name : Config.db.name_testnet, 
+    dbUrl: Config.db.url, 
+    config: Config.db 
+});
+let bit = new Bit(db);
 new SlpdbStatus(db, process.argv);
+
+let tokenManager: SlpGraphManager;
 
 const daemon = {
     run: async function({ startHeight, loadFromDb=true }: { startHeight?: number, loadFromDb?: boolean} ) {
-        let network!: string;
-        let chain = (await RpcClient.getBlockchainInfo())!.chain
-        network = chain === 'test' || chain  === 'regtest' ? 'testnet' : 'mainnet';
-        await Info.setNetwork(network);
-        await db.init();
 
         // persist updated SLPDB status every 10 minutes
         await SlpdbStatus.loadPreviousAttributes();
@@ -114,7 +123,6 @@ const util = {
     reprocess_token: async function(tokenId: string) {
         let network = (await RpcClient.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet'
         await Info.setNetwork(network);
-        await db.init();
         await bit.init();
         console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
         console.time('[PERF] Initial Block Sync');
@@ -143,7 +151,6 @@ const util = {
         });
         let network = (await RpcClient.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
         await Info.setNetwork(network);
-        await db.init();
         let currentHeight = await RpcClient.getBlockCount();
         let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
         await tokenManager.initAllTokens({ reprocessFrom: 0, reprocessTo: block_height });

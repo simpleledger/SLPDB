@@ -1,4 +1,5 @@
-import { SlpTokenGraph, TokenDBObject, UtxoDbo, AddressBalancesDbo, GraphTxnDbo } from "./slptokengraph";
+import { SlpTokenGraph } from "./slptokengraph";
+import { TokenDBObject, UtxoDbo, AddressBalancesDbo, GraphTxnDbo } from "./interfaces";
 import { SlpTransactionType, Slp, SlpTransactionDetails, Primatives } from "slpjs";
 import { SyncCompletionInfo, SyncFilterTypes, txid, txhex, SyncType, Bit } from "./bit";
 import { Query } from "./query";

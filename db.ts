@@ -1,32 +1,31 @@
 import { MongoClient, Db as MongoDb } from 'mongodb';
-import { Config, DbConfig } from './config';
+import { DbConfig } from './config';
 import { TNATxn } from './tna';
-import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from './slptokengraph';
-import { Info } from './info';
+import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from "./interfaces";
 
 export class Db {
-    config: DbConfig;
     db!: MongoDb;
     mongo!: MongoClient;
+    dbUrl: string;
+    dbName: string;
+    config: DbConfig;
 
-    constructor({ url, dbName }: { url?: string, dbName?: string }) {
-        this.config = Config.db;
-        if (url) {
-            this.config.url = url;
-        }
-        if(dbName) {
-            this.config.name = dbName;
-            this.config.name_testnet = dbName;
-        }
+    constructor({ dbUrl, dbName, config }: { dbUrl: string, dbName: string, config: DbConfig }) {
+        this.dbUrl = dbUrl;
+        this.dbName = dbName;
+        this.config = config;
     }
 
-    async init() {
-        let network = await Info.getNetwork();
-        console.log("[INFO] Initializing MongoDB...")
-        this.mongo = await MongoClient.connect(this.config.url, { useNewUrlParser: true })
-        let dbname = network === 'mainnet' ? this.config.name : this.config.name_testnet;
-        this.db = this.mongo.db(dbname);
-        console.log("[INFO] MongoDB initialized.")
+    private async checkClientStatus(): Promise<boolean> {
+        if (!this.mongo) {
+            //let network = await Info.getNetwork();
+            //console.log("[INFO] Initializing MongoDB...")
+            this.mongo = await MongoClient.connect(this.dbUrl, { useNewUrlParser: true });
+            //let dbname = network === 'mainnet' ? this.config.name : this.config.name_testnet;
+            this.db = this.mongo.db(this.dbName);
+            return true;
+        }
+        return false;
     }
 
     async exit() {
@@ -34,15 +33,18 @@ export class Db {
     }
 
     async statusUpdate(status: any) {
+        await this.checkClientStatus();
         await this.db.collection('statuses').deleteMany({ "context": status.context });
         return await this.db.collection('statuses').insertOne(status);
     }
 
     async statusFetch(context: string) {
+        await this.checkClientStatus();
         return await this.db.collection('statuses').findOne({ "context": context });
     }
 
     async tokenInsertReplace(token: any) {
+        await this.checkClientStatus();
         await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex })
         return await this.db.collection('tokens').insertMany([ token ]);
     }
@@ -53,14 +55,17 @@ export class Db {
     // }
 
     async tokenDelete(tokenIdHex: string) {
+        await this.checkClientStatus();
         return await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
     async tokenFetch(tokenIdHex: string): Promise<TokenDBObject|null> {
+        await this.checkClientStatus();
         return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
     async tokenReset() {
+        await this.checkClientStatus();
         await this.db.collection('tokens').deleteMany({})
         .catch(function(err) {
             console.log('[ERROR] token collection reset ERR ', err)
@@ -69,6 +74,7 @@ export class Db {
     }
 
     async graphInsertReplace(graph: GraphTxnDbo[], tokenIdHex: string) {
+        await this.checkClientStatus();
         await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
         if(graph.length > 0) {
             return await this.db.collection('graphs').insertMany(graph);
@@ -81,10 +87,12 @@ export class Db {
     // }
 
     async graphDelete(tokenIdHex: string) {
+        await this.checkClientStatus();
         return await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
     async graphFetch(tokenIdHex: string): Promise<GraphTxnDbo[]> {
+        await this.checkClientStatus();
         return await this.db.collection('graphs').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
 
         // return await this.db.collection('graphs').find({ 
@@ -94,6 +102,7 @@ export class Db {
     }
 
     async graphReset() {
+        await this.checkClientStatus();
         await this.db.collection('graphs').deleteMany({})
         .catch(function(err) {
             console.log('[ERROR] graphs collection reset ERR ', err)
@@ -102,6 +111,7 @@ export class Db {
     }
 
     async addressInsertReplace(addresses: AddressBalancesDbo[], tokenIdHex: string) {
+        await this.checkClientStatus();
         await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
         if(addresses.length > 0) {
             return await this.db.collection('addresses').insertMany(addresses);
@@ -114,14 +124,17 @@ export class Db {
     // }
 
     async addressDelete(tokenIdHex: string) {
+        await this.checkClientStatus();
         return await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
     async addressFetch(tokenIdHex: string): Promise<AddressBalancesDbo[]> {
+        await this.checkClientStatus();
         return await this.db.collection('addresses').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
     }
 
     async addressReset() {
+        await this.checkClientStatus();
         await this.db.collection('addresses').deleteMany({})
         .catch(function(err) {
             console.log('[ERROR] addresses collection reset ERR ', err)
@@ -130,6 +143,7 @@ export class Db {
     }
 
     async utxoInsertReplace(utxos: UtxoDbo[], tokenIdHex: string) {
+        await this.checkClientStatus();
         await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
         if(utxos.length > 0) {
             return await this.db.collection('utxos').insertMany(utxos);
@@ -142,22 +156,27 @@ export class Db {
     // }
 
     async utxoDelete(tokenIdHex: string) {
+        await this.checkClientStatus();
         return await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
     async utxoFetch(tokenIdHex: string): Promise<UtxoDbo[]> {
+        await this.checkClientStatus();
         return await this.db.collection('utxos').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
     }
 
     async singleUtxo(utxo: string): Promise<UtxoDbo|null> {
+        await this.checkClientStatus();
         return await this.db.collection('utxos').findOne({ "utxo": utxo });
     }
 
     async singleMintUtxo(utxo: string): Promise<TokenDBObject|null> {
+        await this.checkClientStatus();
         return await this.db.collection('tokens').findOne({ "mintBatonUtxo": utxo });
     }
 
     async utxoReset() {
+        await this.checkClientStatus();
         await this.db.collection('utxos').deleteMany({})
         .catch(function(err) {
             console.log('[ERROR] utxos collection reset ERR ', err);
@@ -166,10 +185,12 @@ export class Db {
     }
 
     async unconfirmedInsert(item: TNATxn) {
+        await this.checkClientStatus();
         return await this.db.collection('unconfirmed').insertMany([item])
     }
 
     async unconfirmedReset() {
+        await this.checkClientStatus();
         await this.db.collection('unconfirmed').deleteMany({})
         .catch(function(err) {
             console.log('[ERROR] mempoolreset ERR ', err);
@@ -178,21 +199,24 @@ export class Db {
     }
 
     async unconfirmedFetch(txid: string): Promise<TNATxn|null> {
+        await this.checkClientStatus();
         let res = await this.db.collection('unconfirmed').findOne({ "tx.h": txid }) as TNATxn;
         return res;
     }
 
     async unconfirmedDelete(txid: string): Promise<any> {
+        await this.checkClientStatus();
         let res = await this.db.collection('unconfirmed').deleteMany({ "tx.h": txid });
         return res;
     }
 
     async unconfirmedProcessedSlp(): Promise<string[]> {
+        await this.checkClientStatus();
         return (await this.db.collection('unconfirmed').find().toArray()).filter((i:TNATxn) => i.slp);
     }
 
     async unconfirmedSync(items: TNATxn[]) {
-
+        await this.checkClientStatus();
         await this.db.collection('unconfirmed').deleteMany({})
         .catch(function(err) {
             console.log('[ERROR] unconfirmedSync ERR ', err)
@@ -214,10 +238,12 @@ export class Db {
     }
 
     async confirmedFetch(txid: string): Promise<TNATxn|null> {
+        await this.checkClientStatus();
         return await this.db.collection('confirmed').findOne({ "tx.h": txid }) as TNATxn;
     }
 
     async confirmedReset() {
+        await this.checkClientStatus();
         await this.db.collection('confirmed').deleteMany({}).catch(function(err) {
             console.log('[ERROR] confirmedReset ERR ', err)
             throw err;
@@ -225,6 +251,7 @@ export class Db {
     }
 
     async confirmedReplace(items: TNATxn[], requireSlpMetadata=true, block_index?: number) {
+        await this.checkClientStatus();
 
         if(requireSlpMetadata) {
             if(items.filter(i => !i.slp).length > 0) {
@@ -275,6 +302,7 @@ export class Db {
     }
 
     async confirmedInsert(items: TNATxn[], requireSlpMetadata: boolean) {
+        await this.checkClientStatus();
 
         if(requireSlpMetadata) {
             if(items.filter(i => !i.slp).length > 0) {
@@ -303,7 +331,9 @@ export class Db {
         }
     }
 
-    async confirmedIndex() {
+    async confirmedIndex() {        
+        await this.checkClientStatus();
+
         console.log('[INFO] * Indexing MongoDB...')
         console.time('TotalIndex')
 

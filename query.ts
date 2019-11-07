@@ -3,7 +3,7 @@ import { Info } from "./info";
 import { SlpTransactionDetails, SlpTransactionType, Utils } from "slpjs";
 import BigNumber from "bignumber.js";
 import { TNATxnSlpDetails } from "./tna";
-import { TokenDBObject } from "./slptokengraph";
+import { TokenDBObject } from "./interfaces";
 import { CacheMap } from "./cache";
 
 const bitqueryd = require('fountainhead-core').slpqueryd
