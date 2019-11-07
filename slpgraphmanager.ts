@@ -238,6 +238,7 @@ export class SlpGraphManager {
                     let t = this._tokens.get(token.txid)!;
                     t._tokenDetails.timestamp = timestamp;
                     t._tokenStats.block_created = token.blk.i;
+                    console.log("UpdateStatistics: fixMissingTokenTimestamps")
                     await t.UpdateStatistics();
                 } else {
                     await this.createNewTokenGraph({ tokenId: token.txid })
@@ -584,6 +585,7 @@ export class SlpGraphManager {
             console.log(`[WARN] Token's graph loaded using allowGraphUpdates=false (${graph._tokenDetails.tokenIdHex})`);
         }
         await this.updateTxnCollectionsForTokenId(token.tokenIdHex);
+        console.log("UpdateStatistics: initToken")
         await graph.UpdateStatistics(false);
         if(res.length) {
             await this.setAndSaveTokenGraph(graph);

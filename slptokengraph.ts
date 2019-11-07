@@ -77,7 +77,7 @@ export class SlpTokenGraph implements TokenGraph {
             let genesisBlockHash = await RpcClient.getTransactionBlockHash(this._tokenDetails.tokenIdHex);
             if(genesisBlockHash)
                 this._graphTxns.get(this._tokenDetails.tokenIdHex)!.blockHash = Buffer.from(genesisBlockHash, 'hex');
-
+            console.log("UpdateStatistics: initFromScratch");
             await this.UpdateStatistics();
         }
         this._startupTxoSendCache.clear();
