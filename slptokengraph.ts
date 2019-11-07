@@ -320,7 +320,8 @@ export class SlpTokenGraph implements TokenGraph {
                     });
                 }
                 self._liveTxoSpendCache.clear();
-                await self.UpdateStatistics();
+                console.log("[INFO] UpdateStatistics: queueTokenGraphUpdateFrom");
+                await self.UpdateStatistics(true, true);
             }
         })
     }
@@ -807,15 +808,19 @@ export class SlpTokenGraph implements TokenGraph {
         }
     }
 
-    async UpdateStatistics(saveToDb=true): Promise<void> {
+    async UpdateStatistics(saveToDb=true, fromGraphUpdateQueue=false): Promise<void> {
         let self = this;
-        await this._statsUpdateQueue.add(async function() {
-            await self._updateStatistics(saveToDb);
-        });
+        if (this._graphUpdateQueue.size === 0 && (this._graphUpdateQueue.pending === 0 || fromGraphUpdateQueue)) {
+            await this._statsUpdateQueue.add(async function() {
+                await self._updateStatistics(saveToDb);
+            });
+        } else {
+            console.log(`[INFO] UpdateStatistics(${saveToDb}, ${fromGraphUpdateQueue}) - skipped graphUpdateQueue.pending: ${this._graphUpdateQueue.pending} graphUpdateQueue.size: ${this._graphUpdateQueue.size}`);
+        }
     }
 
     async _updateStatistics(saveToDb=true): Promise<void> {
-        if(this.IsValid && this._graphUpdateQueue.size === 0) {
+        if(this.IsValid) {
             await this.updateAddressesFromScratch();
             await this._checkGraphBlockHashes();
             let block_created = await Query.queryTokenGenesisBlock(this._tokenDetails.tokenIdHex);
