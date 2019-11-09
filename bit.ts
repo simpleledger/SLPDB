@@ -53,7 +53,8 @@ export class Bit {
     tna: TNA = new TNA();
     outsock = zmq.socket('pub');
     slpMempool = new Map<txid, txhex>();
-    doubleSpendCacheList = new CacheMap<string, any>(20);
+    txoDoubleSpendCache = new CacheMap<string, any>(20);
+    doubleSpendCache = new CacheSet<string>(100);
     slpMempoolIgnoreSetList = new CacheSet<string>(Config.core.slp_mempool_ignore_length);
     blockHashIgnoreSetList = new CacheSet<string>(10);
     _slpGraphManager!: SlpGraphManager;
@@ -159,11 +160,12 @@ export class Bit {
                         txidToDelete.push(doubleSpentTxid);
                     }
                     let date = new Date();
-                    this.doubleSpendCacheList.set(txo, { originalTxid: doubleSpentTxid, current: txid, time: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }});
-                    SlpdbStatus.doubleSpendHistory = Array.from(this.doubleSpendCacheList.toMap()).map(v => { return { txo: v[0], details: v[1]}});
+                    this.txoDoubleSpendCache.set(txo, { originalTxid: doubleSpentTxid, current: txid, time: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }});
+                    this.doubleSpendCache.push(doubleSpentTxid);
+                    SlpdbStatus.doubleSpendHistory = Array.from(this.txoDoubleSpendCache.toMap()).map(v => { return { txo: v[0], details: v[1]}});
                 }
             }
-            if (!txo.startsWith('0'.repeat(64))) { // i.e., ignore coinbase
+            if (!txo.startsWith('0'.repeat(64))) { // ignore coinbase
                 this._spentTxoCache.set(txo, txid);
             }
         });

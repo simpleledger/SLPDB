@@ -32,6 +32,9 @@ export class SlpTokenGraph implements TokenGraph {
     _graphTxns = new Map<string, GraphTxn>();
     _addresses = new Map<cashAddr, AddressBalance>();
     _slpValidator = new LocalValidator(bitbox, async (txids) => { 
+        if (this._manager._bit.doubleSpendCache.has(txids[0])) {
+            return [ Buffer.alloc(60).toString('hex') ];
+        }
         let txn;
         try {
             txn = <string>await RpcClient.getRawTransaction(txids[0]);
@@ -770,6 +773,10 @@ export class SlpTokenGraph implements TokenGraph {
                 let hash: string;
                 console.log("[INFO] Querying block hash for graph transaction", key);
                 try {
+                    if (this._manager._bit.doubleSpendCache.has(key)) {
+                        this._graphTxns.delete(key);
+                        continue;
+                    }
                     hash = await RpcClient.getTransactionBlockHash(key);
                     console.log(`[INFO] Block hash: ${hash} for ${key}`);
                     // add delay to prevent flooding rpc
