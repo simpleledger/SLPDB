@@ -1,0 +1,14 @@
+diff --git a/node_modules/bitcoin-rpc-promise-retry/node_modules/bitcoind-rpc/lib/index.js b/node_modules/bitcoin-rpc-promise-retry/node_modules/bitcoind-rpc/lib/index.js
+index d28d541..bbf639a 100644
+--- a/node_modules/bitcoin-rpc-promise-retry/node_modules/bitcoind-rpc/lib/index.js
++++ b/node_modules/bitcoin-rpc-promise-retry/node_modules/bitcoind-rpc/lib/index.js
+@@ -160,7 +160,8 @@ RpcClient.prototype.batch = function(batchCallback, resultCallback) {
+ RpcClient.callspec = {
+   abandonTransaction: 'str',
+   addMultiSigAddress: '',
+-  addNode: '',
++  addNode: 'str str',
++  disconnectNode: 'str',
+   backupWallet: '',
+   bumpFee: 'str',
+   createMultiSig: '',

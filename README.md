@@ -385,11 +385,14 @@ We want to make SLPDB more easily forkable for other OP_RETURN projects which ma
 
 ## 9. <a name='UnitTests'></a>Unit Tests
 
-Unit tests can be run after the regtest network is setup as described in [./regtest/README.md](./regtest/README.md).
+End to End tests can be run after the regtest network is setup as described in [./regtest/README.md](./regtest/README.md).
 
-Run tests using: 
+Run e2e tests using: 
 
-`$ npm test`
+```
+$ git apply ./patches/*
+$ npm test
+```
 
 ## 10. <a name='ChangeLog'></a>Change Log
 

@@ -7,20 +7,20 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Start From Checkpoint",
-            "program": "${workspaceFolder}/index.js",
-            "args": ["run"],
-            "console": "externalTerminal"
-        },
-        {
-            "type": "node",
-            "request": "launch",
             //"preLaunchTask": "tsc",
             "name": "Run Mocha",
             "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
             "args": ["--timeout", "100000", "--exit", "--require", "mocha-steps", "${workspaceRoot}/test/**/*.js"],
             "cwd": "${workspaceRoot}",
             "outFiles": []
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Start From Checkpoint",
+            "program": "${workspaceFolder}/index.js",
+            "args": ["run"],
+            "console": "externalTerminal"
         },
         {
             "type": "node",
