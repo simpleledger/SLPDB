@@ -327,15 +327,15 @@ export class Bit {
                     console.log('[ZMQ-SUB] Block message ignored:', hash);
                     return;
                 }
-                self.blockHashIgnoreSetList.push(hash);   
-                    self.blockHashIgnoreSetList.push(hash);   
-                self.blockHashIgnoreSetList.push(hash);   
+                self.blockHashIgnoreSetList.push(hash); 
                 console.log('[ZMQ-SUB] New block found:', hash);
                 await sync(self, 'block', hash);
-                if(!self._slpGraphManager.zmqPubSocket)
+                if(!self._slpGraphManager.zmqPubSocket) {
                     self._slpGraphManager.zmqPubSocket = self.outsock;
-                if(self._slpGraphManager.onBlockHash)
+                }
+                if(self._slpGraphManager.onBlockHash) {
                     self._slpGraphManager.onBlockHash!(hash!);
+                }
             });
         }
 
