@@ -685,11 +685,12 @@ export class SlpGraphManager {
         if(this.zmqPubSocket && !this._zmqMempoolPubSetList.has(txid) && Config.zmq.outgoing.enable) {
             this._zmqMempoolPubSetList.push(txid);
             let tna: TNATxn | null = await this.db.db.collection('unconfirmed').findOne({ "tx.h": txid });
-            if(tna) {
-                console.log("[ZMQ-PUB] SLP mempool notification", tna);
-                this.zmqPubSocket.send(['mempool', JSON.stringify(tna)]);
-                SlpdbStatus.updateTimeOutgoingTxnZmq();
+            if(!tna) {
+                tna = await this.db.db.collection('confirmed').findOne({ "tx.h": txid });
             }
+            console.log("[ZMQ-PUB] SLP mempool notification", tna);
+            this.zmqPubSocket.send(['mempool', JSON.stringify(tna)]);
+            SlpdbStatus.updateTimeOutgoingTxnZmq();
         }
     }
 }
