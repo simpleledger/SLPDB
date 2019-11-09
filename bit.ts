@@ -16,6 +16,7 @@ import { CacheSet, CacheMap } from './cache';
 import { SlpGraphManager } from './slpgraphmanager';
 import { Notifications } from './notifications';
 import { SlpdbStatus } from './status';
+import { GraphTxnDbo } from './interfaces';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -137,6 +138,7 @@ export class Bit {
         // check for double spending of inputs, if found delete double spent txid from the mempool
         // TODO: Need to test how this will work with BCHD!
         let inputTxos = Primatives.Transaction.parseFromBuffer(txnBuf).inputs;
+        let txidToDelete: string[] = [];
         inputTxos.forEach(input => {
             let txo = `${input.previousTxHash}:${input.previousTxOutIndex}`
             if (this._spentTxoCache.has(txo)) {
@@ -145,7 +147,17 @@ export class Bit {
                     console.log(`[INFO] Detected double spent ${txo} --> original: ${doubleSpentTxid}, current: ${txid}`);
                     this.slpMempool.delete(doubleSpentTxid);
                     RpcClient.transactionCache.delete(doubleSpentTxid);
-                    this.db.unconfirmedDelete(doubleSpentTxid);
+                    this.db.unconfirmedDelete(doubleSpentTxid); // no need to await
+                    this.db.confirmedDelete(doubleSpentTxid);   // no need to await
+                    if(this._slpGraphManager._tokens.has(doubleSpentTxid)) {
+                        this._slpGraphManager._tokens.delete(doubleSpentTxid);
+                        this.db.tokenDelete(doubleSpentTxid);   // no need to await
+                        this.db.graphDelete(doubleSpentTxid);   // no need to await
+                        this.db.addressDelete(doubleSpentTxid); // no need to await
+                        this.db.utxoDelete(doubleSpentTxid);    // no need to await
+                    } else {
+                        txidToDelete.push(doubleSpentTxid);
+                    }
                     let date = new Date();
                     this.doubleSpendCacheList.set(txo, { originalTxid: doubleSpentTxid, current: txid, time: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }});
                     SlpdbStatus.doubleSpendHistory = Array.from(this.doubleSpendCacheList.toMap()).map(v => { return { txo: v[0], details: v[1]}});
@@ -153,6 +165,25 @@ export class Bit {
             }
             if (!txo.startsWith('0'.repeat(64))) { // i.e., ignore coinbase
                 this._spentTxoCache.set(txo, txid);
+            }
+        });
+
+        let tokenIdToUpdate= new Set<string>();
+        if(txidToDelete.length > 0) {
+            for (let i = 0; i < txidToDelete.length; i++) {
+                let g: GraphTxnDbo|null = await this.db.graphTxnFetch(txidToDelete[i]);
+                if(g && this._slpGraphManager._tokens.has(g.tokenDetails.tokenIdHex)) {
+                    let t = this._slpGraphManager._tokens.get(g.tokenDetails.tokenIdHex);
+                    if(t!._graphTxns.has(txidToDelete[i])) {
+                        t!._graphTxns.delete(txidToDelete[i]);
+                        tokenIdToUpdate.add(txidToDelete[i])
+                    }
+                }
+            }
+        }
+        tokenIdToUpdate.forEach(tokenId => {
+            if (this._slpGraphManager._tokens.has(tokenId)) {
+                this._slpGraphManager._tokens.get(tokenId)!.UpdateStatistics();  // no need to await
             }
         });
 

@@ -101,6 +101,11 @@ export class Db {
         //     }).toArray();
     }
 
+    async graphTxnFetch(txid: string): Promise<GraphTxnDbo|null> {
+        await this.checkClientStatus();
+        return await this.db.collection('graphs').findOne({ "graphTxn.txid": txid });
+    }
+
     async graphReset() {
         await this.checkClientStatus();
         await this.db.collection('graphs').deleteMany({})
@@ -240,6 +245,11 @@ export class Db {
     async confirmedFetch(txid: string): Promise<TNATxn|null> {
         await this.checkClientStatus();
         return await this.db.collection('confirmed').findOne({ "tx.h": txid }) as TNATxn;
+    }
+
+    async confirmedDelete(txid: string): Promise<any> {
+        await this.checkClientStatus();
+        return await this.db.collection('confirmed').deleteMany({ "tx.h": txid });
     }
 
     async confirmedReset() {
