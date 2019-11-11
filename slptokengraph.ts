@@ -792,14 +792,12 @@ export class SlpTokenGraph implements TokenGraph {
                 if(hash) {
                     console.log("[INFO] Updating block hash for", key);
                     this._graphTxns.get(key)!.blockHash = Buffer.from(hash, 'hex');
-                } 
-                else if(this._manager._bit.slpMempool.has(key)) {
+                } else if (this._manager._bit.slpMempool.has(key)) {
                     continue;
-                } 
-                else {
-                    console.log("[INFO] Making sure thransaction is in BCH mempool.");
+                } else {
+                    console.log("[INFO] Making sure transaction is in BCH mempool.");
                     let mempool = await RpcClient.getRawMemPool();
-                    if(mempool.includes) {
+                    if (mempool.includes(key)) {
                         continue;
                     }
                     throw Error(`Unknown error occured in setting blockhash for ${key})`);
