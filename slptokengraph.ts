@@ -49,7 +49,7 @@ export class SlpTokenGraph implements TokenGraph {
     _graphUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: false });
     _statsUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: true });
     _manager: SlpGraphManager;
-    _liveTxoSpendCache = new CacheMap<string, SendTxnQueryResult>(100000);
+    //_liveTxoSpendCache = new CacheMap<string, SendTxnQueryResult>(100000);
     _startupTxoSendCache?: CacheMap<string, SpentTxos>;
     _exit = false;
 
@@ -233,10 +233,12 @@ export class SlpTokenGraph implements TokenGraph {
         let txOut: any;
 
         let cachedSpendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
-        if(this._startupTxoSendCache)
+        if(this._startupTxoSendCache) {
             cachedSpendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
-        if(!cachedSpendTxnInfo)
-            cachedSpendTxnInfo = this._liveTxoSpendCache.get(txid + ":" + vout);
+        }
+        if(!cachedSpendTxnInfo) {
+            cachedSpendTxnInfo = this._manager._bit._spentTxoCache.get(txid + ":" + vout); //this._liveTxoSpendCache.get(txid + ":" + vout);
+        }
         if(!cachedSpendTxnInfo)
             txOut = await RpcClient.getTxOut(txid, vout);
         if(cachedSpendTxnInfo || !txOut) {
@@ -257,7 +259,7 @@ export class SlpTokenGraph implements TokenGraph {
                         this._manager._bestBlockHeight && 
                         (this._manager._bestBlockHeight - spendTxnInfo.block) > 10
                     ) {
-                        this._liveTxoSpendCache.set(txid + ":" + vout, spendTxnInfo!);
+                        //this._liveTxoSpendCache.set(txid + ":" + vout, spendTxnInfo!);
                     }
                 } else {
                     spendTxnInfo = cachedSpendTxnInfo;
@@ -325,12 +327,12 @@ export class SlpTokenGraph implements TokenGraph {
                                 self._graphTxns.delete(txid);
                                 delete self._slpValidator.cachedRawTransactions[txid];
                                 delete self._slpValidator.cachedValidations[txid];
-                                self._liveTxoSpendCache.clear();
+                                //self._liveTxoSpendCache.clear();
                             }
                         }
                     });
                 }
-                self._liveTxoSpendCache.clear();
+                //self._liveTxoSpendCache.clear();
                 console.log("[INFO] UpdateStatistics: queueTokenGraphUpdateFrom");
                 await self.UpdateStatistics(true, true);
             }

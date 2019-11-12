@@ -61,7 +61,7 @@ export class Bit {
     _zmqItemQueue: pQueue<pQueue.DefaultAddOptions>;
     network!: string;
     notifications!: Notifications;
-    _spentTxoCache = new CacheMap<string, string>(100000);
+    _spentTxoCache = new CacheMap<string, { txid: string, block: number|null }>(100000);
 
     constructor(db: Db) { 
         this.db = db;
@@ -143,7 +143,7 @@ export class Bit {
         inputTxos.forEach(input => {
             let txo = `${input.previousTxHash}:${input.previousTxOutIndex}`
             if (this._spentTxoCache.has(txo)) {
-                let doubleSpentTxid = this._spentTxoCache.get(txo)!;
+                let doubleSpentTxid = this._spentTxoCache.get(txo)!.txid;
                 if (doubleSpentTxid !== txid) {
                     console.log(`[INFO] Detected double spent ${txo} --> original: ${doubleSpentTxid}, current: ${txid}`);
                     this.slpMempool.delete(doubleSpentTxid);
@@ -166,7 +166,7 @@ export class Bit {
                 }
             }
             if (!txo.startsWith('0'.repeat(64))) { // ignore coinbase
-                this._spentTxoCache.set(txo, txid);
+                this._spentTxoCache.set(txo, { txid, block: null });
             }
         });
 
