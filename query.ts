@@ -96,7 +96,7 @@ export class Query {
         return { txns: a, timestamp: response[0] ? response[0].timestamp: null };
     }
 
-    static async getTransactionsForBlock(blockHash: string): Promise<{ txns: {txid: string, slp: TNATxnSlpDetails }[], timestamp: string|null }|null> {
+    static async getTransactionsForBlock(blockHash: string): Promise<{ hash: string, txns: {txid: string, slp: TNATxnSlpDetails }[], timestamp: string|null }|null> {
         console.log("[Query] getTransactionsForBlock(" + blockHash + ")")
         let q = {
             "v": 3,
@@ -115,7 +115,7 @@ export class Query {
         let a = Array.from(response);
         if(a.length === MAX_QUERY_LIMIT)
             throw Error("Query limit is reached, implementation error");
-        return { txns: a, timestamp: a[0].timestamp };
+        return { hash: blockHash, txns: a, timestamp: a[0].timestamp };
     }
 
     static async queryForRecentTokenTxns(tokenId: string, block: number): Promise<string[]> {
