@@ -68,6 +68,8 @@ let lastBlockIndex: number;
 describe("1-Token-Type-1", () => {
 
     step("Initial setup for all tests", async () => {
+        // TODO: burn any existing wallet funds, in order to prevent "Transaction too large".
+
         // generate block to clear the mempool (may be dirty from previous tests)
         await rpcNode1_miner.generate(1);
 
@@ -140,7 +142,7 @@ describe("1-Token-Type-1", () => {
         assert.equal(txn!.slp!.detail!.name, "unit-test-1");
         assert.equal(txn!.slp!.detail!.symbol, "ut1");
         // @ts-ignore
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].amount!["$numberDecimal"], TOKEN_GENESIS_QTY.toFixed());        
+        assert.equal(txn!.slp!.detail!.outputs![0].amount!.toString(), TOKEN_GENESIS_QTY.toFixed());        
         assert.equal(txn!.slp!.detail!.tokenIdHex, txn!.tx.h);
         assert.equal(unconfirmed.length, 1);
     });
@@ -366,9 +368,9 @@ describe("1-Token-Type-1", () => {
         assert.equal(txn!.slp!.detail!.name, "unit-test-1");
         assert.equal(txn!.slp!.detail!.symbol, "ut1");
         // @ts-ignore
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].amount!["$numberDecimal"], TOKEN_SEND_QTY.toFixed());
+        assert.equal(txn!.slp!.detail!.outputs![0].amount!.toString(), TOKEN_SEND_QTY.toFixed());
         // @ts-ignore
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![1].amount!["$numberDecimal"], (TOKEN_GENESIS_QTY - TOKEN_SEND_QTY).toFixed());       
+        assert.equal(txn!.slp!.detail!.outputs![1].amount!.toString(), (TOKEN_GENESIS_QTY - TOKEN_SEND_QTY).toFixed());       
         assert.equal(txn!.slp!.detail!.tokenIdHex, tokenId);
         assert.equal(unconfirmed.length, 1);
     });

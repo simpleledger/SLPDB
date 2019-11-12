@@ -240,24 +240,26 @@ describe("2-Double-Spend-Genesis", () => {
 
     step("DS-G: produces ZMQ output for the transaction", async () => {
         // give slpdb time to process
-        while(slpdbTxnNotifications.length === 0) {
+        while(slpdbTxnNotifications.filter(txn => txn.tx.h === tokenId2).length === 0) {
             await sleep(50);
         }
+
+        let txn = slpdbTxnNotifications.filter(txn => txn.tx.h === tokenId2)[0];
         // check that SLPDB made proper outgoing ZMQ messages for 
-        assert.equal(slpdbTxnNotifications.length, 1);
-        assert.equal(slpdbTxnNotifications[0]!.slp!.valid, true);
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.name, "unit-test-2b");
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.symbol, "ut2b");
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.tokenIdHex, tokenId2);
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].address, receiverSlptest);
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.transactionType, SlpTransactionType.GENESIS);
+        assert.equal(slpdbTxnNotifications.length > 0, true);
+        assert.equal(txn.slp!.valid, true);
+        assert.equal(txn.slp!.detail!.name, "unit-test-2b");
+        assert.equal(txn.slp!.detail!.symbol, "ut2b");
+        assert.equal(txn.slp!.detail!.tokenIdHex, tokenId2);
+        assert.equal(txn.slp!.detail!.outputs![0].address, receiverSlptest);
+        assert.equal(txn.slp!.detail!.transactionType, SlpTransactionType.GENESIS);
         // @ts-ignore
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].amount!["$numberDecimal"], TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(slpdbTxnNotifications[0]!.blk!.h, lastBlockHash);
-        assert.equal(slpdbTxnNotifications[0]!.blk!.i, lastBlockIndex);
-        assert.equal(typeof slpdbTxnNotifications[0]!.in, "object");
-        assert.equal(typeof slpdbTxnNotifications[0]!.out, "object");
-        assert.equal(typeof slpdbTxnNotifications[0]!.tx, "object");
+        assert.equal(txn.slp!.detail!.outputs![0].amount!["$numberDecimal"], TOKEN_GENESIS_QTY.toFixed());
+        assert.equal(txn.blk!.h, lastBlockHash);
+        assert.equal(txn.blk!.i, lastBlockIndex);
+        assert.equal(typeof txn.in, "object");
+        assert.equal(typeof txn.out, "object");
+        assert.equal(typeof txn.tx, "object");
     });
 
     step("DS-G: produces ZMQ output for the block", async () => {

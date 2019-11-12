@@ -4,7 +4,7 @@
   "description": "Token graph data layer for Simple Ledger Protocol",
   "main": "index.js",
   "scripts": {
-    "test": "tsc && mocha --timeout 10000 --exit --require mocha-steps",
+    "test": "tsc && mocha --timeout 1000000 --exit --require mocha-steps",
     "start": "tsc && node --max_old_space_size=8192 index run",
     "tsc": "tsc",
     "lint": "./node_modules/.bin/eslint .",
