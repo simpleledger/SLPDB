@@ -245,7 +245,12 @@ export class Bit {
 
     async crawl(block_index: number, triggerSlpProcessing: boolean): Promise<CrawlResult|null> {
         let result = new Map<txid, CrawlTxnInfo>();
-        let block_content = await RpcClient.getBlockInfo({ index: block_index });
+        let block_content: BlockHeaderResult;
+        try {
+            block_content = await RpcClient.getBlockInfo({ index: block_index });
+        } catch(_) {
+            throw Error("Reorg may have occured at an unfortunate time (crawl).");
+        }
         let block_hash = block_content.hash;
         let block_time = block_content.time;
         
@@ -430,7 +435,7 @@ export class Bit {
             try {
                 let lastCheckpoint = hash ? <ChainSyncCheckpoint>await Info.getBlockCheckpoint() : <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
                 
-                lastCheckpoint = await Bit.checkForBlockReorg(self, lastCheckpoint);
+                lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
 
                 let currentHeight: number = await self.requestheight();
             
@@ -448,9 +453,16 @@ export class Bit {
                             self.removeMempoolTransaction(tna.tx.h);
                         });
                     }
-
-                    await Info.deleteBlockCheckpointHash(index - 11);
-                    await Info.updateBlockCheckpoint(index, await RpcClient.getBlockHash(index));
+                    if (index - 100 > 0) {
+                        await Info.deleteBlockCheckpointHash(index - 100);
+                    }
+                    try {
+                        await Info.updateBlockCheckpoint(index, await RpcClient.getBlockHash(index));
+                    } catch(_) {
+                        lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
+                        index = lastCheckpoint.height + 1;
+                        continue;
+                    }
                     console.timeEnd('[PERF] DB Insert ' + index);
 
                     // re-check current height in case it was updated during crawl()
@@ -512,24 +524,75 @@ export class Bit {
         return null;
     }
 
-    private static async checkForBlockReorg(self: Bit, lastCheckpoint: ChainSyncCheckpoint): Promise<ChainSyncCheckpoint> {
-        let actualHash = await RpcClient.getBlockHash(lastCheckpoint.height);
-        // ignore this re-org check if the checkpoint block hash is null
-        if (lastCheckpoint.hash) {
-            let lastCheckedHash = lastCheckpoint.hash;
-            let lastCheckedHeight = lastCheckpoint.height;
-            let from = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
-            let maxRollback = 10;
-            let rollbackCount = 0;
-            while (lastCheckedHash !== actualHash && lastCheckedHeight > from && rollbackCount++ < maxRollback) {
-                await Info.updateBlockCheckpoint(lastCheckedHeight, null);
-                lastCheckedHash = await Info.getCheckpointHash(--lastCheckedHeight);
-                actualHash = (<BlockHeaderResult>await RpcClient.getBlockInfo({hash: actualHash})).previousblockhash;
+    static async checkForBlockReorg(lastCheckpoint: ChainSyncCheckpoint): Promise<ChainSyncCheckpoint> {
+        // first, find a height with a block hash - should normallly be found on first try, otherwise rollback
+        let from = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
+        let hadReorg = false;
+        let actualHash: string|null = null;
+        let maxRollback = 100;
+        let rollbackCount = 0;
+        while(!actualHash) {
+            try {
+                console.log(`[INFO] Checking for reorg for ${lastCheckpoint.height}`);
+                actualHash = await RpcClient.getBlockHash(lastCheckpoint.height);
+                console.log(`[INFO] Confirmed actual block hash: ${actualHash} at ${lastCheckpoint.height}`);
+            } catch (err) {
+                if(lastCheckpoint.height > from) {
+                    console.log(`[WARN] Missing actual hash for height ${lastCheckpoint.height}, rolling back.`);
+                    lastCheckpoint.hash = null;
+                    lastCheckpoint.height--;
+                    rollbackCount++;
+                    hadReorg = true;
+                } else {
+                    console.log(`[WARN] Cannot rollback further than ${lastCheckpoint.height}.`);
+                }
             }
-            if(lastCheckpoint.hash !== lastCheckedHash)
-                await Info.updateBlockCheckpoint(lastCheckedHeight, lastCheckedHash);
+            if (rollbackCount > 0 && lastCheckpoint.height > from) {
+                console.log(`[WARN] Current checkpoint set to ${actualHash} ${lastCheckpoint.height} after rollback.`);
+                await Info.updateBlockCheckpoint(lastCheckpoint.height, actualHash);
+            } else if(lastCheckpoint.height <= from) {
+                return { height: from, hash: null, hadReorg: true };
+            }
+            if(maxRollback > 0 && rollbackCount > maxRollback) {
+                throw Error("A large rollback occurred when trying to find actual block hash, this should not happen, shutting down");
+            }
         }
-        return await Info.getBlockCheckpoint();
+
+        // Next, we should ensure our previous block hash stored in leveldb 
+        // matches the current tip's previous hash, otherwise we need to rollback again
+        let prevBlockHash = (<BlockHeaderResult>await RpcClient.getBlockInfo({ hash: actualHash })).previousblockhash;
+        let prevBlockHeight = lastCheckpoint.height - 1;
+
+        console.log(`[INFO] Checking previous actual block hash: ${prevBlockHash} for ${prevBlockHeight}`);
+        let storedPrevCheckpointHash = await Info.getCheckpointHash(prevBlockHeight);
+        console.log(`[INFO] Previously stored hash: ${storedPrevCheckpointHash} at ${prevBlockHeight}`);
+        if(storedPrevCheckpointHash) {
+            maxRollback = 100;
+            rollbackCount = 0;
+            while (storedPrevCheckpointHash !== prevBlockHash && prevBlockHeight > from) {
+                rollbackCount++;
+                hadReorg = true;
+                storedPrevCheckpointHash = await Info.getCheckpointHash(--prevBlockHeight);
+                prevBlockHash = (<BlockHeaderResult>await RpcClient.getBlockInfo({ hash: prevBlockHash })).previousblockhash;
+                console.log(`[WARN] Rolling back to stored previous height ${prevBlockHeight}`);
+                console.log(`[WARN] Rollback - actual previous hash ${prevBlockHash}`);
+                console.log(`[WARN] Rollback - stored previous hash ${storedPrevCheckpointHash}`);
+                if(maxRollback > 0 && rollbackCount > maxRollback) {
+                    throw Error("A large rollback occurred when rolling back due to prev hash mismatch, this should not happen, shutting down");
+                }
+                actualHash = prevBlockHash;
+                lastCheckpoint.height = prevBlockHeight;
+            }
+            if(rollbackCount > 0 && lastCheckpoint.height > from) {
+                console.log(`[WARN] Current checkpoint at ${actualHash} ${lastCheckpoint.height}`);
+                await Info.updateBlockCheckpoint(lastCheckpoint.height, actualHash);
+            } else if(lastCheckpoint.height <= from) {
+                return { height: from, hash: null, hadReorg: true }
+            }
+        }
+
+        // return current checkpoint - if a rollback occured the returned value will be for the matching previous block hash
+        return { hash: actualHash, height: lastCheckpoint.height, hadReorg };
     }
 
     async processBlocksForTNA() {

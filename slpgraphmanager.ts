@@ -322,7 +322,12 @@ export class SlpGraphManager {
                 if(collection === 'confirmed' && !tna.blk) {
                     console.log("[INFO] Updating", collection, "TNATxn block data for", txid);
                     let txnBlockhash = <string>await RpcClient.getTransactionBlockHash(txid);
-                    let block = <BlockHeaderResult>await RpcClient.getBlockInfo({ hash: txnBlockhash});
+                    let block;
+                    try {
+                        block = <BlockHeaderResult>await RpcClient.getBlockInfo({ hash: txnBlockhash});
+                    } catch(_) {
+                        throw Error("Reorg may have occured at an unfortunate time (updateTxnCollections).");
+                    }
                     tna.blk = {
                         h: txnBlockhash, 
                         i: block.height, 

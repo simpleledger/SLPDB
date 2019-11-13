@@ -63,10 +63,11 @@ const daemon = {
             console.log("[INFO] Schema version for the confirmed collection was updated. Reseting block checkpoint reset to", (await Info.getBlockCheckpoint()).height)
         }
 
-        const lastSynchronized = <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
-        let reprocessFrom = lastSynchronized.height;
+        let lastSynchronized = <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
+        console.log("reprocessFrom: ", lastSynchronized.height);
         if(lastSynchronized.height > await bit.requestheight()) {
-            throw Error("Config.core.from or Config.core.from_testnet cannot be larger than the current blockchain height (check the config.ts file)");
+            lastSynchronized = await Bit.checkForBlockReorg(lastSynchronized);
+            //throw Error("Config.core.from or Config.core.from_testnet cannot be larger than the current blockchain height (check the config.ts file)");
         }
 
         console.time('[PERF] Indexing Keys');
@@ -108,7 +109,7 @@ const daemon = {
             console.log("[INFO] initAllTokens complete");
         }
 
-        await tokenManager.initAllTokens({ reprocessFrom, onComplete, loadFromDb: loadFromDb });
+        await tokenManager.initAllTokens({ reprocessFrom: lastSynchronized.height, onComplete, loadFromDb: loadFromDb });
 
         // // look for burned token transactions every hour after startup
         // setInterval(async function() {
