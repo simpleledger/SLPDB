@@ -69,7 +69,7 @@ export class RpcClient {
             return Buffer.from((await grpc.getBlockInfo({ index: block_index })).getInfo()!.getHash_asU8().reverse()).toString('hex');
         }
         console.log("[INFO] JSON RPC: getBlockHash", block_index);
-        return await rpc_retry.getBlockHash(block_index);
+        return await rpc.getBlockHash(block_index);
     }
 
     static async getRawBlock(hash: string): Promise<string> {
@@ -108,13 +108,14 @@ export class RpcClient {
 
         if(index) {
             console.log("[INFO] JSON RPC: getBlockInfo/getBlockHash", index);
-            hash = await rpc_retry.getBlockHash(index);
+            hash = await rpc.getBlockHash(index);
         }
-        else if(!hash)
+        else if(!hash) {
             throw Error("No index or hash provided for block")
+        }
 
         console.log("[INFO] JSON RPC: getBlockInfo/getBlockHeader", hash, true);
-        return <BlockHeaderResult>await rpc_retry.getBlockHeader(hash);
+        return <BlockHeaderResult>await rpc.getBlockHeader(hash);
     }
 
     static async getRawMemPool(): Promise<string[]> {

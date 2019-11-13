@@ -276,7 +276,7 @@ export class Db {
         }
 
         if(block_index) {
-            console.log('[INFO] Deleting confirmed transactions in block:', block_index)
+            console.log('[INFO] Deleting confirmed transactions in block (for replacement):', block_index)
             try {
                 await this.db.collection('confirmed').deleteMany({ 'blk.i': block_index })
             } catch(err) {

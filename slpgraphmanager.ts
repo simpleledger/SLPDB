@@ -322,11 +322,16 @@ export class SlpGraphManager {
                 if(collection === 'confirmed' && !tna.blk) {
                     console.log("[INFO] Updating", collection, "TNATxn block data for", txid);
                     let txnBlockhash = <string>await RpcClient.getTransactionBlockHash(txid);
-                    let block = <BlockHeaderResult>await RpcClient.getBlockInfo({ hash: txnBlockhash});
-                    tna.blk = {
-                        h: txnBlockhash, 
-                        i: block.height, 
-                        t: block.time
+                    let block;
+                    try {
+                        block = <BlockHeaderResult>await RpcClient.getBlockInfo({ hash: txnBlockhash });
+                        tna.blk = {
+                            h: txnBlockhash, 
+                            i: block.height, 
+                            t: block.time
+                        }
+                    } catch(_) {
+                        return;
                     }
                     await this.db.db.collection(collection).replaceOne({ "tx.h": txid }, tna);
                 }

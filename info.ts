@@ -9,8 +9,9 @@ import { Config } from './config';
 */
 
 export interface ChainSyncCheckpoint {
-	height: number, 
-	hash: string|null 
+	height: number;
+	hash: string|null;
+	hadReorg?: boolean;
 }
 
 export module Info {
