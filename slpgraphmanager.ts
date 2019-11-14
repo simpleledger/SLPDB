@@ -324,6 +324,7 @@ export class SlpGraphManager {
                     let txnBlockhash = <string>await RpcClient.getTransactionBlockHash(txid);
                     let block;
                     try {
+                        console.log("updateTxnCollections")
                         block = <BlockHeaderResult>await RpcClient.getBlockInfo({ hash: txnBlockhash });
                         tna.blk = {
                             h: txnBlockhash, 

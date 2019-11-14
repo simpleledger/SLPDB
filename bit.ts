@@ -247,6 +247,7 @@ export class Bit {
         let result = new Map<txid, CrawlTxnInfo>();
         let block_content: BlockHeaderResult;
         try {
+            console.log("crawl")
             block_content = await RpcClient.getBlockInfo({ index: block_index });
         } catch(_) {
             return null;
@@ -560,6 +561,7 @@ export class Bit {
 
         // Next, we should ensure our previous block hash stored in leveldb 
         // matches the current tip's previous hash, otherwise we need to rollback again
+        console.log("checkForBlockReorg1")
         let prevBlockHash = (<BlockHeaderResult>await RpcClient.getBlockInfo({ hash: actualHash })).previousblockhash;
         let prevBlockHeight = lastCheckpoint.height - 1;
 
@@ -573,6 +575,7 @@ export class Bit {
                 rollbackCount++;
                 hadReorg = true;
                 storedPrevCheckpointHash = await Info.getCheckpointHash(--prevBlockHeight);
+                console.log("checkForBlockReorg2")
                 prevBlockHash = (<BlockHeaderResult>await RpcClient.getBlockInfo({ hash: prevBlockHash })).previousblockhash;
                 console.log(`[WARN] Rolling back to stored previous height ${prevBlockHeight}`);
                 console.log(`[WARN] Rollback - actual previous hash ${prevBlockHash}`);
