@@ -460,7 +460,7 @@ export class Bit {
                         await Info.updateBlockCheckpoint(index, await RpcClient.getBlockHash(index));
                     } catch(_) {
                         lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
-                        index = lastCheckpoint.height + 1;
+                        index = lastCheckpoint.height;
                         continue;
                     }
                     console.timeEnd('[PERF] DB Insert ' + index);
