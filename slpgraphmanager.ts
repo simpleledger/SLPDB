@@ -208,9 +208,9 @@ export class SlpGraphManager {
             }
             await this.fixMissingTokenTimestamps();
 
-            // DO NOT AWAIT: Search for any burned transactions 
-            this.searchBlockForBurnedSlpTxos(hash);
         }
+        // DO NOT AWAIT: Search for any burned transactions 
+        this.searchBlockForBurnedSlpTxos(hash);
         SlpdbStatus.updateSlpProcessedBlockHeight(this._bestBlockHeight);
     }
 
@@ -274,7 +274,7 @@ export class SlpGraphManager {
                         send_txo = t.utxoToUtxoDbo(txid, vout);
                         return;
                     }
-                })
+                });
                 if(send_txo) {
                     console.log("Potential burned transaction found (" + txid + ":" + vout + ")");
                     let tokenId = send_txo.tokenDetails.tokenIdHex;
