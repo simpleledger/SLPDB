@@ -426,12 +426,8 @@ export class SlpGraphManager {
                     tna.slp.invalidReason = invalidReason;
                     tna.slp.schema_version = Config.db.token_schema_version;
                     await this.db.db.collection(collection).replaceOne({ "tx.h": txid }, tna);
-                    let test = await this.db.db.collection(collection).findOne({ "tx.h": txid }) as TNATxn;
-                    if(collection === 'confirmed')
+                    if(collection === 'confirmed') {
                         await this.db.db.collection('unconfirmed').deleteMany({ "tx.h": txid });
-                    if(!test.slp) {
-                        let msg = "[ERROR] Did not update SLP object.";
-                        throw msg;
                     }
                 }
             }
