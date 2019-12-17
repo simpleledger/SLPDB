@@ -23,6 +23,7 @@ import { BlockHeaderResult } from "bitcoin-com-rest";
 import { CacheSet } from "./cache";
 import { SlpdbStatus, SlpdbState } from "./status";
 import { TokenFilter } from "./filters";
+import { GraphMap } from "./graphmap";
 
 const bitcoin = new BITBOX();
 const slp = new Slp(bitcoin);
@@ -436,8 +437,9 @@ export class SlpGraphManager {
             try {
                 if(tokenId) {
                     let token = this._tokens.get(tokenId);
-                    if(token)
+                    if(token && token._graphTxns.has(txid)) {
                         token._graphTxns.delete(txid);
+                    }
                 }
             } catch(err) {
                 console.log(err);
@@ -635,7 +637,7 @@ export class SlpGraphManager {
             let tokenId = graph._tokenDetails.tokenIdHex;
             this._tokens.set(tokenId, graph);
             await this.db.tokenInsertReplace(graph.toTokenDbObject());
-            await this.db.graphInsertReplace(graph.toGraphDbObject(), tokenId);
+            await this.db.graphItemsInsertReplaceDelete(graph);
             await this.db.utxoInsertReplace(graph.toUtxosDbObject(), tokenId);
             await this.db.addressInsertReplace(graph.toAddressesDbObject(), tokenId);
         }

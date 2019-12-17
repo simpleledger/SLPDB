@@ -15,6 +15,7 @@ import { SlpdbStatus, SlpdbState } from './status';
 import { TokenDBObject, AddressBalancesDbo, UtxoDbo, GraphTxnDbo, GraphTxnOutputDbo, 
     GraphTxnDetailsDbo, SlpTransactionDetailsDbo, TokenUtxoStatus, TokenStats, cashAddr, 
     BatonUtxoStatus, TokenBatonStatus, TokenStatsDbo } from './interfaces';
+import { GraphMap } from './graphmap';
 
 let cashaddr = require('cashaddrjs-slp');
 
@@ -22,14 +23,14 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const bitbox = new BITBOX();
 
-export class SlpTokenGraph implements TokenGraph {
+export class SlpTokenGraph {
     _lastUpdatedBlock!: number;
     _tokenDetails!: SlpTransactionDetails;
     _tokenStats!: TokenStats;
     _tokenUtxos = new Set<string>();
     _mintBatonUtxo = "";
     _nftParentId?: string;
-    _graphTxns = new Map<string, GraphTxn>();
+    _graphTxns = new GraphMap();
     _addresses = new Map<cashAddr, AddressBalance>();
     _slpValidator = new LocalValidator(bitbox, async (txids) => { 
         if (this._manager._bit.doubleSpendCache.has(txids[0])) {
@@ -410,12 +411,12 @@ export class SlpTokenGraph implements TokenGraph {
         }
 
         let graphTxn: GraphTxn;
-        if(!this._graphTxns.has(txid)) {
-            graphTxn = { details: txnSlpDetails, outputs: [], inputs: [], blockHash: block ? block.hash : null };
+        if (!this._graphTxns.has(txid)) {
+            graphTxn = { details: txnSlpDetails, outputs: [], inputs: [], blockHash: block ? block.hash : null, isDirty: true, hasUnspent: true };
             this._graphTxns.set(txid, graphTxn);
-        }
-        else {
+        } else {
             graphTxn = this._graphTxns.get(txid)!;
+            graphTxn.isDirty = true;
         }
         console.log("[INFO] Valid txns", this._graphTxns.size);
 
@@ -571,8 +572,9 @@ export class SlpTokenGraph implements TokenGraph {
             }
         }
         getChildTxids(txid);
-        if(deleteSelf)
+        if(deleteSelf) {
             toDelete.add(txid);
+        }
         toDelete.forEach(txid => {
             // must find any graphTxn with an output spendTxid equal to txid
             this._graphTxns.get(txid)!.inputs.forEach((v, i) => {
@@ -590,8 +592,9 @@ export class SlpTokenGraph implements TokenGraph {
         });
         this._tokenUtxos.forEach(txo => {
             let txid = txo.split(':')[0];
-            if(toDelete.has(txid))
+            if(toDelete.has(txid)) {
                 this._tokenUtxos.delete(txo);
+            }
         });
     }
 
@@ -769,8 +772,9 @@ export class SlpTokenGraph implements TokenGraph {
                 blockHashes.set(i[1].txid, i[1].blockHash);
             });
             blockHashes.forEach((v, k) => {
-                if(this._graphTxns.has(k))
+                if(this._graphTxns.has(k)) {
                     this._graphTxns.get(k)!.blockHash = v;
+                }
             });
         }
         let count = 0;
@@ -816,11 +820,14 @@ export class SlpTokenGraph implements TokenGraph {
 
         // TODO: remove temporary paranoia
         for(let key of Array.from( this._graphTxns.keys() )) {
-            if(!this._graphTxns.get(key)!.blockHash && !this._manager._bit.slpMempool.has(key)) {
-                if(SlpdbStatus.state === SlpdbState.RUNNING)
+            if(!this._graphTxns.get(key)!.blockHash &&
+               !this._manager._bit.slpMempool.has(key)) {
+                if(SlpdbStatus.state === SlpdbState.RUNNING) {
                     throw Error(`No blockhash for ${key}`);
-                else
-                    console.log('[INFO] Allowing missing block hash during startup conditions.');
+                }
+                else {
+                    console.log('[INFO] Allowing missing block hash during startup or deleted conditions.');
+                }
             }
         }
     }
@@ -876,7 +883,7 @@ export class SlpTokenGraph implements TokenGraph {
             if(saveToDb && !this._exit) {
                 await this._db.tokenInsertReplace(this.toTokenDbObject());
                 await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
-                await this._db.graphInsertReplace(this.toGraphDbObject(), this._tokenDetails.tokenIdHex);
+                await this._db.graphItemsInsertReplaceDelete(this);
                 await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
             }
 
@@ -981,45 +988,7 @@ export class SlpTokenGraph implements TokenGraph {
     }
 
     toGraphDbObject(): GraphTxnDbo[] {
-        let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
-        let result: GraphTxnDbo[] = [];
-        Array.from(this._graphTxns).forEach(k => {
-            result.push({
-                tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, 
-                graphTxn: {
-                    txid: k[0],
-                    details: SlpTokenGraph.MapTokenDetailsToDbo(this._graphTxns.get(k[0])!.details, this._tokenDetails.decimals),
-                    outputs: this.mapGraphTxnOutputsToDbo(this._graphTxns.get(k[0])!.outputs),
-                    inputs: this._graphTxns.get(k[0])!.inputs.map((i) => { 
-                        return {
-                            address: i.address,
-                            txid: i.txid,
-                            vout: i.vout,
-                            bchSatoshis: i.bchSatoshis,
-                            slpAmount: Decimal128.fromString(i.slpAmount.dividedBy(10**this._tokenDetails.decimals).toFixed())
-                        }
-                    }),
-                    stats: k[1].stats,
-                    blockHash: k[1].blockHash
-                }
-            })
-        });
-        return result;
-    }
-
-    mapGraphTxnOutputsToDbo(outputs: GraphTxnOutput[]): GraphTxnOutputDbo[] {
-        let mapped: GraphTxnDetailsDbo["outputs"] = [];
-        outputs.forEach(o => {
-                let m = Object.create(o);
-                //console.log(m);
-                try {
-                    m.slpAmount = Decimal128.fromString(m.slpAmount.dividedBy(10**this._tokenDetails.decimals).toFixed());
-                } catch(_) {
-                    m.slpAmount = Decimal128.fromString("0");
-                }
-                mapped.push(m);
-        })
-        return mapped;
+        return GraphMap.toDbo(this);
     }
 
     mapTokenStatstoDbo(stats: TokenStats): TokenStatsDbo {
@@ -1126,18 +1095,20 @@ export class SlpTokenGraph implements TokenGraph {
                     o.address = Utils.slpAddressFromHash160(decoded.hash, tg._network);
                 }
                 o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)
-            }) 
+            });
             dag[idx].graphTxn.inputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals))
 
             let gt: GraphTxn = {
+                isDirty: false,
                 details: this.MapDbTokenDetailsFromDbo(dag[idx].graphTxn.details, token.tokenDetails.decimals),
                 outputs: dag[idx].graphTxn.outputs as any as GraphTxnOutput[],
                 inputs: dag[idx].graphTxn.inputs as any as GraphTxnInput[],
                 stats: dag[idx].graphTxn.stats,
-                blockHash: dag[idx].graphTxn.blockHash
+                blockHash: dag[idx].graphTxn.blockHash,
+                hasUnspent: dag[idx].graphTxn.outputs.find(i => [TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(i.status)) ? true : false
             }
             tg._graphTxns.set(item.graphTxn.txid, gt);
-        })
+        });
 
         // Preload SlpValidator with cachedValidations
         let txids = Array.from(tg._graphTxns.keys());
@@ -1168,25 +1139,14 @@ export class SlpTokenGraph implements TokenGraph {
     }
 }
 
-export interface TokenGraph {
-    _tokenDetails: SlpTransactionDetails;
-    _tokenStats: TokenStats;
-    _tokenUtxos: Set<string>;
-    _mintBatonUtxo: string;
-    _nftParentId?: string;
-    _graphTxns: Map<txid, GraphTxn>;
-    _addresses: Map<cashAddr, AddressBalance>;    
-    queueTokenGraphUpdateFrom(config: {txid: string, isParent: boolean, processUpToBlock?: number}): void;
-    updateTokenGraphFrom(config: { txid: string, isParent?: boolean }): Promise<boolean|null>;
-    searchForNonSlpBurnTransactions(): Promise<void>;
-}
-
 export interface AddressBalance {
     token_balance: BigNumber; 
     satoshis_balance: number;
 }
 
-interface GraphTxn {
+export interface GraphTxn {
+    isDirty: boolean;
+    hasUnspent: boolean;
     isComplete?: boolean;
     details: SlpTransactionDetails;
     outputs: GraphTxnOutput[];
@@ -1199,7 +1159,7 @@ interface GraphTxn {
     blockHash: Buffer|null;
 }
 
-interface GraphTxnOutput { 
+export interface GraphTxnOutput {
     address: string;
     vout: number;
     bchSatoshis: number;

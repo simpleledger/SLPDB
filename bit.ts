@@ -178,7 +178,8 @@ export class Bit {
                     let t = this._slpGraphManager._tokens.get(g.tokenDetails.tokenIdHex);
                     if(t!._graphTxns.has(txidToDelete[i])) {
                         t!._graphTxns.delete(txidToDelete[i]);
-                        tokenIdToUpdate.add(txidToDelete[i])
+                        tokenIdToUpdate.add(txidToDelete[i]);
+                        tokenIdToUpdate.add(g.tokenDetails.tokenIdHex);
                     }
                 }
             }

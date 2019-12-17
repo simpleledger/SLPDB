@@ -2,6 +2,8 @@ import { MongoClient, Db as MongoDb } from 'mongodb';
 import { DbConfig } from './config';
 import { TNATxn } from './tna';
 import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from "./interfaces";
+import { GraphMap } from './graphmap';
+import { SlpTokenGraph } from './slptokengraph';
 
 export class Db {
     db!: MongoDb;
@@ -73,18 +75,16 @@ export class Db {
         })
     }
 
-    async graphInsertReplace(graph: GraphTxnDbo[], tokenIdHex: string) {
+    async graphItemsInsertReplaceDelete(graph: SlpTokenGraph) {
+        let dirtyItems = GraphMap.toDbo(graph);
         await this.checkClientStatus();
-        await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
-        if(graph.length > 0) {
-            return await this.db.collection('graphs').insertMany(graph);
+        for (const g of dirtyItems) {
+            await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": g.graphTxn.txid }, g, { upsert: true });
+        }
+        for (const txid of graph._graphTxns.deletedTxids()) {
+            await this.db.collection("graphs").deleteOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": txid });
         }
     }
-
-    // async graphreplace(graph: GraphTxnDbo[]) {
-    //     await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": graph[0].tokenDetails.tokenIdHex })
-    //     return await this.db.collection('graphs').insertMany(graph);
-    // }
 
     async graphDelete(tokenIdHex: string) {
         await this.checkClientStatus();
