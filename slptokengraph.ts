@@ -768,8 +768,8 @@ export class SlpTokenGraph {
         // update blockHash for each graph item.
         if(this._startupTxoSendCache) {
             let blockHashes = new Map<string, Buffer|null>();
-            Array.from(this._startupTxoSendCache.toMap()).forEach(i => {
-                blockHashes.set(i[1].txid, i[1].blockHash);
+            this._startupTxoSendCache.toMap().forEach((i, k) => {
+                blockHashes.set(i.txid, i.blockHash);
             });
             blockHashes.forEach((v, k) => {
                 if(this._graphTxns.has(k)) {
@@ -778,52 +778,52 @@ export class SlpTokenGraph {
             });
         }
         let count = 0;
-        for(let key of Array.from( this._graphTxns.keys() )) {
-            if(this._graphTxns.has(key) && 
-                !this._graphTxns.get(key)!.blockHash && 
-                !this._manager._bit.slpMempool.has(key))
+        for(const [txid, txn] of this._graphTxns.keys()) {
+            if(this._graphTxns.has(txid) && 
+                !this._graphTxns.get(txid)!.blockHash && 
+                !this._manager._bit.slpMempool.has(txid))
             {
                 let hash: string;
-                console.log("[INFO] Querying block hash for graph transaction", key);
+                console.log("[INFO] Querying block hash for graph transaction", txid);
                 try {
-                    if (this._manager._bit.doubleSpendCache.has(key)) {
-                        this._graphTxns.delete(key);
+                    if (this._manager._bit.doubleSpendCache.has(txid)) {
+                        this._graphTxns.delete(txid);
                         continue;
                     }
-                    hash = await RpcClient.getTransactionBlockHash(key);
-                    console.log(`[INFO] Block hash: ${hash} for ${key}`);
+                    hash = await RpcClient.getTransactionBlockHash(txid);
+                    console.log(`[INFO] Block hash: ${hash} for ${txid}`);
                     // add delay to prevent flooding rpc
                     if(count++ > 1000) {
                         await sleep(1000);
                         count = 0;
                     }
                 } catch(_) {
-                    console.log("[INFO] Removing unknown transaction", key);
-                    this._graphTxns.delete(key);
+                    console.log("[INFO] Removing unknown transaction", txid);
+                    this._graphTxns.delete(txid);
                     continue;
                 }
                 if(hash) {
-                    console.log("[INFO] Updating block hash for", key);
-                    this._graphTxns.get(key)!.blockHash = Buffer.from(hash, 'hex');
-                } else if (this._manager._bit.slpMempool.has(key)) {
+                    console.log("[INFO] Updating block hash for", txid);
+                    this._graphTxns.get(txid)!.blockHash = Buffer.from(hash, 'hex');
+                } else if (this._manager._bit.slpMempool.has(txid)) {
                     continue;
                 } else {
                     console.log("[INFO] Making sure transaction is in BCH mempool.");
                     let mempool = await RpcClient.getRawMemPool();
-                    if (mempool.includes(key)) {
+                    if (mempool.includes(txid)) {
                         continue;
                     }
-                    throw Error(`Unknown error occured in setting blockhash for ${key})`);
+                    throw Error(`Unknown error occured in setting blockhash for ${txid})`);
                 }
             }
         }
 
         // TODO: remove temporary paranoia
-        for(let key of Array.from( this._graphTxns.keys() )) {
-            if(!this._graphTxns.get(key)!.blockHash &&
-               !this._manager._bit.slpMempool.has(key)) {
+        for(const [txid, txn] of this._graphTxns) {
+            if(!this._graphTxns.get(txid)!.blockHash &&
+               !this._manager._bit.slpMempool.has(txid)) {
                 if(SlpdbStatus.state === SlpdbState.RUNNING) {
-                    throw Error(`No blockhash for ${key}`);
+                    throw Error(`No blockhash for ${txid}`);
                 }
                 else {
                     console.log('[INFO] Allowing missing block hash during startup or deleted conditions.');
@@ -942,12 +942,12 @@ export class SlpTokenGraph {
     toAddressesDbObject(): AddressBalancesDbo[] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
         let result: AddressBalancesDbo[] = [];
-        Array.from(this._addresses).forEach(a => { 
+        this._addresses.forEach((a, k) => { 
             result.push({ 
                 tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, 
-                address: a[0], 
-                satoshis_balance: a[1].satoshis_balance, 
-                token_balance: Decimal128.fromString(a[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) 
+                address: k, 
+                satoshis_balance: a.satoshis_balance, 
+                token_balance: Decimal128.fromString(a.token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) 
             }) 
         })
         return result;
@@ -955,7 +955,7 @@ export class SlpTokenGraph {
 
     toUtxosDbObject(): UtxoDbo[] {
         let result: UtxoDbo[] = [];
-        Array.from(this._tokenUtxos).forEach(u => {
+        this._tokenUtxos.forEach(u => {
             let txid = u.split(":")[0];
             let vout = u.split(":")[1];
             let output = this.utxoToUtxoDbo(txid, vout);
@@ -1111,8 +1111,7 @@ export class SlpTokenGraph {
         });
 
         // Preload SlpValidator with cachedValidations
-        let txids = Array.from(tg._graphTxns.keys());
-        txids.forEach(txid => {
+        tg._graphTxns.forEach((_, txid) => {
             let validation: any = { validity: null, details: null, invalidReason: null, parents: [], waiting: false }
             validation.validity = tg._graphTxns.get(txid) ? true : false;
             validation.details = tg._graphTxns.get(txid)!.details;
