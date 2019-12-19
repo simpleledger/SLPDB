@@ -145,9 +145,9 @@ export class Bit {
             if (this._spentTxoCache.has(txo)) {
                 let doubleSpentTxid = this._spentTxoCache.get(txo)!.txid;
                 if (doubleSpentTxid !== txid) {
-                    console.log(`[INFO] Detected double spent ${txo} --> original: ${doubleSpentTxid}, current: ${txid}`);
-                    this.slpMempool.delete(doubleSpentTxid);
-                    RpcClient.transactionCache.delete(doubleSpentTxid);
+                    console.log(`[INFO] Detected a double spend ${txo} --> original: ${doubleSpentTxid}, current: ${txid}`);
+                    // this.slpMempool.delete(doubleSpentTxid);
+                    // RpcClient.transactionCache.delete(doubleSpentTxid);
                     this.db.unconfirmedDelete(doubleSpentTxid); // no need to await
                     this.db.confirmedDelete(doubleSpentTxid);   // no need to await
                     if(this._slpGraphManager._tokens.has(doubleSpentTxid)) {
@@ -173,13 +173,14 @@ export class Bit {
         let tokenIdToUpdate= new Set<string>();
         if(txidToDelete.length > 0) {
             for (let i = 0; i < txidToDelete.length; i++) {
-                let g: GraphTxnDbo|null = await this.db.graphTxnFetch(txidToDelete[i]);
-                if(g && this._slpGraphManager._tokens.has(g.tokenDetails.tokenIdHex)) {
-                    let t = this._slpGraphManager._tokens.get(g.tokenDetails.tokenIdHex);
-                    if(t!._graphTxns.has(txidToDelete[i])) {
-                        t!._graphTxns.delete(txidToDelete[i]);
+                for (let [tokenId, g ] of this._slpGraphManager._tokens) { 
+                    if (g._graphTxns.has(txidToDelete[i])) {
+                        this.slpMempool.delete(txidToDelete[i]);
+                        RpcClient.transactionCache.delete(txidToDelete[i]);
+                        g._graphTxns.delete(txidToDelete[i]);
                         tokenIdToUpdate.add(txidToDelete[i]);
-                        tokenIdToUpdate.add(g.tokenDetails.tokenIdHex);
+                        tokenIdToUpdate.add(g._tokenDetails.tokenIdHex);
+                        break;
                     }
                 }
             }

@@ -76,13 +76,15 @@ export class Db {
     }
 
     async graphItemsInsertReplaceDelete(graph: SlpTokenGraph) {
-        let dirtyItems = GraphMap.toDbo(graph);
+        let [ itemsToUpdate, itemsToDelete ] = GraphMap.toDbo(graph);
         await this.checkClientStatus();
-        for (const g of dirtyItems) {
-            await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": g.graphTxn.txid }, g, { upsert: true });
-        }
-        for (const txid of graph._graphTxns.deletedTxids()) {
+        console.log(`TO DELETE: ${itemsToDelete}`)
+        for (const txid of itemsToDelete) {
             await this.db.collection("graphs").deleteOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": txid });
+        }
+        console.log(`TO UPDATE: ${itemsToUpdate.map(g=>g.graphTxn.txid)}`)
+        for (const g of itemsToUpdate) {
+            await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": g.graphTxn.txid }, g, { upsert: true });
         }
     }
 

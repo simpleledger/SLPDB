@@ -505,7 +505,6 @@ export class SlpTokenGraph {
                         }
                     }
                 })
-
             }
             else {
                 console.log("[WARNING]: Transaction is not valid or is unknown token type!", txid);
@@ -778,8 +777,8 @@ export class SlpTokenGraph {
             });
         }
         let count = 0;
-        for(const [txid, txn] of this._graphTxns.keys()) {
-            if(this._graphTxns.has(txid) && 
+        for(const [txid, txn] of this._graphTxns) {
+            if(this._graphTxns.has(txid) &&
                 !this._graphTxns.get(txid)!.blockHash && 
                 !this._manager._bit.slpMempool.has(txid))
             {

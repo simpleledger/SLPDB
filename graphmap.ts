@@ -13,19 +13,20 @@ export class GraphMap extends Map<string, GraphTxn> {
         if(includeDeletedItems) {
             return super.has(txid) || this.deleted.has(txid);
         }
+        console.log(`Has: ${super.has(txid)}`)
         return super.has(txid);
     }
 
     public delete(txid: string) {
         if(this.has(txid)) {
             this.deleted.set(txid, this.get(txid)!);
-            super.delete(txid);
+            console.log(`Delete: ${super.delete(txid)}`);
             return true;
         }
         return false;
     }
 
-    public deletedTxids() {
+    private _deletedTxids() {
         const txids = Array.from(this.deleted.keys());
         this._flush();
         return txids;
@@ -38,9 +39,9 @@ export class GraphMap extends Map<string, GraphTxn> {
         // TODO: prune items which can no longer be updated
     }
 
-    public static toDbo(tg: SlpTokenGraph): GraphTxnDbo[] {
+    public static toDbo(tg: SlpTokenGraph): [GraphTxnDbo[], string[]] { //, recentBlocks: string[]): GraphTxnDbo[] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(tg._tokenDetails, tg._tokenDetails.decimals);
-        let result: GraphTxnDbo[] = [];
+        let itemsToUpdate: GraphTxnDbo[] = [];
         tg._graphTxns.forEach((g, txid) => {
             if(g.isDirty) {
                 let dbo: GraphTxnDbo = {
@@ -62,10 +63,11 @@ export class GraphMap extends Map<string, GraphTxn> {
                         blockHash: g.blockHash
                     }
                 };
-                result.push(dbo);
+                itemsToUpdate.push(dbo);
             }
         });
-        return result;
+        let itemsToDelete = tg._graphTxns._deletedTxids();
+        return [itemsToUpdate, itemsToDelete ];
     }
 
     public static outputsToDbo(tokenGraph: SlpTokenGraph, outputs: GraphTxnOutput[]): GraphTxnOutputDbo[] {

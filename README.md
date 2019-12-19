@@ -1,9 +1,9 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-10-28
+**Last Updated:** 2019-12-18
 
-**Current SLPDB Version:** 0.15.6
+**Current SLPDB Version:** 0.16.0
 
 * 1. [What is SLPDB?](#WhatisSLPDB)
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)
@@ -16,6 +16,7 @@
 	* 4.4. [Testnet Support](#TestnetSupport)
 	* 4.5. [Running SLPDB](#RunningSLPDB)
 	* 4.6. [Updating SLPDB](#UpdatingSLPDB)
+    * 4.7. [Filtering for Specific Token ID](#Filtering)
 * 5. [Token Stats](#TokenStats)
 	* 5.1. [Supply Stats](#SupplyStats)
 	* 5.2. [Summarized Usage Stats](#SummarizedUsageStats)
@@ -32,40 +33,40 @@
 
 ##  1. <a name='WhatisSLPDB'></a>What is SLPDB?
 
-SLPDB is a node.js application that stores all token data for the Simple Ledger Protocol to MongoDB.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store SLP data.  The application allows other processes to subscribe to real-time SLP events via ZeroMQ.
+SLPDB is an indexer for all data related to the Simple Ledger Protocol.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store SLP data.  The application allows other processes to subscribe to real-time SLP events via ZeroMQ.  Users can listen for all SLP tokens or a specified subset of tokens.  SLPDB is typically used in conjunction with SlpServe and SlpSocket projects to provide access to the data via traditional http and socket interfaces.
 
 
 
 ##  2. <a name='DoyouneedtouinstalluSLPDB'></a>Do you need to <u>install</u> SLPDB?
 
-Most likely you do <u>not</u> need to install SLPDB.  Most users will be better off using someone else's public SLPDB instance like https://slpdb.bitcoin.com or https://slpdb.fountainhead.cash.  You only need to install SLPDB, SlpServe, and/or SlpSockServe projects if any of the following is true:
+Most likely you do <u>not</u> need to install SLPDB.  Most users will be better off using someone else's publicly shared SLPDB instance like https://slpdb.fountainhead.cash or https://query.slpdb.io.  You only need to install SLPDB, SlpServe (a http gateway), and/or SlpSockServe (a socket notifications gateway) projects if any of the following is true:
 
 - You cannot rely on a third-party for your SLP data.
-- SLP data query API offered at `slpdb.bitcoin.com` does not meet your needs.
+- The rate limits impposed by `slpdb.fountainhead.cash`, or `query.slpdb.io` are too restrictive for your needs.
 - Realtime SLP data event notifications available at `slpsocket.fountainhead.cash` does not meet your needs.
 
-NOTE: If you are going to operate a SLPDB instance you should join the telegram group for help and updates: https://t.me/slpdb
+NOTE: If you are going to operate your own SLPDB instance you should join the telegram group for help and updates: https://t.me/slpdb
 
 
 
 ##  3. <a name='HowdoIqueryforSLPdata'></a>How do I query for SLP data?
 
-Queries into SLP data use the jq query language.  If you are not familiar with jq we recommend that you examine some of the examples below to get started:
+Queries into the SLP data can be made using using mongo like queries.  If you are not familiar with jq we recommend that you examine some of the examples below to get started:
 
 Here are some example SLPDB queries:
 
-* Get details of all token IDs [example](https://slpdb.bitcoin.com/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOiB7fSwKICAgICJwcm9qZWN0IjogeyJ0b2tlbkRldGFpbHMiOiAxLCAidG9rZW5TdGF0cyI6IDEsICJfaWQiOiAwIH0sCiAgICAibGltaXQiOiAxMDAwMAogIH0KfQ==)
-* Get token details for single token ID [example](https://slpdb.bitcoin.com/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjoKICAgICAgewogICAgICAgICJ0b2tlbkRldGFpbHMudG9rZW5JZEhleCI6ICI5NTlhNjgxOGNiYTVhZjhhYmEzOTFkM2Y3NjQ5ZjVmNmE1Y2ViNmNkY2QyYzJhM2RjYjVkMmZiZmM0YjA4ZTk4IgogICAgICB9CiAgICB9LAogICAgInByb2plY3QiOiB7InRva2VuRGV0YWlscyI6IDEsICJ0b2tlblN0YXRzIjogMSwgIl9pZCI6IDAgfSwKICAgICJsaW1pdCI6IDEwMDAKICB9Cn0=)
-* Get addresses for a single token ID [example](https://slpdb.bitcoin.com/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJmaW5kIjogewogICAgICAidG9rZW5EZXRhaWxzLnRva2VuSWRIZXgiOiAiOTU5YTY4MThjYmE1YWY4YWJhMzkxZDNmNzY0OWY1ZjZhNWNlYjZjZGNkMmMyYTNkY2I1ZDJmYmZjNGIwOGU5OCIsCiAgICAgICJ0b2tlbl9iYWxhbmNlIjogeyAiJGd0ZSI6IDAgIH0KICAgIH0sCiAgICAibGltaXQiOiAxMDAwMCwKICAgICJwcm9qZWN0IjogeyJhZGRyZXNzIjogMSwgInNhdG9zaGlzX2JhbGFuY2UiOiAxLCAidG9rZW5fYmFsYW5jZSI6IDEsICJfaWQiOiAwIH0KICB9Cn0=)
-* Get token balances for an address [example](https://slpdb.bitcoin.com/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYSJdLCAKICAgICJmaW5kIjogewogICAgICAiYWRkcmVzcyI6ICJzaW1wbGVsZWRnZXI6cXJkbDBoZWswd3ltZHV4a3k0bHFxMzd1am1lODIyYWc5eTBoejJ3dnFxIiwKICAgICAgInRva2VuX2JhbGFuY2UiOiB7ICIkZ3RlIjogMCB9CiAgICB9LAogICAgImxpbWl0IjogMTAwMDAKICB9LCAKICAiciI6IHsKICAgICJmIjogIlsuW10gfCB7IHRva2VuSWQ6IC50b2tlbkRldGFpbHMudG9rZW5JZEhleCwgc2F0b3NoaXNfYmFsYW5jZTogLnNhdG9zaGlzX2JhbGFuY2UsIHRva2VuX2JhbGFuY2U6IC50b2tlbl9iYWxhbmNlIH1dIgogIH0KfQ==)
-* Get utxos for a single token ID [example](https://slpdb.bitcoin.com/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsieCJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjogeyAKICAgICAgICAidG9rZW5EZXRhaWxzLnRva2VuSWRIZXgiOiAiOTU5YTY4MThjYmE1YWY4YWJhMzkxZDNmNzY0OWY1ZjZhNWNlYjZjZGNkMmMyYTNkY2I1ZDJmYmZjNGIwOGU5OCIgCiAgICAgIH0KICAgIH0sCiAgICAibGltaXQiOiAxMDAwCiAgfSwKICAiciI6IHsKICAgICJmIjogIlsuW10gfCB7IHRva2VuSWQ6IC50b2tlbkRldGFpbHMudG9rZW5JZEhleCwgdXR4bzogLnV0eG8gfV0iCiAgfQp9)
-* Get transaction history by token ID [example](https://slpdb.bitcoin.com/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYyIsICJ1Il0sCiAgICAiZmluZCI6CiAgICB7CiAgICAgICIkcXVlcnkiOgogICAgICB7CiAgICAgICAgInNscC5kZXRhaWwudG9rZW5JZEhleCI6ICI0OTUzMjJiMzdkNmIyZWFlODFmMDQ1ZWRhNjEyYjk1ODcwYTBjMmI2MDY5YzU4ZjcwY2Y4ZWY0ZTZhOWZkNDNhIgogICAgICB9LAogICAgICAiJG9yZGVyYnkiOgogICAgICB7CiAgICAgICAgImJsay5pIjogLTEKICAgICAgfQogICAgfSwKICAgICJsaW1pdCI6IDEwMAogIH0sCiAgInIiOiB7CiAgICAiZiI6ICJbLltdIHwgeyB0eGlkOiAudHguaCwgdG9rZW5EZXRhaWxzOiAuc2xwIH0gXSIKICB9Cn0=)
-* Get transaction history by address [example](https://slpdb.bitcoin.com/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYyIsICJ1Il0sCiAgICAiZmluZCI6CiAgICB7CiAgICAgICIkb3IiOgogICAgICBbCiAgICAgICAgewogICAgICAgICAgImluLmUuYSI6ICJzaW1wbGVsZWRnZXI6cXJodmN5NXhsZWdzODU4ZmpxZjhzc2w2YTRmN3dwc3RhcW50MHdhdXd1IgogICAgICAgIH0sCiAgICAgICAgewogICAgICAgICAgIm91dC5lLmEiOiAic2ltcGxlbGVkZ2VyOnFyaHZjeTV4bGVnczg1OGZqcWY4c3NsNmE0Zjd3cHN0YXFudDB3YXV3dSIKICAgICAgICB9CiAgICAgIF0KICAgIH0sCiAgICAic29ydCI6CiAgICB7CiAgICAgICJibGsuaSI6IC0xCiAgICB9LAogICAgImxpbWl0IjogMTAwCiAgfSwKICAiciI6IHsKICAgICJmIjogIlsuW10gfCB7IHR4aWQ6IC50eC5oLCB0b2tlbkRldGFpbHM6IC5zbHAsIGJsazogLmJsayB9IF0iCiAgfQp9)
-* Get transaction history by address and token ID [example](https://slpdb.bitcoin.com/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYyIsICJ1Il0sCiAgICAiZmluZCI6CiAgICB7CiAgICAiJG9yIjoKICAgIFsKICAgICAgewogICAgICAgICJpbi5lLmEiOiAic2ltcGxlbGVkZ2VyOnFyaHZjeTV4bGVnczg1OGZqcWY4c3NsNmE0Zjd3cHN0YXFudDB3YXV3dSIKICAgICAgfSwKICAgICAgewogICAgICAgICJvdXQuZS5hIjogInNpbXBsZWxlZGdlcjpxcmh2Y3k1eGxlZ3M4NThmanFmOHNzbDZhNGY3d3BzdGFxbnQwd2F1d3UiCiAgICAgIH0KICAgIF0sCiAgICAic2xwLmRldGFpbC50b2tlbklkSGV4IjogIjQ5NTMyMmIzN2Q2YjJlYWU4MWYwNDVlZGE2MTJiOTU4NzBhMGMyYjYwNjljNThmNzBjZjhlZjRlNmE5ZmQ0M2EiCiAgICB9LAogICAgInNvcnQiOgogICAgewogICAgICAiYmxrLmkiOiAtMQogICAgfSwKICAgICJsaW1pdCI6IDEwMAogIH0sCiAgInIiOiB7CiAgICAiZiI6ICJbLltdIHwgeyB0eGlkOiAudHguaCwgdG9rZW5EZXRhaWxzOiAuc2xwIH0gXSIKICB9Cn0=)
-* Get all invalid token transactions (w/ SLP op_return) [example](https://slpdb.bitcoin.com/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYyIsICJ1Il0sCiAgICAiZmluZCI6IHsKICAgICAgInNscC52YWxpZCI6IGZhbHNlCiAgICB9LAogICAgImxpbWl0IjogMTAwMDAsCiAgICAicHJvamVjdCI6IHsidHguaCI6IDF9CiAgfSwKICAiciI6IHsKICAgICJmIjogIlsuW10gfCB7dHhpZDogLnR4Lmh9XSIKICB9Cn0=)
-* Get transaction counts for each token (w/ time range) [example](https://slpdb.bitcoin.com/explorer/ewogICJ2IjogMywKICAicSI6IAogIHsiYWdncmVnYXRlIjoKICBbeyIkbWF0Y2giOnsiYmxrLnQiOnsgIiRndGUiOiAxNTUyODY3MjAwLCAiJGx0ZSI6IDE1NTI5NTM2MDB9fX0sCiAgeyIkZ3JvdXAiOnsiX2lkIjogIiRzbHAuZGV0YWlsLm5hbWUiLCAiY291bnQiOiB7IiRzdW0iOiAxfX19XSwibGltaXQiOjEwMH19)
-* Get SLP usage per day (w/ time range) [example](https://slpdb.bitcoin.com/explorer/eyJ2IjozLCJxIjp7ImRiIjpbImMiXSwiYWdncmVnYXRlIjpbeyIkbWF0Y2giOnsic2xwLnZhbGlkIjp0cnVlLCJibGsudCI6eyIkZ3RlIjoxNTQzMTcyNTY4LjIwOCwiJGx0ZSI6MTU1MzU0MDU2OC4yMDh9fX0seyIkZ3JvdXAiOnsiX2lkIjoiJGJsay50IiwiY291bnQiOnsiJHN1bSI6MX19fV0sImxpbWl0IjoxMDAwMH0sInIiOnsiZiI6IlsgLltdIHwge2Jsb2NrX2Vwb2NoOiAuX2lkLCB0eHM6IC5jb3VudH0gXSJ9fQ==)
-* List input/output amount total for each valid transaction [example](https://slpdb.bitcoin.com/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiZyJdLAogICAgImFnZ3JlZ2F0ZSI6IFsgCiAgICAgIHsgIiRwcm9qZWN0Ijp7ICJncmFwaFR4bi50eGlkIjogMSwgImdyYXBoVHhuLmRldGFpbHMudHJhbnNhY3Rpb25UeXBlIjogMSwgImlucHV0VG90YWwiOiB7ICIkc3VtIjoiJGdyYXBoVHhuLmlucHV0cy5zbHBBbW91bnQiIH0sICJvdXRwdXRUb3RhbCI6IHsiJHN1bSI6IiRncmFwaFR4bi5vdXRwdXRzLnNscEFtb3VudCJ9IH19XSwKICAgICJsaW1pdCI6IDEwMDAKICB9Cn0=)
+* Get details of all token IDs [example](https://slpdb.fountainhead.cash/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOiB7fSwKICAgICJwcm9qZWN0IjogeyJ0b2tlbkRldGFpbHMiOiAxLCAidG9rZW5TdGF0cyI6IDEsICJfaWQiOiAwIH0sCiAgICAibGltaXQiOiAxMDAwMAogIH0KfQ==)
+* Get token details for single token ID [example](https://slpdb.fountainhead.cash/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjoKICAgICAgewogICAgICAgICJ0b2tlbkRldGFpbHMudG9rZW5JZEhleCI6ICI5NTlhNjgxOGNiYTVhZjhhYmEzOTFkM2Y3NjQ5ZjVmNmE1Y2ViNmNkY2QyYzJhM2RjYjVkMmZiZmM0YjA4ZTk4IgogICAgICB9CiAgICB9LAogICAgInByb2plY3QiOiB7InRva2VuRGV0YWlscyI6IDEsICJ0b2tlblN0YXRzIjogMSwgIl9pZCI6IDAgfSwKICAgICJsaW1pdCI6IDEwMDAKICB9Cn0=)
+* Get addresses for a single token ID [example](https://slpdb.fountainhead.cash/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJmaW5kIjogewogICAgICAidG9rZW5EZXRhaWxzLnRva2VuSWRIZXgiOiAiOTU5YTY4MThjYmE1YWY4YWJhMzkxZDNmNzY0OWY1ZjZhNWNlYjZjZGNkMmMyYTNkY2I1ZDJmYmZjNGIwOGU5OCIsCiAgICAgICJ0b2tlbl9iYWxhbmNlIjogeyAiJGd0ZSI6IDAgIH0KICAgIH0sCiAgICAibGltaXQiOiAxMDAwMCwKICAgICJwcm9qZWN0IjogeyJhZGRyZXNzIjogMSwgInNhdG9zaGlzX2JhbGFuY2UiOiAxLCAidG9rZW5fYmFsYW5jZSI6IDEsICJfaWQiOiAwIH0KICB9Cn0=)
+* Get token balances for an address [example](https://slpdb.fountainhead.cash/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYSJdLCAKICAgICJmaW5kIjogewogICAgICAiYWRkcmVzcyI6ICJzaW1wbGVsZWRnZXI6cXJkbDBoZWswd3ltZHV4a3k0bHFxMzd1am1lODIyYWc5eTBoejJ3dnFxIiwKICAgICAgInRva2VuX2JhbGFuY2UiOiB7ICIkZ3RlIjogMCB9CiAgICB9LAogICAgImxpbWl0IjogMTAwMDAKICB9LCAKICAiciI6IHsKICAgICJmIjogIlsuW10gfCB7IHRva2VuSWQ6IC50b2tlbkRldGFpbHMudG9rZW5JZEhleCwgc2F0b3NoaXNfYmFsYW5jZTogLnNhdG9zaGlzX2JhbGFuY2UsIHRva2VuX2JhbGFuY2U6IC50b2tlbl9iYWxhbmNlIH1dIgogIH0KfQ==)
+* Get utxos for a single token ID [example](https://slpdb.fountainhead.cash/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsieCJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjogeyAKICAgICAgICAidG9rZW5EZXRhaWxzLnRva2VuSWRIZXgiOiAiOTU5YTY4MThjYmE1YWY4YWJhMzkxZDNmNzY0OWY1ZjZhNWNlYjZjZGNkMmMyYTNkY2I1ZDJmYmZjNGIwOGU5OCIgCiAgICAgIH0KICAgIH0sCiAgICAibGltaXQiOiAxMDAwCiAgfSwKICAiciI6IHsKICAgICJmIjogIlsuW10gfCB7IHRva2VuSWQ6IC50b2tlbkRldGFpbHMudG9rZW5JZEhleCwgdXR4bzogLnV0eG8gfV0iCiAgfQp9)
+* Get transaction history by token ID [example](https://slpdb.fountainhead.cash/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYyIsICJ1Il0sCiAgICAiZmluZCI6CiAgICB7CiAgICAgICIkcXVlcnkiOgogICAgICB7CiAgICAgICAgInNscC5kZXRhaWwudG9rZW5JZEhleCI6ICI0OTUzMjJiMzdkNmIyZWFlODFmMDQ1ZWRhNjEyYjk1ODcwYTBjMmI2MDY5YzU4ZjcwY2Y4ZWY0ZTZhOWZkNDNhIgogICAgICB9LAogICAgICAiJG9yZGVyYnkiOgogICAgICB7CiAgICAgICAgImJsay5pIjogLTEKICAgICAgfQogICAgfSwKICAgICJsaW1pdCI6IDEwMAogIH0sCiAgInIiOiB7CiAgICAiZiI6ICJbLltdIHwgeyB0eGlkOiAudHguaCwgdG9rZW5EZXRhaWxzOiAuc2xwIH0gXSIKICB9Cn0=)
+* Get transaction history by address [example](https://slpdb.fountainhead.cash/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYyIsICJ1Il0sCiAgICAiZmluZCI6CiAgICB7CiAgICAgICIkb3IiOgogICAgICBbCiAgICAgICAgewogICAgICAgICAgImluLmUuYSI6ICJzaW1wbGVsZWRnZXI6cXJodmN5NXhsZWdzODU4ZmpxZjhzc2w2YTRmN3dwc3RhcW50MHdhdXd1IgogICAgICAgIH0sCiAgICAgICAgewogICAgICAgICAgIm91dC5lLmEiOiAic2ltcGxlbGVkZ2VyOnFyaHZjeTV4bGVnczg1OGZqcWY4c3NsNmE0Zjd3cHN0YXFudDB3YXV3dSIKICAgICAgICB9CiAgICAgIF0KICAgIH0sCiAgICAic29ydCI6CiAgICB7CiAgICAgICJibGsuaSI6IC0xCiAgICB9LAogICAgImxpbWl0IjogMTAwCiAgfSwKICAiciI6IHsKICAgICJmIjogIlsuW10gfCB7IHR4aWQ6IC50eC5oLCB0b2tlbkRldGFpbHM6IC5zbHAsIGJsazogLmJsayB9IF0iCiAgfQp9)
+* Get transaction history by address and token ID [example](https://slpdb.fountainhead.cash/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYyIsICJ1Il0sCiAgICAiZmluZCI6CiAgICB7CiAgICAiJG9yIjoKICAgIFsKICAgICAgewogICAgICAgICJpbi5lLmEiOiAic2ltcGxlbGVkZ2VyOnFyaHZjeTV4bGVnczg1OGZqcWY4c3NsNmE0Zjd3cHN0YXFudDB3YXV3dSIKICAgICAgfSwKICAgICAgewogICAgICAgICJvdXQuZS5hIjogInNpbXBsZWxlZGdlcjpxcmh2Y3k1eGxlZ3M4NThmanFmOHNzbDZhNGY3d3BzdGFxbnQwd2F1d3UiCiAgICAgIH0KICAgIF0sCiAgICAic2xwLmRldGFpbC50b2tlbklkSGV4IjogIjQ5NTMyMmIzN2Q2YjJlYWU4MWYwNDVlZGE2MTJiOTU4NzBhMGMyYjYwNjljNThmNzBjZjhlZjRlNmE5ZmQ0M2EiCiAgICB9LAogICAgInNvcnQiOgogICAgewogICAgICAiYmxrLmkiOiAtMQogICAgfSwKICAgICJsaW1pdCI6IDEwMAogIH0sCiAgInIiOiB7CiAgICAiZiI6ICJbLltdIHwgeyB0eGlkOiAudHguaCwgdG9rZW5EZXRhaWxzOiAuc2xwIH0gXSIKICB9Cn0=)
+* Get all invalid token transactions (w/ SLP op_return) [example](https://slpdb.fountainhead.cash/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiYyIsICJ1Il0sCiAgICAiZmluZCI6IHsKICAgICAgInNscC52YWxpZCI6IGZhbHNlCiAgICB9LAogICAgImxpbWl0IjogMTAwMDAsCiAgICAicHJvamVjdCI6IHsidHguaCI6IDF9CiAgfSwKICAiciI6IHsKICAgICJmIjogIlsuW10gfCB7dHhpZDogLnR4Lmh9XSIKICB9Cn0=)
+* Get transaction counts for each token (w/ time range) [example](https://slpdb.fountainhead.cash/explorer/ewogICJ2IjogMywKICAicSI6IAogIHsiYWdncmVnYXRlIjoKICBbeyIkbWF0Y2giOnsiYmxrLnQiOnsgIiRndGUiOiAxNTUyODY3MjAwLCAiJGx0ZSI6IDE1NTI5NTM2MDB9fX0sCiAgeyIkZ3JvdXAiOnsiX2lkIjogIiRzbHAuZGV0YWlsLm5hbWUiLCAiY291bnQiOiB7IiRzdW0iOiAxfX19XSwibGltaXQiOjEwMH19)
+* Get SLP usage per day (w/ time range) [example](https://slpdb.fountainhead.cash/explorer/eyJ2IjozLCJxIjp7ImRiIjpbImMiXSwiYWdncmVnYXRlIjpbeyIkbWF0Y2giOnsic2xwLnZhbGlkIjp0cnVlLCJibGsudCI6eyIkZ3RlIjoxNTQzMTcyNTY4LjIwOCwiJGx0ZSI6MTU1MzU0MDU2OC4yMDh9fX0seyIkZ3JvdXAiOnsiX2lkIjoiJGJsay50IiwiY291bnQiOnsiJHN1bSI6MX19fV0sImxpbWl0IjoxMDAwMH0sInIiOnsiZiI6IlsgLltdIHwge2Jsb2NrX2Vwb2NoOiAuX2lkLCB0eHM6IC5jb3VudH0gXSJ9fQ==)
+* List input/output amount total for each valid transaction [example](https://slpdb.fountainhead.cash/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsiZyJdLAogICAgImFnZ3JlZ2F0ZSI6IFsgCiAgICAgIHsgIiRwcm9qZWN0Ijp7ICJncmFwaFR4bi50eGlkIjogMSwgImdyYXBoVHhuLmRldGFpbHMudHJhbnNhY3Rpb25UeXBlIjogMSwgImlucHV0VG90YWwiOiB7ICIkc3VtIjoiJGdyYXBoVHhuLmlucHV0cy5zbHBBbW91bnQiIH0sICJvdXRwdXRUb3RhbCI6IHsiJHN1bSI6IiRncmFwaFR4bi5vdXRwdXRzLnNscEFtb3VudCJ9IH19XSwKICAgICJsaW1pdCI6IDEwMDAKICB9Cn0=)
 
 Users should utilize the [SlpServe](https://github.com/fountainhead-cash/slpserve) and [SlpSockServer](https://github.com/fountainhead-cash/slpsockserve) projects in order to conveniently query for the SLP data produced by SLPDB.
 
@@ -145,6 +146,10 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 **3)** Execute `npm run migrate up` to run latest migrations.
 
 **4)** Restart SLPDB.
+
+### 4.7. <a name='Filtering'></a>Filtering SLPDB to specific Token IDs
+
+Modify the `example-filters.yml` file to suite your needs and then rename it as `filters.yml` to activate the filtering.  Currently, `include-single` is the only filter type available, reference the example file for useage requirements.
 
 ##  5. <a name='TokenStats'></a>Token Stats
 
