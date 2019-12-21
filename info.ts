@@ -122,6 +122,17 @@ export module Info {
 		return null
 	}
 
+	export const getRecentBlocks = async () => {
+		let recentBlocks = [];
+		let tip = (await Info.getBlockCheckpoint()).height;
+		let hash = await Info.getCheckpointHash(tip);
+		while(hash && recentBlocks.length < 10) {
+			recentBlocks.unshift(hash);
+			hash = await Info.getCheckpointHash(--tip);
+		}
+		return recentBlocks;
+	}
+
 	// export const deleteTip = async function() {
 	// 	try { 
 	// 		await kv.del('tip');
@@ -131,7 +142,7 @@ export module Info {
 	// 	}
 	// }
 
-	export const deleteBlockCheckpointHash = async function (index: number){
+	export const deleteBlockCheckpointHash = async function (index: number) {
 		try { 
 			await kv.del(index + '-hash');
 	 		console.log("[INFO] Block hash record deleted for", index);

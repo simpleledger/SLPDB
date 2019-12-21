@@ -12,8 +12,8 @@ import { DefaultAddOptions } from 'p-queue';
 import { SlpGraphManager } from './slpgraphmanager';
 import { CacheMap } from './cache';
 import { SlpdbStatus, SlpdbState } from './status';
-import { TokenDBObject, AddressBalancesDbo, UtxoDbo, GraphTxnDbo, GraphTxnOutputDbo, 
-    GraphTxnDetailsDbo, SlpTransactionDetailsDbo, TokenUtxoStatus, TokenStats, cashAddr, 
+import { TokenDBObject, AddressBalancesDbo, UtxoDbo, GraphTxnDbo, 
+    SlpTransactionDetailsDbo, TokenUtxoStatus, TokenStats, cashAddr, 
     BatonUtxoStatus, TokenBatonStatus, TokenStatsDbo } from './interfaces';
 import { GraphMap } from './graphmap';
 
@@ -412,7 +412,7 @@ export class SlpTokenGraph {
 
         let graphTxn: GraphTxn;
         if (!this._graphTxns.has(txid)) {
-            graphTxn = { details: txnSlpDetails, outputs: [], inputs: [], blockHash: block ? block.hash : null, isDirty: true, hasUnspent: true };
+            graphTxn = { details: txnSlpDetails, outputs: [], inputs: [], blockHash: block ? block.hash : null, isDirty: true };
             this._graphTxns.set(txid, graphTxn);
         } else {
             graphTxn = this._graphTxns.get(txid)!;
@@ -986,9 +986,6 @@ export class SlpTokenGraph {
         return undefined;
     }
 
-    toGraphDbObject(): GraphTxnDbo[] {
-        return GraphMap.toDbo(this);
-    }
 
     mapTokenStatstoDbo(stats: TokenStats): TokenStatsDbo {
         return {
@@ -1103,8 +1100,7 @@ export class SlpTokenGraph {
                 outputs: dag[idx].graphTxn.outputs as any as GraphTxnOutput[],
                 inputs: dag[idx].graphTxn.inputs as any as GraphTxnInput[],
                 stats: dag[idx].graphTxn.stats,
-                blockHash: dag[idx].graphTxn.blockHash,
-                hasUnspent: dag[idx].graphTxn.outputs.find(i => [TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(i.status)) ? true : false
+                blockHash: dag[idx].graphTxn.blockHash
             }
             tg._graphTxns.set(item.graphTxn.txid, gt);
         });
@@ -1144,7 +1140,6 @@ export interface AddressBalance {
 
 export interface GraphTxn {
     isDirty: boolean;
-    hasUnspent: boolean;
     isComplete?: boolean;
     details: SlpTransactionDetails;
     outputs: GraphTxnOutput[];

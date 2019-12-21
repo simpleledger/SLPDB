@@ -4,6 +4,7 @@ import { TNATxn } from './tna';
 import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from "./interfaces";
 import { GraphMap } from './graphmap';
 import { SlpTokenGraph } from './slptokengraph';
+import { Info } from './info';
 
 export class Db {
     db!: MongoDb;
@@ -76,7 +77,12 @@ export class Db {
     }
 
     async graphItemsInsertReplaceDelete(graph: SlpTokenGraph) {
-        let [ itemsToUpdate, itemsToDelete ] = GraphMap.toDbo(graph);
+        let recentBlocks = await Info.getRecentBlocks();
+
+        console.log("Recent Blocks");
+        console.log(recentBlocks);
+
+        let [ itemsToUpdate, itemsToDelete ] = GraphMap.toDbo(graph, recentBlocks);
         await this.checkClientStatus();
         console.log(`TO DELETE: ${itemsToDelete}`)
         for (const txid of itemsToDelete) {
@@ -93,14 +99,12 @@ export class Db {
         return await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async graphFetch(tokenIdHex: string): Promise<GraphTxnDbo[]> {
+    async graphFetchUnspent(tokenIdHex: string): Promise<GraphTxnDbo[]> {
         await this.checkClientStatus();
-        return await this.db.collection('graphs').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
-
-        // return await this.db.collection('graphs').find({ 
-        //     "tokenDetails.tokenIdHex": tokenIdHex, 
-        //     "$or": [ { "graphTxn.hasUnspent": true }, { "graphTxn.hasUnspent": { "$exists": false } } ]
-        //     }).toArray();
+        return await this.db.collection('graphs').find({ 
+            "tokenDetails.tokenIdHex": tokenIdHex, 
+            "$or": [ { "tokenDetails.isAgedAndSpent": false }, { "tokenDetails.isAgedAndSpent": { "$exists": false }}]
+        }).toArray();
     }
 
     async graphTxnFetch(txid: string): Promise<GraphTxnDbo|null> {

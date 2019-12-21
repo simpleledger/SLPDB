@@ -554,9 +554,9 @@ export class SlpGraphManager {
         console.log("########################################################################################################");
         let utxos: UtxoDbo[] = await this.db.utxoFetch(token.tokenIdHex);
         let addresses: AddressBalancesDbo[] = await this.db.addressFetch(token.tokenIdHex);
-        let dag: GraphTxnDbo[] = await this.db.graphFetch(token.tokenIdHex);
-        graph = await SlpTokenGraph.FromDbObjects(tokenState, dag, utxos, addresses, this.db, this, this._network);
-        
+        let unspentDag: GraphTxnDbo[] = await this.db.graphFetchUnspent(token.tokenIdHex);
+        graph = await SlpTokenGraph.FromDbObjects(tokenState, unspentDag, utxos, addresses, this.db, this, this._network);
+
         let res: string[] = [];
         if(allowGraphUpdates) {
             let potentialReorgFactor = 11; // determine how far back the token graph should be reprocessed

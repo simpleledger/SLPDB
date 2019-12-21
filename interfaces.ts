@@ -99,6 +99,7 @@ export interface GraphTxnDetailsDbo {
         };
     };
     blockHash: Buffer | null;
+    isAgedAndSpent: boolean;
 }
 
 export interface GraphTxnOutputDbo {
