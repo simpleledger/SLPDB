@@ -2,6 +2,7 @@ node_modules
 *.js
 *.js.map
 !migrate-mongo-config.js
+!migrations/*
 
 mongo-dev-net/data*
 regtest/mongo/db
