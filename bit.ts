@@ -265,18 +265,20 @@ export class Bit {
             let blockHex = <string>await RpcClient.getRawBlock(block_content.hash);
             let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
             for(let i=1; i < block.txs.length; i++) { // skip coinbase with i=1
-                let txnhex = block.txs[i].toRaw().toString('hex');
-
-                if(this.slpTransactionFilter(txnhex) && !this.slpMempool.has(block.txs[i].txid())) {
+                let txnBuf: Buffer = block.txs[i].toRaw();
+                let txnhex: string = txnBuf.toString('hex');
+                let txid = block.txs[i].txid();
+                if(this.slpTransactionFilter(txnhex) && !this.slpMempool.has(txid)) {
                     // This is used when SLP transactions are broadcasted for first time with a block 
                     if(triggerSlpProcessing) {
-                        console.log("SLP transaction not in mempool:", block.txs[i].txid());
-                        await this.handleMempoolTransaction(block.txs[i].txid(), txnhex);
-                        let syncResult = await Bit.sync(this, 'mempool', block.txs[i].txid());
+                        console.log("SLP transaction not in mempool:", txid);
+                        await this.handleMempoolTransaction(txid, txnhex);
+                        let syncResult = await Bit.sync(this, 'mempool', txid);
                         this._slpGraphManager.onTransactionHash!(syncResult!);
                     }
                     // This is used during startup block sync
                     else {
+                        RpcClient.transactionCache.set(txid, txnBuf);
                         tasks.push(limit(async function() {
                             try {
                                 let txn: bitcore.Transaction = new bitcore.Transaction(txnhex);

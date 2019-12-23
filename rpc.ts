@@ -11,7 +11,7 @@ let rpc: any;
 let rpc_retry: any;
 
 export class RpcClient {
-    static transactionCache = new CacheMap<string, Buffer>(100000);
+    static transactionCache = new CacheMap<string, Buffer>(500000);
     static useGrpc: boolean | undefined;
     //spendCache = new MapCache<string, {txid: string, block: number|null, blockHash: string|null}>(10000);
     constructor({ useGrpc }: { useGrpc?: boolean }) {
