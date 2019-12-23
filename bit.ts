@@ -279,6 +279,7 @@ export class Bit {
                     // This is used during startup block sync
                     else {
                         RpcClient.transactionCache.set(txid, txnBuf);
+                        let seenTokenIds = new Set<string>();
                         tasks.push(limit(async function() {
                             try {
                                 let txn: bitcore.Transaction = new bitcore.Transaction(txnhex);
@@ -287,7 +288,10 @@ export class Bit {
                                     if(slpMsg.transactionType === SlpTransactionType.GENESIS) {
                                         slpMsg.tokenIdHex = txid;
                                     }
-                                    await Info.setLastBlockSeen(slpMsg.tokenIdHex, block_index);
+                                    if (!seenTokenIds.has(slpMsg.tokenIdHex)) {
+                                        await Info.setLastBlockSeen(slpMsg.tokenIdHex, block_index);
+                                        seenTokenIds.add(slpMsg.tokenIdHex);
+                                    }
                                 } catch(_) { }
                                 let t: TNATxn = await self.tna.fromTx(txn, { network: self.network });
                                 result.set(txn.hash, { txHex: txnhex, tnaTxn: t })
@@ -307,6 +311,7 @@ export class Bit {
 
                 if(this.slpMempool.has(block.txs[i].txid())) {
                     console.log("[INFO] Mempool has txid", block.txs[i].txid());
+                    let seenTokenIds = new Set<string>();
                     tasks.push(limit(async function() {
                         let t: TNATxn|null = await self.db.unconfirmedFetch(block.txs[i].txid());
                         if(!t) {
@@ -316,7 +321,10 @@ export class Bit {
                                 if(slpMsg.transactionType === SlpTransactionType.GENESIS) {
                                     slpMsg.tokenIdHex = txid;
                                 }
-                                await Info.setLastBlockSeen(slpMsg.tokenIdHex, block_index);
+                                if (!seenTokenIds.has(slpMsg.tokenIdHex)) {
+                                    await Info.setLastBlockSeen(slpMsg.tokenIdHex, block_index);
+                                    seenTokenIds.add(slpMsg.tokenIdHex);
+                                }
                             } catch(_) { }
                             t = await self.tna.fromTx(txn, { network: self.network });
                         }
