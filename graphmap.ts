@@ -2,6 +2,7 @@ import { GraphTxn, SlpTokenGraph, GraphTxnOutput } from "./slptokengraph";
 import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenUtxoStatus, BatonUtxoStatus, TokenDBObject, TokenStatsDbo } from "./interfaces";
 import { Decimal128 } from "mongodb";
 import { Config } from "./config";
+import { RpcClient } from "./rpc";
 
 export class GraphMap extends Map<string, GraphTxn> {
     public deleted = new Map<string, GraphTxn>();
@@ -29,6 +30,7 @@ export class GraphMap extends Map<string, GraphTxn> {
 
     public prune(txid: string) {
         console.log(`Pruned ${txid}: ${super.delete(txid)}`);
+        RpcClient.transactionCache.delete(txid);
     }
 
     private _deletedTxids() {
