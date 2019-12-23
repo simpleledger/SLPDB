@@ -15,7 +15,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         if(includeDeletedItems) {
             return super.has(txid) || this.deleted.has(txid);
         }
-        console.log(`Has: ${super.has(txid)}`)
+        //console.log(`Has: ${super.has(txid)}`);
         return super.has(txid);
     }
 
@@ -28,6 +28,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         return false;
     }
 
+    // TODO: Prune validator txns
     public prune(txid: string) {
         console.log(`Pruned ${txid}: ${super.delete(txid)}`);
         RpcClient.transactionCache.delete(txid);

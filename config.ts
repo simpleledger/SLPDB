@@ -33,7 +33,7 @@ export class Config {
 		name_testnet: process.env.db_name ? process.env.db_name + "_test" : 'slpdb_test',
 		url: process.env.db_url ? process.env.db_url : 'mongodb://localhost:27017',
 		confirmed_schema_version: 2,
-		token_schema_version: 73,
+		token_schema_version: 74,
 		pruning: process.env.pruning ? ['1', 'true'].includes(process.env.pruning) : true,
 		lazy_loading: process.env.lazy_loading ? Number.parseInt(process.env.lazy_loading) : 12960,
 		index: {

@@ -8,8 +8,10 @@ mongo-dev-net/data*
 regtest/mongo/db
 regtets/mongo/configdb
 _leveldb
+_leveldb_old
 _leveldb_testnet
 _mongo
+_mongo_old
 .env
 
 .DS_Store

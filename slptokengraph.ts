@@ -63,6 +63,10 @@ export class SlpTokenGraph {
         this._network = network;
     }
 
+    async validateTxid(txid: string) {
+        return await this._slpValidator.isValidSlpTxid(txid, this._tokenIdHex);
+    }
+
     async initFromScratch({ tokenDetails, processUpToBlock }: { tokenDetails: SlpTransactionDetails, processUpToBlock?: number; }) {
         await Query.init();
 
@@ -318,10 +322,7 @@ export class SlpTokenGraph {
             let self = this;
             return await this._graphUpdateQueue.add(async function() {
                 await self.updateTokenGraphFrom({ txid, isParent, processUpToBlock, block });
-    
-                // Update the confirmed/unconfirmed collections with token details
-                await self._manager.updateTxnCollections(txid, self._tokenDetails.tokenIdHex);
-    
+
                 // zmq publish mempool notifications
                 if(!isParent)
                     await self._manager.publishZmqNotification(txid);

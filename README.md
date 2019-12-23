@@ -1,7 +1,7 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-12-18
+**Last Updated:** 2019-12-21
 
 **Current SLPDB Version:** 0.16.0
 
@@ -9,7 +9,7 @@
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)
 * 3. [How do I query for SLP data?](#HowdoIqueryforSLPdata)
 	* 3.1. [Working with Large Numbers (`Decimal128` and `BigNumber`)](#WorkingwithLargeNumbersDecimal128andBigNumber)
-* 4. [Installation Instructions](#InstallationInstructions)
+* 4. [Installation & Setup Instructions](#InstallationInstructions)
 	* 4.1. [Prerequisites](#Prerequisites)
 	* 4.2. [Full Node Settings for `bitcoin.conf`](#FullNodeSettingsforbitcoin.conf)
     * 4.3  [BCHD & gRPC Support](#BCHDgRPCSupport)
@@ -17,6 +17,8 @@
 	* 4.5. [Running SLPDB](#RunningSLPDB)
 	* 4.6. [Updating SLPDB](#UpdatingSLPDB)
     * 4.7. [Filtering for Specific Token ID](#Filtering)
+    * 4.8. [Pruning](#Pruning)
+    * 4.9. [Lazy Loading](#LazyLoading)
 * 5. [Token Stats](#TokenStats)
 	* 5.1. [Supply Stats](#SupplyStats)
 	* 5.2. [Summarized Usage Stats](#SummarizedUsageStats)
@@ -150,6 +152,16 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 ### 4.7. <a name='Filtering'></a>Filtering SLPDB to specific Token IDs
 
 Modify the `example-filters.yml` file to suite your needs and then rename it as `filters.yml` to activate the filtering.  Currently, `include-single` is the only filter type available, reference the example file for useage requirements.
+
+### 4.8. <a name='Pruning'></a>Pruning
+
+Pruning removes totally spent and aged transactions from the global transaction cache and the in memory token graph.   is enabled by default, but can be disabled using setting `pruning=0` in the `.env` file.  Disabling pruning would only be useful in some development purposes when pruning logic is updated and needs to be reset.
+
+### 4.9. <a name='LazyLoading'></a>Lazy Loading
+
+Lazy loading allows faster startup times for SLPDB by only loading the tokens which have been recently active.  Lazy loading is enabled by default and will load any token which has had an active send in the past 12960 blocks (~3 months).  Lazy loading can be configured with a custom cutoff point by setting the `lazy_loading` environment variable equal to the number of blocks to look back from the current best block height.  For example, using `lazy_loading=1000` would only cause tokens which have been active in the past 1000 blocks to load on startup, any other token will load into memory the next time it becomes active on the blockchain.  Lazy loading will only become active after `Info.setLastBlockSeen` has been set for the the particular token ID.  This means that lazy loading can only be enabled by resyncing the db from scratch, which is the purpose for updating the token schema version to 74.
+
+NOTE: Lazy loading does not work when the `filters.yml` file is being utilized.
 
 ##  5. <a name='TokenStats'></a>Token Stats
 

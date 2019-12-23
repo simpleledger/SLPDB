@@ -78,6 +78,11 @@ const daemon = {
         }
         console.timeEnd('[PERF] Indexing Keys');
 
+        console.log('[INFO] Starting to processing SLP Data.', new Date());
+        let currentHeight = await RpcClient.getBlockCount();
+        tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
+        bit._slpGraphManager = tokenManager;
+
         console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
         console.time('[PERF] Initial Block Sync');
         await SlpdbStatus.changeStateToStartupBlockSync({ 
@@ -88,10 +93,6 @@ const daemon = {
         console.timeEnd('[PERF] Initial Block Sync');
         console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
 
-        console.log('[INFO] Starting to processing SLP Data.', new Date());
-        let currentHeight = await RpcClient.getBlockCount();
-        tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
-        bit._slpGraphManager = tokenManager;
         bit.listenToZmq();
         await bit.checkForMissingMempoolTxns(undefined, true);
 
@@ -102,7 +103,6 @@ const daemon = {
             await tokenManager._updatesQueue.onIdle();
             console.log("[INFO] Updates from recent mempool and block activity complete");
             await tokenManager.fixMissingTokenTimestamps();
-            await tokenManager._bit.handleConfirmedTxnsMissingSlpMetadata();
             await SlpdbStatus.changeStateToRunning({
                 getSlpMempoolSize: () => tokenManager._bit.slpMempool.size
             });
@@ -258,6 +258,11 @@ async function shutdown(signal: string) {
     try {
         bit._zmqItemQueue.pause();
         console.log('[INFO] ZMQ processing stopped.');
+    } catch (_) {}
+
+    try {
+        bit.exit = true;
+        console.log('[INFO] Block sync processing stopped.');
     } catch (_) {}
 
     try {

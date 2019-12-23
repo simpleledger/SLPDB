@@ -30,6 +30,7 @@ export class SlpdbStatus {
     static network: string = '';
     static pastStackTraces: any[] = [];
     static doubleSpendHistory: any[] = [];
+    static reorgHistory: any[] = [];
     static rpc: RpcClient;
     static getSlpMempoolSize = function() { return -1; }
     static getSlpTokensCount = function() { return -1; }
@@ -165,6 +166,7 @@ export class SlpdbStatus {
             tokensCount: this.getSlpTokensCount(),
             pastStackTraces: stackTraces,
             doubleSpends: this.doubleSpendHistory,
+            reorgs: this.reorgHistory,
             mongoDbStats: await this.db.db.stats({ scale: 1048576 }),
             publicUrl: await Info.getTelemetryName(),
             telemetryHash: await Info.getTelemetrySecretHash(),
@@ -282,6 +284,7 @@ interface StatusDbo {
     tokensCount: number; 
     pastStackTraces: string[]; 
     doubleSpends: any[];
+    reorgs: any[];
     mongoDbStats: any; 
     publicUrl: string; 
     telemetryHash: string|null;

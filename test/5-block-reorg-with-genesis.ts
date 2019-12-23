@@ -166,7 +166,7 @@ describe("5-Reorg-Removes-Data", () => {
 
     step("BR-1: Make sure the token exists in the tokens collection (after block)", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-        while(!t || t!.tokenStats!.block_created === null) {
+        while(!t || t!.tokenStats!.block_created === null || t!.tokenStats!.qty_token_burned.toString() !== "0" || typeof t!.tokenDetails.timestamp !== "string") {
             await sleep(50);
             t = await db.tokenFetch(tokenId);
         }
@@ -210,29 +210,30 @@ describe("5-Reorg-Removes-Data", () => {
         assert.equal((await rpcNode1_miner.getBlockCount()), intendedBlockCount);
     });
 
-    step("BR-1: Make sure the token genesis txn in the reorg has been removed everywhere", async () => {
-        //let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-        let x: UtxoDbo[] = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        let a: AddressBalancesDbo[] = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        let g: GraphTxnDbo | null = await db.db.collection("graphs").findOne({ "graphTxn.txid": tokenId });
-        let txn_u = await db.unconfirmedFetch(tokenId);
-        let txn_c = await db.confirmedFetch(tokenId);
-        while(x.length !== 0 || a.length !== 0 || g || txn_u || txn_c) {
-            await sleep(50);
-            //t = await db.tokenFetch(txid1);
-            x = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-            a = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-            g = await db.db.collection("graphs").findOne({ "graphTxn.txid": tokenId });
-            txn_u = await db.unconfirmedFetch(tokenId);
-            txn_c = await db.confirmedFetch(tokenId);
-        }
-        //assert.equal(t, null);
-        assert.equal(x.length === 0, true);
-        assert.equal(a.length === 0, true);
-        assert.equal(g, null);
-        assert.equal(txn_c, null);
-        assert.equal(txn_u, null);
-    });
+    // SHOULD THIS TEST BE DELETED?
+    // step("BR-1: Make sure the token genesis txn in the reorg has been removed everywhere", async () => {
+    //     //let t: TokenDBObject | null = await db.tokenFetch(tokenId);
+    //     let x: UtxoDbo[] = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
+    //     let a: AddressBalancesDbo[] = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
+    //     let g: GraphTxnDbo | null = await db.db.collection("graphs").findOne({ "graphTxn.txid": tokenId });
+    //     let txn_u = await db.unconfirmedFetch(tokenId);
+    //     let txn_c = await db.confirmedFetch(tokenId);
+    //     while(x.length !== 0 || a.length !== 0 || g || txn_u || txn_c) {
+    //         await sleep(50);
+    //         //t = await db.tokenFetch(txid1);
+    //         x = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
+    //         a = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
+    //         g = await db.db.collection("graphs").findOne({ "graphTxn.txid": tokenId });
+    //         txn_u = await db.unconfirmedFetch(tokenId);
+    //         txn_c = await db.confirmedFetch(tokenId);
+    //     }
+    //     //assert.equal(t, null);
+    //     assert.equal(x.length === 0, true);
+    //     assert.equal(a.length === 0, true);
+    //     assert.equal(g, null);
+    //     assert.equal(txn_c, null);
+    //     assert.equal(txn_u, null);
+    // });
 
     step("Clean up", async () => {
         // generate block to clear the mempool (may be dirty from previous tests)
