@@ -1,6 +1,7 @@
 import { GraphTxn, SlpTokenGraph, GraphTxnOutput } from "./slptokengraph";
-import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenUtxoStatus, BatonUtxoStatus } from "./interfaces";
+import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenUtxoStatus, BatonUtxoStatus, TokenDBObject, TokenStatsDbo } from "./interfaces";
 import { Decimal128 } from "mongodb";
+import { Config } from "./config";
 
 export class GraphMap extends Map<string, GraphTxn> {
     public deleted = new Map<string, GraphTxn>();
@@ -43,7 +44,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         // TODO: prune items which can no longer be updated
     }
 
-    public static toDbo(tg: SlpTokenGraph, recentBlocks: string[], pruning=true): [GraphTxnDbo[], string[]] {
+    public static toDbo(tg: SlpTokenGraph, recentBlocks: string[]): [GraphTxnDbo[], string[], TokenDBObject] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(tg._tokenDetails, tg._tokenDetails.decimals);
         let itemsToUpdate: GraphTxnDbo[] = [];
         let itemsToPrune = new Set<string>();
@@ -63,7 +64,7 @@ export class GraphMap extends Map<string, GraphTxn> {
                     graphTxn: {
                         txid,
                         details: SlpTokenGraph.MapTokenDetailsToDbo(tg._graphTxns.get(txid)!.details, tg._tokenDetails.decimals),
-                        outputs: GraphMap.outputsToDbo(tg, tg._graphTxns.get(txid)!.outputs),
+                        outputs: GraphMap.txnOutputsToDbo(tg, tg._graphTxns.get(txid)!.outputs),
                         inputs: tg._graphTxns.get(txid)!.inputs.map((i) => { 
                             return {
                                 address: i.address,
@@ -86,15 +87,41 @@ export class GraphMap extends Map<string, GraphTxn> {
             }
         });
 
-        if(pruning) {
+        // NOTE: because we have this logic/interaction with token details DBO this method MUST be run before the token DBO commit
+        if (Config.db.pruning) {
             itemsToPrune.forEach(txid => tg._graphTxns.prune(txid));
+            tg._isGraphPruned = true;
+        } else if (itemsToPrune.size > 0) {
+            tg._isGraphPruned = false;
         }
+        let tokenDbo = GraphMap.tokenDetailstoDbo(tg);
 
         let itemsToDelete = tg._graphTxns._deletedTxids();
-        return [itemsToUpdate, itemsToDelete ];
+        return [ itemsToUpdate, itemsToDelete, tokenDbo ];
     }
 
-    public static outputsToDbo(tokenGraph: SlpTokenGraph, outputs: GraphTxnOutput[]): GraphTxnOutputDbo[] {
+    public static tokenDetailstoDbo(graph: SlpTokenGraph): TokenDBObject {
+        let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(graph._tokenDetails, graph._tokenDetails.decimals);
+
+        if (!Config.db.pruning) {
+            graph._isGraphPruned = false;
+        }
+
+        let result: TokenDBObject = {
+            schema_version: Config.db.token_schema_version,
+            isGraphPruned: graph._isGraphPruned,
+            lastUpdatedBlock: graph._lastUpdatedBlock,
+            tokenDetails: tokenDetails,
+            mintBatonUtxo: graph._mintBatonUtxo,
+            tokenStats: GraphMap.mapTokenStatstoDbo(graph),
+        }
+        if(graph._nftParentId) {
+            result.nftParentId = graph._nftParentId;
+        }
+        return result;
+    }
+
+    public static txnOutputsToDbo(tokenGraph: SlpTokenGraph, outputs: GraphTxnOutput[]): GraphTxnOutputDbo[] {
         let mapped: GraphTxnDetailsDbo["outputs"] = [];
         outputs.forEach(o => {
                 let m = Object.create(o);
@@ -107,5 +134,21 @@ export class GraphMap extends Map<string, GraphTxn> {
                 mapped.push(m);
         })
         return mapped;
+    }
+
+    public static mapTokenStatstoDbo(graph: SlpTokenGraph): TokenStatsDbo {
+        return {
+            block_created: graph._tokenStats.block_created,
+            block_last_active_send: graph._tokenStats.block_last_active_send,
+            block_last_active_mint: graph._tokenStats.block_last_active_mint,
+            qty_valid_txns_since_genesis: graph._tokenStats.qty_valid_txns_since_genesis,
+            qty_valid_token_utxos: graph._tokenStats.qty_valid_token_utxos,
+            qty_valid_token_addresses: graph._tokenStats.qty_valid_token_addresses,
+            qty_token_minted: Decimal128.fromString(graph._tokenStats.qty_token_minted.dividedBy(10**graph._tokenDetails.decimals).toFixed()),
+            qty_token_burned: Decimal128.fromString(graph._tokenStats.qty_token_burned.dividedBy(10**graph._tokenDetails.decimals).toFixed()),
+            qty_token_circulating_supply: Decimal128.fromString(graph._tokenStats.qty_token_circulating_supply.dividedBy(10**graph._tokenDetails.decimals).toFixed()),
+            qty_satoshis_locked_up: graph._tokenStats.qty_satoshis_locked_up,
+            minting_baton_status: graph._tokenStats.minting_baton_status
+        }
     }
 }

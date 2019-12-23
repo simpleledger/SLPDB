@@ -21,14 +21,14 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 import { RpcClient } from './rpc';
 import { BlockHeaderResult } from "bitcoin-com-rest";
 import { CacheSet } from "./cache";
-import { SlpdbStatus, SlpdbState } from "./status";
+import { SlpdbStatus } from "./status";
 import { TokenFilter } from "./filters";
 import { GraphMap } from "./graphmap";
 
 const bitcoin = new BITBOX();
-const slp = new Slp(bitcoin);
 
 export class SlpGraphManager {
+    slp = new Slp(bitcoin);
     db: Db;
     _tokens!: Map<string, SlpTokenGraph>;
     zmqPubSocket?: zmq.Socket;
@@ -130,7 +130,7 @@ export class SlpGraphManager {
 
         let tokenDetails: SlpTransactionDetails|null;
         try {
-            tokenDetails = slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
+            tokenDetails = this.slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
         }
         catch (err) {
             tokenDetails = null;
@@ -289,7 +289,7 @@ export class SlpGraphManager {
                 let mint_txo: TokenDBObject|undefined;
                 this._tokens.forEach(t => {
                     if(t._mintBatonUtxo === txid + ":" + vout) {
-                        mint_txo = t.toTokenDbObject();
+                        mint_txo = GraphMap.tokenDetailstoDbo(t);
                         return;
                     }
                 })
@@ -356,7 +356,7 @@ export class SlpGraphManager {
                         }
                         let bt = new bitcore.Transaction(txhex);
                         try {
-                            tokenDetails = slp.parseSlpOutputScript(bt.outputs[0]._scriptBuffer);
+                            tokenDetails = this.slp.parseSlpOutputScript(bt.outputs[0]._scriptBuffer);
                         } catch (err) {
                             isValid = false;
                             invalidReason = "SLP Parsing Error: " + err.message;
@@ -517,7 +517,6 @@ export class SlpGraphManager {
     private async initToken({ token, reprocessFrom, reprocessTo, loadFromDb = true, allowGraphUpdates = true }: 
         { token: SlpTransactionDetails; reprocessFrom?: number; reprocessTo?: number; loadFromDb?: boolean; allowGraphUpdates?: boolean }) 
     {
-        let graph: SlpTokenGraph;
         let tokenState = <TokenDBObject>await this.db.tokenFetch(token.tokenIdHex);
         if (!tokenState) {
             console.log("There is no db record for this token.");
@@ -549,19 +548,36 @@ export class SlpGraphManager {
             return;
         }
 
-        console.log("########################################################################################################");
-        console.log("LOAD FROM DB:", token.tokenIdHex);
-        console.log("########################################################################################################");
-        let utxos: UtxoDbo[] = await this.db.utxoFetch(token.tokenIdHex);
-        let addresses: AddressBalancesDbo[] = await this.db.addressFetch(token.tokenIdHex);
-        let unspentDag: GraphTxnDbo[] = await this.db.graphFetchUnspent(token.tokenIdHex);
-        graph = await SlpTokenGraph.FromDbObjects(tokenState, unspentDag, utxos, addresses, this.db, this, this._network);
+        let lazyLoadingCutoff = Config.db.lazy_loading && Config.db.lazy_loading > 0 ? Config.db.lazy_loading : null;
+        let lastActiveBlock;
 
+        if(lazyLoadingCutoff) {
+            lastActiveBlock = await Info.getLastBlockSeen(token.tokenIdHex);
+        }
+
+        if (lazyLoadingCutoff && lastActiveBlock && lastActiveBlock < this._bestBlockHeight-lazyLoadingCutoff) {
+            console.log("########################################################################################################");
+            console.log(`[INFO] LAZILY LOADING: ${token.tokenIdHex}`);
+            console.log("########################################################################################################");
+            this._tokens.set(token.tokenIdHex, new SlpTokenGraph(token.tokenIdHex, this.db, this, this._network));
+        } else {
+            await this.loadTokenFromDb(token.tokenIdHex, tokenState, allowGraphUpdates, reprocessFrom);
+        }
+    }
+
+    async loadTokenFromDb(tokenIdHex: string, tokenState: TokenDBObject, allowGraphUpdates: boolean, reprocessFrom: number | undefined) {
+        console.log("########################################################################################################");
+        console.log(`LOAD FROM DB: ${tokenIdHex}`);
+        console.log("########################################################################################################");
+        let utxos: UtxoDbo[] = await this.db.utxoFetch(tokenIdHex);
+        let addresses: AddressBalancesDbo[] = await this.db.addressFetch(tokenIdHex);
+        let unspentDag: GraphTxnDbo[] = await this.db.graphFetch(tokenIdHex, Config.db.pruning);
+        let graph = await SlpTokenGraph.initFromDbos(tokenState, unspentDag, utxos, addresses, this.db, this, this._network);
         let res: string[] = [];
-        if(allowGraphUpdates) {
+        if (allowGraphUpdates) {
             let potentialReorgFactor = 11; // determine how far back the token graph should be reprocessed
             let updateFromHeight = graph._lastUpdatedBlock - potentialReorgFactor;
-            if(reprocessFrom !== undefined && reprocessFrom !== null && reprocessFrom < updateFromHeight) {
+            if (reprocessFrom !== undefined && reprocessFrom !== null && reprocessFrom < updateFromHeight) {
                 updateFromHeight = reprocessFrom;
             }
             console.log(`[INFO] Checking for Graph Updates since: ${updateFromHeight} (${graph._tokenDetails.tokenIdHex})`);
@@ -586,7 +602,7 @@ export class SlpGraphManager {
         } else {
             console.log(`[WARN] Token's graph loaded using allowGraphUpdates=false (${graph._tokenDetails.tokenIdHex})`);
         }
-        await this.updateTxnCollectionsForTokenId(token.tokenIdHex);
+        await this.updateTxnCollectionsForTokenId(tokenIdHex);
         await graph.UpdateStatistics(false);
         if(res.length) {
             await this.setAndSaveTokenGraph(graph);
@@ -597,6 +613,7 @@ export class SlpGraphManager {
             }
         }
         graph._graphUpdateQueue.start();
+        return graph;
     }
 
     private async deleteTokenFromDb(tokenId: string) {
@@ -636,7 +653,6 @@ export class SlpGraphManager {
         if(graph.IsValid && !this._exit) {
             let tokenId = graph._tokenDetails.tokenIdHex;
             this._tokens.set(tokenId, graph);
-            await this.db.tokenInsertReplace(graph.toTokenDbObject());
             await this.db.graphItemsInsertReplaceDelete(graph);
             await this.db.utxoInsertReplace(graph.toUtxosDbObject(), tokenId);
             await this.db.addressInsertReplace(graph.toAddressesDbObject(), tokenId);
@@ -645,7 +661,6 @@ export class SlpGraphManager {
 
     private async createNewTokenGraph({ tokenId, processUpToBlock }: { tokenId: string; processUpToBlock?: number; }): Promise<SlpTokenGraph|null> {
         //await this.deleteTokenFromDb(tokenId);
-        let graph = new SlpTokenGraph(this.db, this, this._network);
         let txn;
         try {
             txn = <string>await RpcClient.getRawTransaction(tokenId, false);
@@ -663,7 +678,7 @@ export class SlpGraphManager {
             // add timestamp if token is already confirmed
             let timestamp = await Query.getConfirmedTxnTimestamp(tokenId);
             tokenDetails.timestamp = timestamp ? timestamp : undefined;
-            
+            let graph = new SlpTokenGraph(tokenId, this.db, this, this._network);
             await graph.initFromScratch({ tokenDetails, processUpToBlock });
 
             if(graph.IsValid) {

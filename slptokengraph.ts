@@ -24,6 +24,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const bitbox = new BITBOX();
 
 export class SlpTokenGraph {
+    _tokenIdHex: string;
     _lastUpdatedBlock!: number;
     _tokenDetails!: SlpTransactionDetails;
     _tokenStats!: TokenStats;
@@ -31,6 +32,7 @@ export class SlpTokenGraph {
     _mintBatonUtxo = "";
     _nftParentId?: string;
     _graphTxns = new GraphMap();
+    _isGraphPruned = false;
     _addresses = new Map<cashAddr, AddressBalance>();
     _slpValidator = new LocalValidator(bitbox, async (txids) => { 
         if (this._manager._bit.doubleSpendCache.has(txids[0])) {
@@ -54,25 +56,27 @@ export class SlpTokenGraph {
     _startupTxoSendCache?: CacheMap<string, SpentTxos>;
     _exit = false;
 
-    constructor(db: Db, manager: SlpGraphManager, network: string) {
+    constructor(tokenIdHex: string, db: Db, manager: SlpGraphManager, network: string) {
+        this._tokenIdHex = tokenIdHex;
         this._db = db;
         this._manager = manager;
         this._network = network;
     }
 
-    async initFromScratch({ tokenDetails, processUpToBlock }: { tokenDetails: SlpTransactionDetails; processUpToBlock?: number; }) {
+    async initFromScratch({ tokenDetails, processUpToBlock }: { tokenDetails: SlpTransactionDetails, processUpToBlock?: number; }) {
         await Query.init();
-        this._lastUpdatedBlock = 0;
+
         this._tokenDetails = tokenDetails;
+        this._lastUpdatedBlock = 0;
 
         this._startupTxoSendCache = await Query.getTxoInputSlpSendCache(tokenDetails.tokenIdHex);
 
-        let valid = await this.updateTokenGraphFrom({ txid: tokenDetails.tokenIdHex, processUpToBlock: processUpToBlock });
+        let valid = await this.updateTokenGraphFrom({ txid: this._tokenDetails.tokenIdHex, processUpToBlock: processUpToBlock });
         if(valid) {
-            if(tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
+            if(this._tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
                 await this.setNftParentId();
             } else {
-                let mints = await Query.getMintTransactions(tokenDetails.tokenIdHex);
+                let mints = await Query.getMintTransactions(this._tokenDetails.tokenIdHex);
                 if(mints && mints.length > 0)
                     await this.asyncForEach(mints, async (m: MintQueryResult) => await this.updateTokenGraphFrom({ txid: m.txid!, processUpToBlock: processUpToBlock, isParent: true }));
             }
@@ -118,6 +122,10 @@ export class SlpTokenGraph {
 
     get IsValid(): boolean {
         return this._graphTxns.has(this._tokenDetails.tokenIdHex);
+    }
+
+    get IsLoaded(): boolean {
+        return this._graphTxns.size > 0;
     }
 
     async asyncForEach(array: any[], callback: Function) {
@@ -301,43 +309,50 @@ export class SlpTokenGraph {
     }
 
     async queueTokenGraphUpdateFrom({ txid, isParent = false, processUpToBlock, block=null }: { txid: string, isParent?: boolean, processUpToBlock?: number; block?:{ hash: Buffer; transactions: Set<string> }|null}): Promise<void> {
-        let self = this;
-        return await this._graphUpdateQueue.add(async function() {
-            await self.updateTokenGraphFrom({ txid, isParent, processUpToBlock, block });
-
-            // Update the confirmed/unconfirmed collections with token details
-            await self._manager.updateTxnCollections(txid, self._tokenDetails.tokenIdHex);
-
-            // zmq publish mempool notifications
-            if(!isParent)
-                await self._manager.publishZmqNotification(txid);
-
-            // Update token's statistics
-            if(self._graphUpdateQueue.size === 0 && self._graphUpdateQueue.pending === 1) {
-                // if block then we should check for double-spends for all graph txns with null blockHash
-                if(block) {
-                    let txnsWithNoBlock = Array.from(self._graphTxns).filter(i => !i[1].blockHash);
-                    let mempool = await RpcClient.getRawMemPool();
-                    await self.asyncForEach(txnsWithNoBlock, async (i: [string, GraphTxn]) => {
-                        let txid = i[0];
-                        if(!mempool.includes(txid)) {
-                            try {
-                                await RpcClient.getRawTransaction(txid);
-                            } catch(err) {
-                                console.log(`[ERROR] Could not get transaction ${txid} in queueTokenGraphUpdateFrom: ${err}`)
-                                self._graphTxns.delete(txid);
-                                delete self._slpValidator.cachedRawTransactions[txid];
-                                delete self._slpValidator.cachedValidations[txid];
-                                //self._liveTxoSpendCache.clear();
+        if (!this.IsLoaded) {
+            let tokenState = <TokenDBObject>await this._db.tokenFetch(this._tokenIdHex);
+            let m = this._manager;
+            console.log(`[INFO] Finishing lazy loading for: ${this._tokenIdHex}`);
+            await m.loadTokenFromDb(this._tokenIdHex, tokenState, true, undefined);
+        } else {
+            let self = this;
+            return await this._graphUpdateQueue.add(async function() {
+                await self.updateTokenGraphFrom({ txid, isParent, processUpToBlock, block });
+    
+                // Update the confirmed/unconfirmed collections with token details
+                await self._manager.updateTxnCollections(txid, self._tokenDetails.tokenIdHex);
+    
+                // zmq publish mempool notifications
+                if(!isParent)
+                    await self._manager.publishZmqNotification(txid);
+    
+                // Update token's statistics
+                if(self._graphUpdateQueue.size === 0 && self._graphUpdateQueue.pending === 1) {
+                    // if block then we should check for double-spends for all graph txns with null blockHash
+                    if(block) {
+                        let txnsWithNoBlock = Array.from(self._graphTxns).filter(i => !i[1].blockHash);
+                        let mempool = await RpcClient.getRawMemPool();
+                        await self.asyncForEach(txnsWithNoBlock, async (i: [string, GraphTxn]) => {
+                            let txid = i[0];
+                            if(!mempool.includes(txid)) {
+                                try {
+                                    await RpcClient.getRawTransaction(txid);
+                                } catch(err) {
+                                    console.log(`[ERROR] Could not get transaction ${txid} in queueTokenGraphUpdateFrom: ${err}`)
+                                    self._graphTxns.delete(txid);
+                                    delete self._slpValidator.cachedRawTransactions[txid];
+                                    delete self._slpValidator.cachedValidations[txid];
+                                    //self._liveTxoSpendCache.clear();
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
+                    //self._liveTxoSpendCache.clear();
+                    console.log("[INFO] UpdateStatistics: queueTokenGraphUpdateFrom");
+                    await self.UpdateStatistics(true, true);
                 }
-                //self._liveTxoSpendCache.clear();
-                console.log("[INFO] UpdateStatistics: queueTokenGraphUpdateFrom");
-                await self.UpdateStatistics(true, true);
-            }
-        })
+            });
+        }
     }
 
     async updateTokenGraphFrom({ txid, isParent = false, updateOutputs = true, processUpToBlock, block=null }: { txid: string; isParent?:boolean; updateOutputs?: boolean; processUpToBlock?: number; block?: { hash: Buffer; transactions: Set<string> }|null}): Promise<boolean|null> {
@@ -880,7 +895,6 @@ export class SlpTokenGraph {
             }
 
             if(saveToDb && !this._exit) {
-                await this._db.tokenInsertReplace(this.toTokenDbObject());
                 await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
                 await this._db.graphItemsInsertReplaceDelete(this);
                 await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
@@ -920,22 +934,6 @@ export class SlpTokenGraph {
                 }
             })
         )
-    }
-
-    toTokenDbObject(): TokenDBObject {
-        let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
-
-        let result: TokenDBObject = {
-            schema_version: Config.db.token_schema_version,
-            lastUpdatedBlock: this._lastUpdatedBlock,
-            tokenDetails: tokenDetails,
-            mintBatonUtxo: this._mintBatonUtxo,
-            tokenStats: this.mapTokenStatstoDbo(this._tokenStats),
-        }
-        if(this._nftParentId) {
-            result.nftParentId = this._nftParentId;
-        }
-        return result;
     }
 
     toAddressesDbObject(): AddressBalancesDbo[] {
@@ -984,23 +982,6 @@ export class SlpTokenGraph {
             };
         }
         return undefined;
-    }
-
-
-    mapTokenStatstoDbo(stats: TokenStats): TokenStatsDbo {
-        return {
-            block_created: stats.block_created,
-            block_last_active_send: stats.block_last_active_send,
-            block_last_active_mint: stats.block_last_active_mint,
-            qty_valid_txns_since_genesis: stats.qty_valid_txns_since_genesis,
-            qty_valid_token_utxos: stats.qty_valid_token_utxos,
-            qty_valid_token_addresses: stats.qty_valid_token_addresses,
-            qty_token_minted: Decimal128.fromString(stats.qty_token_minted.dividedBy(10**this._tokenDetails.decimals).toFixed()),
-            qty_token_burned: Decimal128.fromString(stats.qty_token_burned.dividedBy(10**this._tokenDetails.decimals).toFixed()),
-            qty_token_circulating_supply: Decimal128.fromString(stats.qty_token_circulating_supply.dividedBy(10**this._tokenDetails.decimals).toFixed()),
-            qty_satoshis_locked_up: stats.qty_satoshis_locked_up,
-            minting_baton_status: stats.minting_baton_status
-        }
     }
 
     static MapTokenDetailsToDbo(details: SlpTransactionDetails, decimals: number): SlpTransactionDetailsDbo {
@@ -1067,16 +1048,21 @@ export class SlpTokenGraph {
         return res;
     }
 
-    static async FromDbObjects(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], addresses: AddressBalancesDbo[], db: Db, manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
-        let tg = new SlpTokenGraph(db, manager, network);
+    static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], addresses: AddressBalancesDbo[], db: Db, manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
+        let tg = new SlpTokenGraph(token.tokenDetails.tokenIdHex, db, manager, network);
         await Query.init();
 
         // add minting baton
         tg._mintBatonUtxo = token.mintBatonUtxo;
 
         // add nft parent id
-        if(token.nftParentId)
+        if(token.nftParentId) {
             tg._nftParentId = token.nftParentId;
+        }
+
+        if(token.isGraphPruned && Config.db.pruning) {
+            tg._isGraphPruned = token.isGraphPruned;
+        }
 
         tg._network = network;
 

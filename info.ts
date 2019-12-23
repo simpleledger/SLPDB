@@ -159,10 +159,18 @@ export module Info {
 	}
 
 	export const setConfirmedCollectionSchema = async function(version: number) {
+		return await kv.put('confirmedSchemaVersion', version);
+	}
+
+	export const getLastBlockSeen = async function(tokenId: string): Promise<number|null> {
 		try {
-			return await kv.put('confirmedSchemaVersion', version);
-		} catch(err) {
-			throw Error(err.message);
-		 }
+			return parseInt(await kv.get(`lastSeen-${tokenId}`));
+		} catch(_) {
+			return null;
+		}
+	}
+
+	export const setLastBlockSeen = async function(tokenId: string, block: number) {
+		return await kv.put(`lastSeen-${tokenId}`, block);
 	}
 }

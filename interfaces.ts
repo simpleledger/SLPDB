@@ -34,6 +34,7 @@ export interface TokenStatsDbo {
 
 export interface TokenDBObject {
     schema_version: number;
+    isGraphPruned: boolean;
     tokenDetails: SlpTransactionDetailsDbo;
     tokenStats: TokenStats | TokenStatsDbo;
     mintBatonUtxo: string;

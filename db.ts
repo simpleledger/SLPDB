@@ -82,7 +82,7 @@ export class Db {
         console.log("Recent Blocks");
         console.log(recentBlocks);
 
-        let [ itemsToUpdate, itemsToDelete ] = GraphMap.toDbo(graph, recentBlocks);
+        let [ itemsToUpdate, itemsToDelete, tokenDbo ] = GraphMap.toDbo(graph, recentBlocks);
         await this.checkClientStatus();
         console.log(`TO DELETE: ${itemsToDelete}`)
         for (const txid of itemsToDelete) {
@@ -92,6 +92,9 @@ export class Db {
         for (const g of itemsToUpdate) {
             await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": g.graphTxn.txid }, g, { upsert: true });
         }
+
+        // This must be called here because the GraphMap.toDbo returns
+        await this.tokenInsertReplace(tokenDbo);
     }
 
     async graphDelete(tokenIdHex: string) {
@@ -99,12 +102,18 @@ export class Db {
         return await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async graphFetchUnspent(tokenIdHex: string): Promise<GraphTxnDbo[]> {
+    async graphFetch(tokenIdHex: string, onlyUnspent: boolean): Promise<GraphTxnDbo[]> {
         await this.checkClientStatus();
-        return await this.db.collection('graphs').find({ 
-            "tokenDetails.tokenIdHex": tokenIdHex, 
-            "$or": [ { "tokenDetails.isAgedAndSpent": false }, { "tokenDetails.isAgedAndSpent": { "$exists": false }}]
-        }).toArray();
+        if(onlyUnspent) {
+            return await this.db.collection('graphs').find({ 
+                "tokenDetails.tokenIdHex": tokenIdHex, 
+                "$or": [ { "tokenDetails.isAgedAndSpent": false }, { "tokenDetails.isAgedAndSpent": { "$exists": false }}]
+            }).toArray();
+        } else {
+            return await this.db.collection('graphs').find({ 
+                "tokenDetails.tokenIdHex": tokenIdHex
+            }).toArray();
+        }
     }
 
     async graphTxnFetch(txid: string): Promise<GraphTxnDbo|null> {

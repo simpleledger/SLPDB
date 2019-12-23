@@ -10,7 +10,7 @@ import * as zmq from 'zeromq';
 import { BlockHeaderResult } from 'bitcoin-com-rest';
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
-import { Primatives } from 'slpjs';
+import { Primatives, SlpTransactionType } from 'slpjs';
 import { RpcClient } from './rpc';
 import { CacheSet, CacheMap } from './cache';
 import { SlpGraphManager } from './slpgraphmanager';
@@ -282,6 +282,13 @@ export class Bit {
                         tasks.push(limit(async function() {
                             try {
                                 let txn: bitcore.Transaction = new bitcore.Transaction(txnhex);
+                                try {
+                                    let slpMsg = self._slpGraphManager.slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
+                                    if(slpMsg.transactionType === SlpTransactionType.GENESIS) {
+                                        slpMsg.tokenIdHex = txid;
+                                    }
+                                    await Info.setLastBlockSeen(slpMsg.tokenIdHex, block_index);
+                                } catch(_) { }
                                 let t: TNATxn = await self.tna.fromTx(txn, { network: self.network });
                                 result.set(txn.hash, { txHex: txnhex, tnaTxn: t })
                                 t.blk = {
@@ -304,6 +311,13 @@ export class Bit {
                         let t: TNATxn|null = await self.db.unconfirmedFetch(block.txs[i].txid());
                         if(!t) {
                             let txn: bitcore.Transaction = new bitcore.Transaction(txnhex);
+                            try {
+                                let slpMsg = self._slpGraphManager.slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
+                                if(slpMsg.transactionType === SlpTransactionType.GENESIS) {
+                                    slpMsg.tokenIdHex = txid;
+                                }
+                                await Info.setLastBlockSeen(slpMsg.tokenIdHex, block_index);
+                            } catch(_) { }
                             t = await self.tna.fromTx(txn, { network: self.network });
                         }
                         t.blk = {
