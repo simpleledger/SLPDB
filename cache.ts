@@ -13,10 +13,10 @@ export class CacheSet<T> {
 
     push(item: T) {
         this.set.add(item);
-        this.list.push(item);
-        if(this.set.size > this.maxSize) {
+        if (this.maxSize > 0 && this.set.size > this.maxSize) {
             this.shift();
         }
+        return this.list.push(item);
     }
 
     has(item: T) {
@@ -24,8 +24,9 @@ export class CacheSet<T> {
     }
 
     delete(item: T) {
-        if(this.set.delete(item))
+        if (this.set.delete(item)) {
             this.list = this.list.filter(k => k !== item);
+        }
     }
 
     toSet() {
@@ -34,8 +35,17 @@ export class CacheSet<T> {
 
     shift(): T | undefined {
         let item = this.list.shift();
-        if(item)
+        if (item) {
             this.set.delete(item);
+        }
+        return item;
+    }
+
+    pop(): T | undefined {
+        let item = this.list.pop();
+        if (item) {
+            this.set.delete(item);
+        }
         return item;
     }
 
@@ -61,7 +71,7 @@ export class CacheMap<T, M> {
     set(key: T, item: M) {
         this.list.push(key);
         this.map.set(key, item);
-        if(this.map.size > this.maxSize) {
+        if(this.maxSize > 0 && this.map.size > this.maxSize) {
             this.shift();
         }
     }

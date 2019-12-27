@@ -275,15 +275,8 @@ export class Db {
         })
     }
 
-    async confirmedReplace(items: TNATxn[], requireSlpMetadata=true, block_index?: number) {
+    async confirmedReplace(items: TNATxn[], block_index?: number) {
         await this.checkClientStatus();
-
-        if(requireSlpMetadata) {
-            if(items.filter(i => !i.slp).length > 0) {
-                console.log(items.filter(i => !i.slp).map(i => i.tx.h));
-                //throw Error("Attempted to add items without SLP property.");
-            }
-        }
 
         if(items.filter(i => !i.blk).length > 0) {
             //console.log(items.filter(i => !i.slp).map(i => i.tx.h));
@@ -326,15 +319,8 @@ export class Db {
         }
     }
 
-    async confirmedInsert(items: TNATxn[], requireSlpMetadata: boolean) {
+    async confirmedInsert(items: TNATxn[]) {
         await this.checkClientStatus();
-
-        if(requireSlpMetadata) {
-            if(items.filter(i => !i.slp).length > 0) {
-                console.log(items.filter(i => !i.slp).map(i => i.tx.h));
-                //throw Error("Attempted to add items without SLP property.");
-            }
-        }
 
         let index = 0
         while (true) {

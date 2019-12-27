@@ -254,7 +254,7 @@ export class Bit {
         console.log('[INFO] SLP mempool txs =', this.slpMempool.size);
     }
 
-    async crawl(blockIndex: number, triggerSlpProcessing: boolean): Promise<CrawlResult|null> {
+    async crawl(blockIndex: number, syncComplete?: boolean): Promise<CrawlResult|null> {
         const result = new Map<txid, CrawlTxnInfo>();
         let blockContent: BlockHeaderResult;
         try {
@@ -279,43 +279,40 @@ export class Bit {
                 const txid = deserialized.hash;
                 blockTxCache.set(txid, {deserialized, serialized});
             });
-            const txns = Bit.topologicalSort(blockTxCache);
+            let stack = new CacheSet<string>(-1);
+            Bit.topologicalSort(blockTxCache, stack);
             console.timeEnd(`Toposort-${blockIndex}`);
 
-            let btxs = [];
+            let slpCount = 0;
             this._blockSeenTokenIds.clear();
 
-            for(let i = 0; i < txns.length; i++) {
-                await crawlInternal(i, this);
+            for(let i = 0; i < blockTxCache.size; i++) {
+                await crawlInternal(this);
             }
 
             // We use a recursive async loop with process.nextTick so we don't block
             // the event loop during the whole block crawl.
-            async function crawlInternal(i: number, self: Bit) {
-                //console.log(i);
-                //console.time("part1");
-                const serialized = blockTxCache.get(txns[i])!.serialized;
-                const deserialized = blockTxCache.get(txns[i])!.deserialized;
+            async function crawlInternal(self: Bit) {
 
-                // console.timeEnd("part1");
-                // console.time("part2");
+                let txid = stack.shift()!;
+                const serialized = blockTxCache.get(txid)!.serialized;
+                const deserialized = blockTxCache.get(txid)!.deserialized;
+
                 if (!self.slpTransactionFilter(serialized)) {
                     return;
                 }
 
                 let t: TNATxn = tna.fromTx(deserialized, { network: self.network });
 
-                //console.timeEnd("part2");
-                RpcClient.transactionCache.set(txns[i], serialized);
+                RpcClient.transactionCache.set(txid, serialized);
 
-                await self.setSlpProp(self, deserialized, txns[i], blockTime, t, blockIndex);
-                //console.time("part3");
-                if (!self.slpMempool.has(txns[i]) && triggerSlpProcessing) {
-                    // This is used when SLP transactions are broadcasted for first time with a block 
-                        console.log("SLP transaction not in mempool:", txns[i]);
-                        await self.handleMempoolTransaction(txns[i], serialized);
-                        let syncResult = await Bit.sync(self, 'mempool', txns[i]);
-                        self._slpGraphManager.onTransactionHash!(syncResult!);
+                await self.setSlpProp(self, deserialized, txid, blockTime, t, blockIndex);
+
+                if (!self.slpMempool.has(txid) && syncComplete) {
+                    console.log("SLP transaction not in mempool:", txid);
+                    await self.handleMempoolTransaction(txid, serialized);
+                    let syncResult = await Bit.sync(self, 'mempool', txid);
+                    self._slpGraphManager.onTransactionHash!(syncResult!);
                 }
 
                 t.blk = {
@@ -324,12 +321,11 @@ export class Bit {
                     t: blockTime
                 };
 
-                result.set(txns[i], { txHex: serialized.toString("hex"), tnaTxn: t });
-                btxs.push(t);
+                result.set(txid, { txHex: serialized.toString("hex"), tnaTxn: t });
+                slpCount++;
             }
 
-            //console.timeEnd("part3");
-            console.log('[INFO] Block', blockIndex, 'processed :', block.txs.length, 'BCH txs |', btxs.length, 'SLP txs');
+            console.log('[INFO] Block', blockIndex, 'processed :', block.txs.length, 'BCH txs |', slpCount, 'SLP txs');
             return result;
     
         } else {
@@ -350,7 +346,7 @@ export class Bit {
                 if (slpMsg.transactionType === SlpTransactionType.GENESIS) {
                     slpMsg.tokenIdHex = txid;
                 }
-                slpTokenGraph = this._slpGraphManager.getTokenGraph(slpMsg);
+                slpTokenGraph = this._slpGraphManager.getTokenGraph(slpMsg.tokenIdHex);
                 if (slpMsg.transactionType === SlpTransactionType.GENESIS) {
                     slpTokenGraph._tokenDetails = slpMsg;
                     if (blockTime) {
@@ -413,44 +409,46 @@ export class Bit {
         return { valid, detail, invalidReason };
     }
 
-    private static topologicalSortInternal(
-        // Source: https://github.com/blockparty-sh/cpp_slp_graph_search/blob/master/src/util.cpp#L12
-        counter: number,
-        tx: bitcore.Transaction, 
-        txns: Map<string, { deserialized: bitcore.Transaction, serialized: Buffer }>,
-        stack: string[],
-        visited: Set<string>
-    ): void {
-            visited.add(tx.hash);
-            for (const outpoint of tx.inputs) {
-                const prevTxid = outpoint.prevTxId.toString("hex");
-                if(visited.has(prevTxid) || !txns.has(prevTxid)) {
-                    continue;
-                }
-                if(counter % 1000 === 0) {
-                    setTimeout(() => this.topologicalSortInternal(++counter, tx, txns, stack, visited), 0);
-                } else {
-                    this.topologicalSortInternal(++counter, tx, txns, stack, visited);
-                }
-            }
-            stack.push(tx.hash);
-    }
+
 
     private static topologicalSort(
-        transactions: Map<string, { deserialized: bitcore.Transaction, serialized: Buffer }>
-    ): string[] {
-        const stack: string[] = [];
+        transactions: Map<string, { deserialized: bitcore.Transaction, serialized: Buffer }>,
+        stack: CacheSet<string>
+    ): void {
         const visited = new Set<string>();
+
+        let topologicalSortInternal = (
+            // Source: https://github.com/blockparty-sh/cpp_slp_graph_search/blob/master/src/util.cpp#L12
+            counter: number,
+            tx: bitcore.Transaction, 
+            txns: Map<string, { deserialized: bitcore.Transaction, serialized: Buffer }>,
+            stack: CacheSet<string>,
+            visited: Set<string>) => 
+        {
+                visited.add(tx.hash);
+                for (const outpoint of tx.inputs) {
+                    const prevTxid = outpoint.prevTxId.toString("hex");
+                    if (visited.has(prevTxid) || !txns.has(prevTxid)) {
+                        continue;
+                    }
+                    if (counter > 0 && counter % 1000 === 0) {
+                        setTimeout(() => topologicalSortInternal(++counter, txns.get(prevTxid)!.deserialized, txns, stack, visited), 0);
+                    } else {
+                        topologicalSortInternal(++counter, txns.get(prevTxid)!.deserialized, txns, stack, visited);
+                    }
+                }
+                stack.push(tx.hash);
+        }
+
         for (const tx of transactions) {
-            if(!visited.has(tx[0])) {
-                if(stack.length % 10000 === 0) {
-                    setTimeout(() => Bit.topologicalSortInternal(0, tx[1].deserialized, transactions, stack, visited), 0);
+            if (!visited.has(tx[0])) {
+                if (stack.length > 0 && stack.length % 1000 === 0) {
+                    setTimeout(() => topologicalSortInternal(0, tx[1].deserialized, transactions, stack, visited), 0);
                 } else {
-                    Bit.topologicalSortInternal(0, tx[1].deserialized, transactions, stack, visited);
+                    topologicalSortInternal(0, tx[1].deserialized, transactions, stack, visited);
                 }
             }
         }
-        return stack;
     }
 
     listenToZmq() {
@@ -564,14 +562,14 @@ export class Bit {
             
                 for(let index: number = lastCheckpoint.height + 1; index <= currentHeight; index++) {
                     console.time('[PERF] RPC END ' + index);
-                    let requireSlpData = hash ? true : false;
-                    let content = <CrawlResult>(await self.crawl(index, requireSlpData));
+                    let syncComplete = hash ? true : false;
+                    let content = <CrawlResult>(await self.crawl(index, syncComplete));
                     console.timeEnd('[PERF] RPC END ' + index);
                     console.time('[PERF] DB Insert ' + index);
             
-                    if(content) {
+                    if(content && content.size > 0) {
                         let array = Array.from(content.values()).map(c => c.tnaTxn);
-                        await self.db.confirmedReplace(array, requireSlpData, index);
+                        await self.db.confirmedReplace(array, index);
                         array.forEach(tna => {
                             self.removeMempoolTransaction(tna.tx.h);
                         });
@@ -614,8 +612,9 @@ export class Bit {
                 if(!txn && !self.slpMempoolIgnoreSetList.has(hash)) {
                     if(!txhex)
                         throw Error("Must provide 'txhex' if txid is not in the SLP mempool")
-                    if(self.slpTransactionFilter(txhex))
+                    if(self.slpTransactionFilter(txhex)) {
                         txn = new bitcore.Transaction(txhex);
+                    }
                 }
 
                 if (txn) {

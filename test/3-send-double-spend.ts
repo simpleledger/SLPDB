@@ -137,9 +137,11 @@ describe("3-Double-Spend-Send", () => {
 
     step("DS-S: Check the new token has been added", async () => {  // NOTE: This takes longer than normal since we're not waiting for ZMQ msg
         let txn = await db.confirmedFetch(tokenId);
-        while (!txn || !txn!.slp || !txn.slp.valid) { // NOTE: This is a problem where the unconfirmed item is first saved without the slp property (but ZMQ should happen only after slp is added)
+        let txn_u = await db.unconfirmedFetch(tokenId);
+        while (!txn || !txn!.slp || !txn.slp.valid || txn_u) {
             await sleep(50);
             txn = await db.confirmedFetch(tokenId);
+            txn_u = await db.unconfirmedFetch(tokenId);
         }
         let confirmed = await db.db.collection("confirmed").find({ "tx.h": tokenId }).toArray();
         assert.equal(txn!.slp!.valid, true);
@@ -147,9 +149,6 @@ describe("3-Double-Spend-Send", () => {
         assert.equal(txn!.slp!.detail!.symbol, "ut3");     
         assert.equal(txn!.slp!.detail!.tokenIdHex, txn!.tx.h);
         assert.equal(confirmed.length, 1);
-
-        // make sure it is not in unconfirmed
-        let txn_u = await db.unconfirmedFetch(tokenId);
         assert.equal(txn_u, null);
     });
 
@@ -190,17 +189,18 @@ describe("3-Double-Spend-Send", () => {
     });
 
     step("DS-S: Check SLPDB has pre-double spent transaction as unconfirmed", async () => {
-        let txn = await db.unconfirmedFetch(txid1);
-        while (!txn || !txn!.slp) { // NOTE: This is a problem where the unconfirmed item is first saved without the slp property (but ZMQ should happen only after slp is added)
-            await sleep(50);
-            txn = await db.unconfirmedFetch(txid1);
-        }
+        //let txn = await db.unconfirmedFetch(txid1);
         let unconfirmed = await db.db.collection("unconfirmed").find({}).toArray();
+        let txn = unconfirmed.find(i => i.tx.h === txid1);
+        while (!txn || unconfirmed.length !== 1) {
+            await sleep(50);
+            unconfirmed = await db.db.collection("unconfirmed").find({}).toArray();
+            txn = unconfirmed.find(i => i.tx.h === txid1);
+        }
         assert.equal(txn!.slp!.valid, true);
         assert.equal(txn!.slp!.detail!.name, "unit-test-3");
         assert.equal(txn!.slp!.detail!.symbol, "ut3");     
         assert.equal(txn!.slp!.detail!.tokenIdHex, tokenId);
-        assert.equal(unconfirmed.length, 1);
     });
 
     step("DS-S: Check SLPDB has pre-double spent transaction in graphs", async () => {

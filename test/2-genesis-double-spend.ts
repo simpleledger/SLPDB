@@ -323,6 +323,10 @@ describe("2-Double-Spend-Genesis", () => {
 
     step("DS-G: stores double spend token2 in tokens", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId2);
+        while (!t) {
+            await sleep(50);
+            t = await db.tokenFetch(tokenId2);
+        }
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId2);
         assert.equal(t!.mintBatonUtxo, tokenId2 + ":2");
         assert.equal(t!.tokenStats!.block_created, lastBlockIndex);

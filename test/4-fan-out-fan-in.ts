@@ -432,7 +432,7 @@ describe("4-Fan-out-Fan-in", () => {
 
     step("FOFI-1: Check that tokens collection is accurate (after block)", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-        while(t!.tokenStats.block_last_active_send !== lastBlockIndex) {
+        while(!t || !t!.tokenStats || t!.tokenStats.block_last_active_send !== lastBlockIndex) {
             await sleep(50);
             t = await db.tokenFetch(tokenId);
         }

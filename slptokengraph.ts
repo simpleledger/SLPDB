@@ -55,6 +55,7 @@ export class SlpTokenGraph {
     //_liveTxoSpendCache = new CacheMap<string, SendTxnQueryResult>(100000);
     _startupTxoSendCache?: CacheMap<string, SpentTxos>;
     _exit = false;
+    _loadInitiated = false;
 
     constructor(tokenIdHex: string, db: Db, manager: SlpGraphManager, network: string) {
         this._tokenIdHex = tokenIdHex;
@@ -68,6 +69,8 @@ export class SlpTokenGraph {
     }
 
     async initFromScratch({ tokenDetails, processUpToBlock }: { tokenDetails: SlpTransactionDetails, processUpToBlock?: number; }) {
+        this._loadInitiated = true;
+
         await Query.init();
 
         this._tokenDetails = tokenDetails;
@@ -313,13 +316,30 @@ export class SlpTokenGraph {
     }
 
     async queueTokenGraphUpdateFrom({ txid, isParent = false, processUpToBlock, block=null }: { txid: string, isParent?: boolean, processUpToBlock?: number; block?:{ hash: Buffer; transactions: Set<string> }|null}): Promise<void> {
-        if (!this.IsLoaded) {
-            let tokenState = <TokenDBObject>await this._db.tokenFetch(this._tokenIdHex);
-            let m = this._manager;
-            console.log(`[INFO] Finishing lazy loading for: ${this._tokenIdHex}`);
-            await m.loadTokenFromDb(this._tokenIdHex, tokenState, true, undefined);
+        let self = this;
+
+        while (this._loadInitiated && !this.IsLoaded) {
+            console.log(`Waiting for token ${this._tokenIdHex} to finish loading...`);
+            await sleep(250);
+        }
+
+        if (!this._loadInitiated && !this.IsLoaded) {
+            this._loadInitiated = true;
+            return await (async function() {
+                let m = self._manager;
+                let tokenState = <TokenDBObject>await self._db.tokenFetch(self._tokenIdHex);
+                if(!tokenState) {
+                    await m.createNewTokenGraph({ tokenId: self._tokenIdHex, processUpToBlock: processUpToBlock });
+                } else {
+                    console.log(`[INFO] Finishing lazy loading for: ${self._tokenIdHex}`);
+                    await m.loadTokenFromDb(self._tokenIdHex, tokenState, true, undefined);
+                }
+                // zmq publish mempool notifications
+                if(!isParent) {
+                    await m.publishZmqNotification(txid);
+                }
+            })();
         } else {
-            let self = this;
             return await this._graphUpdateQueue.add(async function() {
                 await self.updateTokenGraphFrom({ txid, isParent, processUpToBlock, block });
 
@@ -1050,7 +1070,10 @@ export class SlpTokenGraph {
     }
 
     static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], addresses: AddressBalancesDbo[], db: Db, manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
-        let tg = new SlpTokenGraph(token.tokenDetails.tokenIdHex, db, manager, network);
+        let tg = manager.getTokenGraph(token.tokenDetails.tokenIdHex);
+
+        tg._loadInitiated = true;
+        
         await Query.init();
 
         // add minting baton
