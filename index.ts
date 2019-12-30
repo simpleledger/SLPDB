@@ -10,15 +10,19 @@ import { Info, ChainSyncCheckpoint } from './info';
 import { SlpGraphManager } from './slpgraphmanager';
 import { TokenFilterRule, TokenFilter } from './filters';
 import { BlockchainInfoResult } from 'bitcoin-com-rest';
+import { Query } from './query';
 const sp = require("synchronized-promise");
 
 new RpcClient({ useGrpc: Boolean(Config.grpc.url) });
 
 let getBlockchainInfoSync: () => BlockchainInfoResult = sp(RpcClient.getBlockchainInfo);
 let setNetworkSync: (network: string) => void = sp(Info.setNetwork);
+let queryInitSync: () => void = sp(Query.init);
+
 let chain = getBlockchainInfoSync().chain;
 let network = chain === 'test' || chain  === 'regtest' ? 'testnet' : 'mainnet';
 setNetworkSync(network);
+queryInitSync();
 
 let db = new Db({ 
     dbName: network === 'mainnet' ? Config.db.name : Config.db.name_testnet, 

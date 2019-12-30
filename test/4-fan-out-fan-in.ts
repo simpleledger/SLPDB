@@ -150,12 +150,14 @@ describe("4-Fan-out-Fan-in", () => {
     });
 
     step("FOFI-1: Check the new token has been added", async () => {  // NOTE: This takes longer than normal since we're not waiting for ZMQ msg
-        let txn = await db.confirmedFetch(tokenId);
-        while (!txn || !txn!.slp || !txn.slp.valid) { // NOTE: This is a problem where the unconfirmed item is first saved without the slp property (but ZMQ should happen only after slp is added)
-            await sleep(50);
-            txn = await db.confirmedFetch(tokenId);
-        }
+        let txn_u = await db.unconfirmedFetch(tokenId);
         let confirmed = await db.db.collection("confirmed").find({ "tx.h": tokenId }).toArray();
+        let txn = confirmed.find(i => i.tx.h === tokenId);
+        while (!txn || !txn!.slp || !txn.slp.valid || confirmed.length !== 1 || txn_u) {
+            await sleep(50);
+            confirmed = await db.db.collection("confirmed").find({ "tx.h": tokenId }).toArray();
+            txn_u = await db.unconfirmedFetch(tokenId);
+        }
         assert.equal(txn!.slp!.valid, true);
         assert.equal(txn!.slp!.detail!.name, "unit-test-4");
         assert.equal(txn!.slp!.detail!.symbol, "ut4");     
@@ -163,7 +165,6 @@ describe("4-Fan-out-Fan-in", () => {
         assert.equal(confirmed.length, 1);
 
         // make sure it is not in unconfirmed
-        let txn_u = await db.unconfirmedFetch(tokenId);
         assert.equal(txn_u, null);
     });
 

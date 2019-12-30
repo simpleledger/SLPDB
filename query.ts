@@ -16,10 +16,12 @@ export class Query {
     static dbQuery: any; 
     static async init(): Promise<void> {
         if(!Query.dbQuery) { 
-            if((await Info.getNetwork()) === 'mainnet')
+            if((await Info.getNetwork()) === 'mainnet') {
                 Query.dbQuery = await bitqueryd.init({ url: Config.db.url, name: Config.db.name, log_result: false });
-            else
+            }
+            else {
                 Query.dbQuery = await bitqueryd.init({ url: Config.db.url, name: Config.db.name_testnet, log_result: false });
+            }
         }
         return Query.dbQuery;
     }

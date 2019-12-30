@@ -224,9 +224,9 @@ export class Db {
         return res;
     }
 
-    async unconfirmedDelete(txid: string): Promise<any> {
+    async unconfirmedDelete(txid: string): Promise<number|undefined> {
         await this.checkClientStatus();
-        let res = await this.db.collection('unconfirmed').deleteMany({ "tx.h": txid });
+        let res = (await this.db.collection('unconfirmed').deleteMany({ "tx.h": txid })).deletedCount;
         return res;
     }
 

@@ -210,8 +210,12 @@ export class Bit {
     }
 
     async removeMempoolTransaction(txid: string) {
-        this.slpMempool.delete(txid);
-        this.db.unconfirmedDelete(txid);
+        console.log(`Attempting to delete unconfirmed ${txid}`);
+        let count = await this.db.unconfirmedDelete(txid);
+        if (count) {
+            this.slpMempool.delete(txid);
+            console.log(`Deleted ${txid}`);
+        }
     }
 
     async requestSlpMempool(): Promise<TNATxn[]> {
@@ -245,7 +249,7 @@ export class Bit {
         console.log('[INFO] BCH mempool txs =', currentBchMempoolList.length);
         
         // Remove cached txs not in the mempool.
-        this.removeExtraneousMempoolTxns();
+        await this.removeExtraneousMempoolTxns();
         
         // Add SLP txs to the mempool not in the cache.
         let cachedSlpMempoolTxs = Array.from(this.slpMempool.keys());
@@ -345,8 +349,10 @@ export class Bit {
             try {
                 if (slpMsg.transactionType === SlpTransactionType.GENESIS) {
                     slpMsg.tokenIdHex = txid;
+                    slpTokenGraph = await this._slpGraphManager.getTokenGraph(slpMsg.tokenIdHex, slpMsg);
+                } else {
+                    slpTokenGraph = await this._slpGraphManager.getTokenGraph(slpMsg.tokenIdHex);
                 }
-                slpTokenGraph = this._slpGraphManager.getTokenGraph(slpMsg.tokenIdHex);
                 if (slpMsg.transactionType === SlpTransactionType.GENESIS) {
                     slpTokenGraph._tokenDetails = slpMsg;
                     if (blockTime) {
@@ -539,13 +545,13 @@ export class Bit {
         
         // remove extraneous SLP transactions no longer in the mempool
         let cacheCopyForRemovals = new Map(this.slpMempool);
-        let txids = cacheCopyForRemovals.keys()
+        let txids = cacheCopyForRemovals.keys();
         for(let i = 0; i < cacheCopyForRemovals.size; i++) {
-            let txid = txids.next().value
+            let txid = txids.next().value;
             if(!currentBchMempoolList.includes(txid)) {
-                await this.removeMempoolTransaction(txid)
+                await this.removeMempoolTransaction(txid);
             }
-        }     
+        }
     }
 
     static async sync(self: Bit, type: string, hash?: string, txhex?: string): Promise<SyncCompletionInfo|null> {
@@ -570,9 +576,9 @@ export class Bit {
                     if(content && content.size > 0) {
                         let array = Array.from(content.values()).map(c => c.tnaTxn);
                         await self.db.confirmedReplace(array, index);
-                        array.forEach(tna => {
-                            self.removeMempoolTransaction(tna.tx.h);
-                        });
+                        for (let tna of array) {
+                            await self.removeMempoolTransaction(tna.tx.h);
+                        };
                     }
                     if (index - 100 > 0) {
                         await Info.deleteBlockCheckpointHash(index - 100);
@@ -592,8 +598,8 @@ export class Bit {
 
                 // clear mempool and synchronize
                 if (lastCheckpoint.height < currentHeight && hash) {
-                    await self.checkForMissingMempoolTxns();
                     await self.removeExtraneousMempoolTxns();
+                    //await self.checkForMissingMempoolTxns();
                 }
             
                 if (lastCheckpoint.height === currentHeight) {

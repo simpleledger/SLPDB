@@ -312,7 +312,7 @@ describe("3-Double-Spend-Send", () => {
 
     step("DS-S: stores double spend txid2 in tokens (immediately after txn ZMQ)", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-        while(t!.tokenStats!.block_last_active_send === null || t!.tokenStats!.qty_token_burned.toString() !== "0") {
+        while(!t || t!.tokenStats!.block_last_active_send === null || t!.tokenStats!.qty_token_burned.toString() !== "0") {
             t = await db.tokenFetch(tokenId);
             await sleep(50);
         }

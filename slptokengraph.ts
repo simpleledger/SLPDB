@@ -14,7 +14,7 @@ import { CacheMap } from './cache';
 import { SlpdbStatus, SlpdbState } from './status';
 import { TokenDBObject, AddressBalancesDbo, UtxoDbo, GraphTxnDbo, 
     SlpTransactionDetailsDbo, TokenUtxoStatus, TokenStats, cashAddr, 
-    BatonUtxoStatus, TokenBatonStatus, TokenStatsDbo } from './interfaces';
+    BatonUtxoStatus, TokenBatonStatus } from './interfaces';
 import { GraphMap } from './graphmap';
 
 let cashaddr = require('cashaddrjs-slp');
@@ -26,7 +26,7 @@ const bitbox = new BITBOX();
 export class SlpTokenGraph {
     _tokenIdHex: string;
     _lastUpdatedBlock!: number;
-    _tokenDetails!: SlpTransactionDetails;
+    _tokenDetails: SlpTransactionDetails;
     _tokenStats!: TokenStats;
     _tokenUtxos = new Set<string>();
     _mintBatonUtxo = "";
@@ -57,8 +57,9 @@ export class SlpTokenGraph {
     _exit = false;
     _loadInitiated = false;
 
-    constructor(tokenIdHex: string, db: Db, manager: SlpGraphManager, network: string) {
-        this._tokenIdHex = tokenIdHex;
+    constructor(tokenDetails: SlpTransactionDetails, db: Db, manager: SlpGraphManager, network: string) {
+        this._tokenDetails = tokenDetails;
+        this._tokenIdHex = tokenDetails.tokenIdHex;
         this._db = db;
         this._manager = manager;
         this._network = network;
@@ -68,15 +69,12 @@ export class SlpTokenGraph {
         return await this._slpValidator.isValidSlpTxid(txid, this._tokenIdHex);
     }
 
-    async initFromScratch({ tokenDetails, processUpToBlock }: { tokenDetails: SlpTransactionDetails, processUpToBlock?: number; }) {
+    async initFromScratch({ processUpToBlock }: { tokenDetails: SlpTransactionDetails, processUpToBlock?: number; }) {
         this._loadInitiated = true;
 
-        await Query.init();
-
-        this._tokenDetails = tokenDetails;
         this._lastUpdatedBlock = 0;
 
-        this._startupTxoSendCache = await Query.getTxoInputSlpSendCache(tokenDetails.tokenIdHex);
+        this._startupTxoSendCache = await Query.getTxoInputSlpSendCache(this._tokenIdHex);
 
         let valid = await this.updateTokenGraphFrom({ txid: this._tokenDetails.tokenIdHex, processUpToBlock: processUpToBlock });
         if(valid) {
@@ -1070,12 +1068,11 @@ export class SlpTokenGraph {
     }
 
     static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], addresses: AddressBalancesDbo[], db: Db, manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
-        let tg = manager.getTokenGraph(token.tokenDetails.tokenIdHex);
+        let tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
+        let tg = await manager.getTokenGraph(token.tokenDetails.tokenIdHex, tokenDetails);
 
         tg._loadInitiated = true;
         
-        await Query.init();
-
         // add minting baton
         tg._mintBatonUtxo = token.mintBatonUtxo;
 
@@ -1089,9 +1086,6 @@ export class SlpTokenGraph {
         }
 
         tg._network = network;
-
-        // Map _tokenDetails
-        tg._tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
 
         // Map _txnGraph
         dag.forEach((item, idx) => {

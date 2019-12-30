@@ -50,9 +50,19 @@ export class SlpGraphManager {
             return true;
     }
 
-    getTokenGraph(tokenIdHex: string) {
+    async getTokenGraph(tokenIdHex: string, tokenDetails?: SlpTransactionDetails) {
         if(!this._tokens.has(tokenIdHex)) {
-            this._tokens.set(tokenIdHex, new SlpTokenGraph(tokenIdHex, this.db, this, this._network));
+            if (!tokenDetails) {
+                let res = await Query.queryTokenDetails(tokenIdHex);
+                if (!res) {
+                    throw Error("Cannot find token Genesis details.");
+                }
+                tokenDetails = res!;
+            }
+            if (tokenDetails.transactionType !== SlpTransactionType.GENESIS) {
+                throw Error("Token details must be from a GENESIS transaction.");
+            }
+            this._tokens.set(tokenIdHex, new SlpTokenGraph(tokenDetails, this.db, this, this._network));
         }
         return this._tokens.get(tokenIdHex)!;
     }
@@ -310,7 +320,6 @@ export class SlpGraphManager {
     }
 
     async initAllTokens({ reprocessFrom, reprocessTo, loadFromDb = true, allowGraphUpdates = true, onComplete }: { reprocessFrom?: number; reprocessTo?: number; loadFromDb?: boolean; allowGraphUpdates?: boolean; onComplete?: ()=>any } = {}) {
-        await Query.init();
         let tokens: SlpTransactionDetails[];
         let tokenIds: Set<string>|undefined;
         if(this._filter._rules.size > 0) {
@@ -320,8 +329,9 @@ export class SlpGraphManager {
                     tokenIds!.add(f.info);
             });
         }
-        if(!tokenIds)
+        if(!tokenIds) {
             tokens = await Query.queryTokensList();
+        }
         else {
             let results = Array.from(tokenIds).map(async id => { return await Query.queryTokensList(id) });
             tokens = (await Promise.all(results)).flat();
@@ -392,7 +402,7 @@ export class SlpGraphManager {
             if (this._tokens.has(token.tokenIdHex)) {
                 throw Error("This should not happen.");
             }
-            this._tokens.set(token.tokenIdHex, new SlpTokenGraph(token.tokenIdHex, this.db, this, this._network));
+            await this.getTokenGraph(token.tokenIdHex);
         } else {
             await this.loadTokenFromDb(token.tokenIdHex, tokenState, allowGraphUpdates, reprocessFrom);
         }
@@ -408,31 +418,31 @@ export class SlpGraphManager {
         let graph = await SlpTokenGraph.initFromDbos(tokenState, unspentDag, utxos, addresses, this.db, this, this._network);
         let res: string[] = [];
         if (allowGraphUpdates) {
-            // let potentialReorgFactor = 0; // determine how far back the token graph should be reprocessed
-            // let updateFromHeight = graph._lastUpdatedBlock - potentialReorgFactor;
-            // if (reprocessFrom !== undefined && reprocessFrom !== null && reprocessFrom < updateFromHeight) {
-            //     updateFromHeight = reprocessFrom;
-            // }
-            // console.log(`[INFO] Checking for Graph Updates since: ${updateFromHeight} (${graph._tokenDetails.tokenIdHex})`);
-            // res.push(...await Query.queryForRecentTokenTxns(graph._tokenDetails.tokenIdHex, updateFromHeight));
-            // if (res.length === 0) {
-            //     console.log(`[INFO] No token transactions after block ${updateFromHeight} were found (${graph._tokenDetails.tokenIdHex})`);
-            // }
-            // else {
-            //     if(res.length > 10) {
-            //         graph._startupTxoSendCache = await Query.getTxoInputSlpSendCache(graph._tokenDetails.tokenIdHex);
-            //     }
-            //     // update graph items
-            //     await this.asyncForEach(res, async (txid: string) => {
-            //         await graph.updateTokenGraphFrom({ txid: txid });
-            //         console.log(`[INFO] Updated graph from ${txid} (${graph._tokenDetails.tokenIdHex})`);
-            //     });
-            //     console.log(`[INFO] Token graph updated (${graph._tokenDetails.tokenIdHex}).`);
-            //     if(graph._startupTxoSendCache) {
-            //         graph._startupTxoSendCache.clear();
-            //         graph._startupTxoSendCache = undefined;
-            //     }
-            // }
+            let potentialReorgFactor = 0; // determine how far back the token graph should be reprocessed
+            let updateFromHeight = graph._lastUpdatedBlock - potentialReorgFactor;
+            if (reprocessFrom !== undefined && reprocessFrom !== null && reprocessFrom < updateFromHeight) {
+                updateFromHeight = reprocessFrom;
+            }
+            console.log(`[INFO] Checking for Graph Updates since: ${updateFromHeight} (${graph._tokenDetails.tokenIdHex})`);
+            res.push(...await Query.queryForRecentTokenTxns(graph._tokenDetails.tokenIdHex, updateFromHeight));
+            if (res.length === 0) {
+                console.log(`[INFO] No token transactions after block ${updateFromHeight} were found (${graph._tokenDetails.tokenIdHex})`);
+            }
+            else {
+                if(res.length > 10) {
+                    graph._startupTxoSendCache = await Query.getTxoInputSlpSendCache(graph._tokenDetails.tokenIdHex);
+                }
+                // update graph items
+                await this.asyncForEach(res, async (txid: string) => {
+                    await graph.updateTokenGraphFrom({ txid: txid });
+                    console.log(`[INFO] Updated graph from ${txid} (${graph._tokenDetails.tokenIdHex})`);
+                });
+                console.log(`[INFO] Token graph updated (${graph._tokenDetails.tokenIdHex}).`);
+                if(graph._startupTxoSendCache) {
+                    graph._startupTxoSendCache.clear();
+                    graph._startupTxoSendCache = undefined;
+                }
+            }
         } else {
             console.log(`[WARN] Token's graph loaded using allowGraphUpdates=false (${graph._tokenDetails.tokenIdHex})`);
         }
@@ -495,7 +505,7 @@ export class SlpGraphManager {
             // add timestamp if token is already confirmed
             let timestamp = await Query.getConfirmedTxnTimestamp(tokenId);
             tokenDetails.timestamp = timestamp ? timestamp : undefined;
-            let graph = this.getTokenGraph(tokenId);
+            let graph = await this.getTokenGraph(tokenId);
             await graph.initFromScratch({ tokenDetails, processUpToBlock });
 
             if(!graph.IsValid) {

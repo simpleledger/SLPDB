@@ -35,7 +35,7 @@ export class Config {
 		confirmed_schema_version: 2,
 		token_schema_version: 74,
 		pruning: process.env.pruning ? ['1', 'true'].includes(process.env.pruning) : true,
-		lazy_loading: process.env.lazy_loading ? Number.parseInt(process.env.lazy_loading) : 12960,
+		lazy_loading: process.env.lazy_loading ? Number.parseInt(process.env.lazy_loading) : 0,
 		index: {
 			tokens: {
 				keys: [ 'tokenDetails.tokenIdHex', 'tokenDetails.name', 'tokenDetails.symbol', 'tokenStats.qty_token_circulating_supply', 'tokenStats.qty_token_burned', 'tokenStats.qty_token_minted' ],
