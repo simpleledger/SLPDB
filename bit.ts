@@ -283,8 +283,11 @@ export class Bit {
                 const txid = deserialized.hash;
                 blockTxCache.set(txid, {deserialized, serialized});
             });
-            let stack = new CacheSet<string>(-1);
-            Bit.topologicalSort(blockTxCache, stack);
+            let stack: string[] = [];
+            await this.topologicalSort(blockTxCache, stack);
+            if (stack.length !== blockTxCache.size) {
+                throw Error("NOOO");
+            }
             console.timeEnd(`Toposort-${blockIndex}`);
 
             let slpCount = 0;
@@ -417,44 +420,46 @@ export class Bit {
 
 
 
-    private static topologicalSort(
+    private async topologicalSort(
         transactions: Map<string, { deserialized: bitcore.Transaction, serialized: Buffer }>,
-        stack: CacheSet<string>
-    ): void {
+        stack: string[]
+    ): Promise<void> {
         const visited = new Set<string>();
-
-        let topologicalSortInternal = (
-            // Source: https://github.com/blockparty-sh/cpp_slp_graph_search/blob/master/src/util.cpp#L12
-            counter: number,
-            tx: bitcore.Transaction, 
-            txns: Map<string, { deserialized: bitcore.Transaction, serialized: Buffer }>,
-            stack: CacheSet<string>,
-            visited: Set<string>) => 
-        {
-                visited.add(tx.hash);
-                for (const outpoint of tx.inputs) {
-                    const prevTxid = outpoint.prevTxId.toString("hex");
-                    if (visited.has(prevTxid) || !txns.has(prevTxid)) {
-                        continue;
-                    }
-                    if (counter > 0 && counter % 1000 === 0) {
-                        setTimeout(() => topologicalSortInternal(++counter, txns.get(prevTxid)!.deserialized, txns, stack, visited), 0);
-                    } else {
-                        topologicalSortInternal(++counter, txns.get(prevTxid)!.deserialized, txns, stack, visited);
-                    }
-                }
-                stack.push(tx.hash);
-        }
 
         for (const tx of transactions) {
             if (!visited.has(tx[0])) {
                 if (stack.length > 0 && stack.length % 1000 === 0) {
-                    setTimeout(() => topologicalSortInternal(0, tx[1].deserialized, transactions, stack, visited), 0);
+                    let self = this;
+                    await self.topologicalSortInternal(0, tx[1].deserialized, transactions, stack, visited);
                 } else {
-                    topologicalSortInternal(0, tx[1].deserialized, transactions, stack, visited);
+                    await this.topologicalSortInternal(0, tx[1].deserialized, transactions, stack, visited);
                 }
             }
         }
+    }
+
+    private async topologicalSortInternal(
+        // Source: https://github.com/blockparty-sh/cpp_slp_graph_search/blob/master/src/util.cpp#L12
+        counter: number,
+        tx: bitcore.Transaction, 
+        txns: Map<string, { deserialized: bitcore.Transaction, serialized: Buffer }>,
+        stack: string[],
+        visited: Set<string>)
+    {
+            visited.add(tx.hash);
+            for (const outpoint of tx.inputs) {
+                const prevTxid = outpoint.prevTxId.toString("hex");
+                if (visited.has(prevTxid) || !txns.has(prevTxid)) {
+                    continue;
+                }
+                if (counter > 0 && counter % 1000 === 0) {
+                    let self = this;
+                    await self.topologicalSortInternal(++counter, txns.get(prevTxid)!.deserialized, txns, stack, visited);
+                } else {
+                    await this.topologicalSortInternal(++counter, txns.get(prevTxid)!.deserialized, txns, stack, visited);
+                }
+            }
+            stack.push(tx.hash);
     }
 
     listenToZmq() {
