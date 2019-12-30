@@ -286,7 +286,7 @@ export class Bit {
             let stack: string[] = [];
             await this.topologicalSort(blockTxCache, stack);
             if (stack.length !== blockTxCache.size) {
-                throw Error("NOOO");
+                throw Error("Transaction count is incorrect after topological sorting.");
             }
             console.timeEnd(`Toposort-${blockIndex}`);
 
