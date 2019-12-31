@@ -276,12 +276,22 @@ export class Bit {
 
             console.time(`Toposort-${blockIndex}`);
             const blockTxCache = new Map<string, { deserialized: bitcore.Transaction, serialized: Buffer}>();
-            block.txs.forEach((t: any) => {
+            block.txs.forEach((t: any, i: number) => {
                 const serialized: Buffer = t.toRaw();
-                // @ts-ignore
-                const deserialized = new bitcore.Transaction(serialized);
-                const txid = deserialized.hash;
-                blockTxCache.set(txid, {deserialized, serialized});
+                if (this.slpTransactionFilter(serialized)) {
+                    console.time(`hydrate-${blockIndex}-${i}`);
+                    // @ts-ignore
+                    const deserialized = new bitcore.Transaction(serialized);
+                    const txid = deserialized.hash;
+                    console.timeEnd(`hydrate-${blockIndex}-${i}`);
+                    blockTxCache.set(txid, {deserialized, serialized});
+                    RpcClient.transactionCache.set(txid, serialized);
+                } else {
+                    console.time(`hash-${blockIndex}-${i}`);
+                    const txid = Buffer.from(bitbox.Crypto.hash256(serialized).toJSON().data.reverse()).toString('hex');
+                    console.timeEnd(`hash-${blockIndex}-${i}`);
+                    RpcClient.transactionCache.set(txid, Buffer.alloc(60));
+                }
             });
             let stack: string[] = [];
             await this.topologicalSort(blockTxCache, stack);
@@ -305,13 +315,7 @@ export class Bit {
                 const serialized = blockTxCache.get(txid)!.serialized;
                 const deserialized = blockTxCache.get(txid)!.deserialized;
 
-                if (!self.slpTransactionFilter(serialized)) {
-                    return;
-                }
-
                 let t: TNATxn = tna.fromTx(deserialized, { network: self.network });
-
-                RpcClient.transactionCache.set(txid, serialized);
 
                 await self.setSlpProp(self, deserialized, txid, blockTime, t, blockIndex);
 
