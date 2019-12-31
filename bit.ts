@@ -581,9 +581,11 @@ export class Bit {
                     if(content && content.size > 0) {
                         let array = Array.from(content.values()).map(c => c.tnaTxn);
                         await self.db.confirmedReplace(array, index);
-                        for (let tna of array) {
-                            await self.removeMempoolTransaction(tna.tx.h);
-                        };
+                        if (hash) {
+                            for (let tna of array) {
+                                await self.removeMempoolTransaction(tna.tx.h);
+                            };
+                        }
                     }
                     if (index - 100 > 0) {
                         await Info.deleteBlockCheckpointHash(index - 100);
