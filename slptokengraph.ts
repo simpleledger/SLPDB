@@ -97,6 +97,7 @@ export class SlpTokenGraph {
         }
         this._startupTxoSendCache.clear();
         this._startupTxoSendCache = undefined;
+        this._slpValidator.cachedRawTransactions = {};
         this._graphUpdateQueue.start();
     }
 
@@ -871,6 +872,7 @@ export class SlpTokenGraph {
         let self = this;
         if (this._graphUpdateQueue.size === 0 && (this._graphUpdateQueue.pending === 0 || fromGraphUpdateQueue)) {
             await this._statsUpdateQueue.add(async function() {
+                self._slpValidator.cachedRawTransactions = {};
                 await self._updateStatistics(saveToDb);
             });
         } else {
