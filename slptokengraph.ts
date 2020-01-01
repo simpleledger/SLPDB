@@ -67,7 +67,7 @@ export class SlpTokenGraph {
 
     async validateTxid(txid: string) {
         let isValid = await this._slpValidator.isValidSlpTxid(txid, this._tokenIdHex);
-        this._slpValidator.cachedRawTransactions = {};
+        delete this._slpValidator.cachedRawTransactions[txid];
         return isValid;
     }
 
