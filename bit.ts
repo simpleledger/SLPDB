@@ -284,9 +284,6 @@ export class Bit {
                     const txid = deserialized.hash;
                     blockTxCache.set(txid, {deserialized, serialized});
                     RpcClient.transactionCache.set(txid, serialized);
-                } else {
-                    const txid = Buffer.from(bitbox.Crypto.hash256(serialized).toJSON().data.reverse()).toString('hex');
-                    RpcClient.transactionCache.set(txid, Buffer.alloc(60));
                 }
             });
             let stack: string[] = [];
