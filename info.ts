@@ -122,12 +122,12 @@ export module Info {
 		return null
 	}
 
-	export const getRecentBlocks = async () => {
-		let recentBlocks = [];
+	export const getRecentBlocks = async (): Promise<{hash: string, height: number}[]> => {
+		let recentBlocks: { hash: string, height: number }[] = [];
 		let tip = (await Info.getBlockCheckpoint()).height;
 		let hash = await Info.getCheckpointHash(tip);
 		while(hash && recentBlocks.length < 10) {
-			recentBlocks.unshift(hash);
+			recentBlocks.unshift({ hash, height: tip });
 			hash = await Info.getCheckpointHash(--tip);
 		}
 		return recentBlocks;

@@ -36,7 +36,7 @@ export interface TokenDBObject {
     schema_version: number;
     isGraphPruned: boolean;
     tokenDetails: SlpTransactionDetailsDbo;
-    tokenStats: TokenStats | TokenStatsDbo;
+    tokenStats: TokenStats | TokenStatsDbo | null;
     mintBatonUtxo: string;
     lastUpdatedBlock: number;
     nftParentId?: string;
@@ -100,7 +100,7 @@ export interface GraphTxnDetailsDbo {
         };
     };
     blockHash: Buffer | null;
-    isAgedAndSpent: boolean;
+    pruneHeight: number | null;
 }
 
 export interface GraphTxnOutputDbo {

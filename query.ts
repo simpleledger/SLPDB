@@ -135,8 +135,30 @@ export class Query {
         let res: SendTxnQueryResponse = await this._dbQuery(q);
         let response = new Set<any>([].concat(<any>res.c).concat(<any>res.u).map((r: any) => { return r.txid } ));
         let a = Array.from(response);
-        if(a.length === MAX_QUERY_LIMIT)
+        if(a.length === MAX_QUERY_LIMIT) {
             throw Error("Query limit is reached, implementation error");
+        }
+        return a;
+    }
+
+    static async queryForRecentConfirmedTokenTxns(tokenId: string, block: number): Promise<string[]> {
+        console.log("[Query] queryForRecentConfirmedTokenTxns(" + tokenId + "," + block + ")");
+        let q = {
+            "v": 3,
+            "q": {
+                "db": [ "c" ],
+                "find": { "slp.detail.tokenIdHex": tokenId, "blk.i": { "$gte": block } },
+                "limit": MAX_QUERY_LIMIT
+            },
+            "r": { "f": "[ .[] | { txid: .tx.h } ]" }
+        };
+
+        let res: SendTxnQueryResponse = await this._dbQuery(q);
+        let response = new Set<any>([].concat(<any>res.c).map((r: any) => { return r.txid } ));
+        let a = Array.from(response);
+        if(a.length === MAX_QUERY_LIMIT) {
+            throw Error("Query limit is reached, implementation error");
+        }
         return a;
     }
 
@@ -373,7 +395,7 @@ export class Query {
                 return res;
             }
             else {
-                console.log("[INFO] Assumed Token Burn: Could not find the spend transaction: " + txid + ":" + vout);
+                console.log("[INFO] Could not find the spend transaction: " + txid + ":" + vout);
                 return null;
             }
         }
@@ -383,27 +405,26 @@ export class Query {
 
     static async getTxoInputSlpSendCache(tokenId: string): Promise<CacheMap<string, { txid: string, block: number, blockHash: Buffer }>> {
         console.log("[Query] getTxoInputSlpSpendCache(" + tokenId + ")");
+        let CACHE_SIZE = 50000;
         let q = {
             "v": 3,
             "q": {
-                "db": ["c"], // ,"u"],
+                "db": ["c"],
                 "aggregate": [
                     { "$match": { "out.h4": tokenId, "out.s3": "SEND" }},
                     { "$unwind": "$in" },
-                    { "$project": { "prevTxid": "$in.e.h", "prevIndex": "$in.e.i", "txid": "$tx.h", "block": "$blk.i", "blockHash": "$blk.h" }}
+                    { "$project": { "prevTxid": "$in.e.h", "prevIndex": "$in.e.i", "txid": "$tx.h", "block": "$blk.i", "blockHash": "$blk.h" }},
+                    { "$sort": { "block": -1 }}
                 ], 
-                "limit": MAX_QUERY_LIMIT
+                "limit": CACHE_SIZE
             }
         }
         let response: {c: { prevTxid: string, prevIndex: number, txid: string, block: number, blockHash: string }[], errors?: any} = await this._dbQuery(q);
-        let cache = new CacheMap<string, {txid: string, block: number, blockHash: Buffer }>(1000000);
+        let cache = new CacheMap<string, {txid: string, block: number, blockHash: Buffer }>(CACHE_SIZE);
         if(!response.errors) {
             response.c.forEach(txo => {
                 cache.set(txo.prevTxid + ":" + txo.prevIndex, { txid: txo.txid, block: txo.block, blockHash: Buffer.from(txo.blockHash, 'hex') });
             });
-            // response.u.forEach(txo => {
-            //     cache.set(txo.prevTxid + ":" + txo.prevIndex, { txid: txo.txid, block: null });
-            // });
         }
         return cache;
     }
@@ -435,19 +456,24 @@ export class Query {
                 res.sendOutputs.push({ tokenQty: new BigNumber(0), satoshis: res.bch0 });
                 let keys = Object.keys(res);
                 keys.forEach((key, index) => {
-                    if(res[key] && key.includes('slp')) {
+                    if (res[key] && key.includes('slp')) {
                         try {
                             let qtyBuf = Buffer.from(res[key], 'hex');
-                            res.sendOutputs.push({ tokenQty: Utils.buffer2BigNumber(qtyBuf), satoshis: res["bch" + key.replace('slp', '')] });
+                            if (qtyBuf.length !== 8) {
+                                res.sendOutputs.push({ tokenQty: Utils.buffer2BigNumber(qtyBuf), satoshis: res["bch" + key.replace('slp', '')] });
+                            } else {
+                                res.sendOutputs.push({ tokenQty: null, satoshis: res["bch" + key.replace('slp', '')] });
+                            }
                         } catch(err) {
-                            throw err;
+                            console.log(`Error parsing txid ${res["txid"]} : ${err}`);
+                            res.sendOutputs.push({ tokenQty: null, satoshis: res["bch" + key.replace('slp', '')] });
                         }
                     }
                 })
                 return res;
             }
             else {
-                console.log("[INFO] Assumed Token Burn: Could not find the spend transaction: " + txid + ":" + vout);
+                console.log("[INFO] Could not find the spend transaction: " + txid + ":" + vout);
                 return null;
             }
         }

@@ -317,14 +317,17 @@ describe("4-Fan-out-Fan-in", () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId);
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(t!.mintBatonUtxo, tokenId + ":2");
-        assert.equal(t!.tokenStats!.block_created! > 0, true);
-        assert.equal(t!.tokenStats!.block_last_active_mint, null);
-        assert.equal(t!.tokenStats!.block_last_active_send, lastBlockIndex);
-        assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
-        assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE);
-        assert.equal(t!.tokenStats.qty_valid_txns_since_genesis, inputTxnCount+1);
+        assert.equal(t!.tokenStats !== null, true);
+        if(t!.tokenStats) {
+            assert.equal(t!.tokenStats!.block_created! > 0, true);
+            assert.equal(t!.tokenStats!.block_last_active_mint, null);
+            assert.equal(t!.tokenStats!.block_last_active_send, lastBlockIndex);
+            assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
+            assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
+            assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
+            assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE);
+            assert.equal(t!.tokenStats.qty_valid_txns_since_genesis, inputTxnCount+1);
+        }
     });
 
     step("FOFI-1: Check that fan-in transaction is in graphs (before block)", async () => {

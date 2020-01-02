@@ -65,6 +65,8 @@ export class Bit {
     _blockSeenTokenIds = new Set<string>();
     exit = false;
 
+    _tokensInLastGraphUpdateInterval = new Set<string>();
+
     constructor(db: Db) { 
         this.db = db;
         this._zmqItemQueue = new pQueue({ concurrency: 1, autoStart: true });
@@ -280,10 +282,17 @@ export class Bit {
                 const serialized: Buffer = t.toRaw();
                 if (this.slpTransactionFilter(serialized)) {
                     // @ts-ignore
-                    const deserialized = new bitcore.Transaction(serialized);
+                    const deserialized: bitcore.Transaction = new bitcore.Transaction(serialized);
                     const txid = deserialized.hash;
                     blockTxCache.set(txid, {deserialized, serialized});
                     RpcClient.transactionCache.set(txid, serialized);
+                    deserialized.inputs.forEach((input, i) => {
+                        if (i > 0) {
+                            let prevOutpoint = input.prevTxId.toString("hex") + ":" + input.outputIndex;
+                            this._spentTxoCache.set(prevOutpoint, {txid, block: blockIndex});
+                            // TODO: Scan for SLP token burns elsewhere... for all block transactoins (is this being done already somewhere else?)
+                        }
+                    });
                 }
             });
             let stack: string[] = [];
@@ -338,7 +347,7 @@ export class Bit {
     }
 
     private async setSlpProp(self: this, txn: bitcore.Transaction, txid: string, blockTime: number|null, t: TNATxn, blockIndex: number|null) {
-        let slpMsg: SlpTransactionDetails | undefined, slpTokenGraph: SlpTokenGraph, validation: Validation, detail: SlpTransactionDetailsTnaDbo | null = null, invalidReason: string | null = null, valid = false;
+        let slpMsg: SlpTransactionDetails | undefined, slpTokenGraph: SlpTokenGraph | undefined, validation: Validation, detail: SlpTransactionDetailsTnaDbo | null = null, invalidReason: string | null = null, valid = false;
         try {
             slpMsg = self._slpGraphManager.slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
         }
@@ -356,11 +365,27 @@ export class Bit {
                 if (slpMsg.transactionType === SlpTransactionType.GENESIS) {
                     slpTokenGraph._tokenDetails = slpMsg;
                     if (blockTime) {
-                        let d = new Date(blockTime);
-                        slpTokenGraph._tokenDetails.timestamp = `${d.getFullYear}-${d.getMonth}-${d.getDay} ${d.getHours}:${d.getMinutes}:${d.getSeconds}`;
+                        let formatDate = (blockTime: number): string[] => {
+                            let d = new Date(blockTime * 1000);
+                            let res: string[] = [
+                                '0' + d.getUTCMonth(), 
+                                '0' + d.getUTCDay(),
+                                '0' + d.getUTCHours(),
+                                '0' + d.getUTCMinutes(),
+                                '0' + d.getUTCSeconds()
+                            ].map((c: string) => c.slice(-2))
+                            res.unshift(d.getUTCFullYear().toString());
+                            return res;
+                        }
+                        let d: string[] = formatDate(blockTime);
+                        slpTokenGraph._tokenDetails.timestamp = d.slice(0,3).join('-') + ' ' + d.slice(3).join(':');
+                        console.log(slpTokenGraph._tokenDetails.timestamp);
                     }
                 }
                 valid = await slpTokenGraph.validateTxid(txid);
+                if (valid) {
+                    this._tokensInLastGraphUpdateInterval.add(slpMsg.tokenIdHex);
+                }
                 validation = slpTokenGraph._slpValidator.cachedValidations[txid];
                 invalidReason = validation.invalidReason;
                 let addresses: (string | null)[] = [];
@@ -401,6 +426,15 @@ export class Bit {
                 }
             }
             catch (err) {
+                if (!slpTokenGraph) {
+                    t.slp = {
+                        valid,
+                        detail,
+                        invalidReason,
+                        schema_version: Config.db.token_schema_version
+                    }
+                    return { valid: false, detail, invalidReason: "Invalid token Genesis." };
+                }
                 console.log(err);
             }
         }
@@ -567,8 +601,8 @@ export class Bit {
                 lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
 
                 let currentHeight: number = await self.requestheight();
-            
-                for(let index: number = lastCheckpoint.height + 1; index <= currentHeight; index++) {
+                let startHeight = lastCheckpoint.height - Config.db.block_sync_graph_update_interval;
+                for (let index: number = startHeight; index <= currentHeight; index++) {
                     console.time('[PERF] RPC END ' + index);
                     let syncComplete = hash ? true : false;
                     let content = <CrawlResult>(await self.crawl(index, syncComplete));
@@ -583,6 +617,14 @@ export class Bit {
                                 await self.removeMempoolTransaction(tna.tx.h);
                             };
                         }
+                    }
+                    if (!hash && (index % Config.db.block_sync_graph_update_interval === 0 || index === currentHeight)) {
+                        if(self._tokensInLastGraphUpdateInterval.size > 0) {
+                            console.log(`[INFO] Updating ${self._tokensInLastGraphUpdateInterval.size} token graphs`);
+                            await self._slpGraphManager.updateTokenIds({ tokenIds: self._tokensInLastGraphUpdateInterval, from: index-Config.db.block_sync_graph_update_interval, upTo: index });
+                            console.log("[INFO] Finished Updating token graphs");
+                        }
+                        self._tokensInLastGraphUpdateInterval.clear();
                     }
                     if (index - 100 > 0) {
                         await Info.deleteBlockCheckpointHash(index - 100);

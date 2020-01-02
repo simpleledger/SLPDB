@@ -49,7 +49,7 @@ export class SlpTokenGraph {
     }, console);
     _network: string;
     _db: Db;
-    _graphUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: false });
+    _graphUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: true });
     _statsUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: true });
     _manager: SlpGraphManager;
     //_liveTxoSpendCache = new CacheMap<string, SendTxnQueryResult>(100000);
@@ -67,7 +67,6 @@ export class SlpTokenGraph {
 
     async validateTxid(txid: string) {
         let isValid = await this._slpValidator.isValidSlpTxid(txid, this._tokenIdHex);
-        delete this._slpValidator.cachedRawTransactions[txid];
         return isValid;
     }
 
@@ -98,7 +97,7 @@ export class SlpTokenGraph {
         this._startupTxoSendCache.clear();
         this._startupTxoSendCache = undefined;
         this._slpValidator.cachedRawTransactions = {};
-        this._graphUpdateQueue.start();
+        //this._graphUpdateQueue.start();
     }
 
     async stop() {
@@ -146,7 +145,7 @@ export class SlpTokenGraph {
         let txnHex = (await this._slpValidator.getRawTransactions([txid]))[0];
         let txn = Primatives.Transaction.parseFromBuffer(Buffer.from(txnHex, 'hex'));
         let validation = this._slpValidator.cachedValidations[txid];
-        if(validation.validity) {
+        if(validation.validity && this._graphTxns.has(txid)) {
             if(validation!.details!.transactionType === SlpTransactionType.SEND) {
                 txn.inputs.forEach(txo => {
                     if(this._tokenUtxos.delete(`${txo.previousTxHash}:${txo.previousTxOutIndex}`)) {
@@ -208,33 +207,50 @@ export class SlpTokenGraph {
     }
 
     async getMintBatonSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number; processUpTo?: number }): Promise<MintSpendDetails> {
-        let txOut = await RpcClient.getTxOut(txid, vout);
-        if(txOut === null) {
+        let spendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
+        if(this._startupTxoSendCache) {
+            spendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
+            if(spendTxnInfo) {
+                console.log("[INFO] Used _startupTxoSendCache data", txid, vout);
+            }
+        }
+        if(!spendTxnInfo) {
+            spendTxnInfo = this._manager._bit._spentTxoCache.get(txid + ":" + vout); //this._liveTxoSpendCache.get(txid + ":" + vout);
+            if(spendTxnInfo) {
+                console.log("[INFO] Used bit._spentTxoCache data", txid, vout);
+            }
+        }
+        if (!spendTxnInfo) {
+            let res = await Query.queryForTxoInputAsSlpMint(txid, vout);
+            if (res) {
+                spendTxnInfo = { txid: res.txid!, block: res.block };
+            }
+        }
+        if(spendTxnInfo) {
             try {
-                let spendTxnInfo = await Query.queryForTxoInputAsSlpMint(txid, vout);
-                if(!spendTxnInfo) {
-                    this._mintBatonUtxo = '';
-                    if(vout < txnOutputLength)
-                        return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: null, invalidReason: null };
-                    return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
-                } else {
-                    if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
-                        return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, invalidReason: null };
-                    }
-                    if(typeof spendTxnInfo!.txid === 'string') {
-                        let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
-                        if(!this._slpValidator.cachedValidations[spendTxnInfo.txid!])
-                            console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex)
-                        if(valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.MINT)
-                            return { status: BatonUtxoStatus.BATON_SPENT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: null };
-                        else if(valid) {
-                            this._mintBatonUtxo = '';
-                            return { status: BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: "Baton was spent in a non-mint SLP transaction." };
-                        }
-                        this._mintBatonUtxo = '';
-                        return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: spendTxnInfo!.txid, invalidReason: null };
-                    }
+                // if(!spendTxnInfo) {
+                //     this._mintBatonUtxo = '';
+                //     if(vout < txnOutputLength)
+                //         return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: null, invalidReason: null };
+                //     return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
+                // } else {
+                if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
+                    return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, invalidReason: null };
                 }
+                if(typeof spendTxnInfo!.txid === 'string') {
+                    let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
+                    if(!this._slpValidator.cachedValidations[spendTxnInfo.txid!])
+                        console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex)
+                    if(valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.MINT)
+                        return { status: BatonUtxoStatus.BATON_SPENT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: null };
+                    else if(valid) {
+                        this._mintBatonUtxo = '';
+                        return { status: BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: "Baton was spent in a non-mint SLP transaction." };
+                    }
+                    this._mintBatonUtxo = '';
+                    return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: spendTxnInfo!.txid, invalidReason: null };
+                }
+                //}
             } catch(_) {
                 this._mintBatonUtxo = '';
                 if(vout < txnOutputLength)
@@ -247,65 +263,50 @@ export class SlpTokenGraph {
     }
 
     async getSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number; processUpTo?: number; }): Promise<SpendDetails> {
-        let txOut: any;
-
-        let cachedSpendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
+        let spendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
         if(this._startupTxoSendCache) {
-            cachedSpendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
+            spendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
+            if (spendTxnInfo) {
+                console.log("[INFO] Used _startupTxoSendCache data", txid, vout);
+            }
         }
-        if(!cachedSpendTxnInfo) {
-            cachedSpendTxnInfo = this._manager._bit._spentTxoCache.get(txid + ":" + vout); //this._liveTxoSpendCache.get(txid + ":" + vout);
+        if(!spendTxnInfo) {
+            spendTxnInfo = this._manager._bit._spentTxoCache.get(txid + ":" + vout); //this._liveTxoSpendCache.get(txid + ":" + vout);
+            if (spendTxnInfo) {
+                console.log("[INFO] Used bit._spentTxoCache spend data", txid, vout);
+            }
         }
-        if(!cachedSpendTxnInfo)
-            txOut = await RpcClient.getTxOut(txid, vout);
-        if(cachedSpendTxnInfo || !txOut) {
+        if (!spendTxnInfo) {
+            let res = await Query.queryForTxoInputAsSlpSend(txid, vout);
+            if (res) {
+                spendTxnInfo = { txid: res.txid!, block: res.block };
+            }
+        }
+        if(spendTxnInfo) {
             try {
-                let spendTxnInfo: SendTxnQueryResult|{txid: string, block: number|null}|null|undefined;
-
-                // NEED MORE WORK BEFORE WE CAN DO CACHE ONLY STARTUPS
-                // if(!cachedSpendTxnInfo && this._startupTxoSendCache) {
-                //     console.log("[INFO] TXO IS SPENT BUT, NO SPEND DATA WAS FOUND FOR:", txid, vout);
-                // }
-                // else if(!cachedSpendTxnInfo) { //&& !this._startupTxoSendCache) {   
-
-                if(!cachedSpendTxnInfo) {
-                    spendTxnInfo = await Query.queryForTxoInputAsSlpSend(txid, vout);
-                    // only cache mature spends
-                    if(spendTxnInfo && 
-                        spendTxnInfo.block && 
-                        this._manager._bestBlockHeight && 
-                        (this._manager._bestBlockHeight - spendTxnInfo.block) > 10
-                    ) {
-                        //this._liveTxoSpendCache.set(txid + ":" + vout, spendTxnInfo!);
-                    }
-                } else {
-                    spendTxnInfo = cachedSpendTxnInfo;
-                    console.log("[INFO] Used cached spend data", txid, vout);
+                // if(!spendTxnInfo) {
+                //     this._tokenUtxos.delete(txid + ":" + vout);
+                //     if(vout < txnOutputLength)
+                //        return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, invalidReason: null };
+                //     return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
+                // } else {
+                if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
+                    return { status: TokenUtxoStatus.UNSPENT, txid: null, invalidReason: null };
                 }
-                if(!spendTxnInfo) {
-                    this._tokenUtxos.delete(txid + ":" + vout);
-                    if(vout < txnOutputLength)
-                       return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, invalidReason: null };
-                    return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
-                } else {
-                    if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
-                        //this._tokenUtxos.add(txid + ":" + vout);
-                        return { status: TokenUtxoStatus.UNSPENT, txid: null, invalidReason: null };
-                    }
-                    if(typeof spendTxnInfo!.txid === 'string') {
-                        let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
-                        if(!this._slpValidator.cachedValidations[spendTxnInfo.txid!])
-                            console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex)
-                        if(valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.SEND)
-                            return { status: TokenUtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, invalidReason: null };
-                        else if(valid) {
-                            this._tokenUtxos.delete(txid + ":" + vout);
-                            return { status: TokenUtxoStatus.SPENT_NOT_IN_SEND, txid: spendTxnInfo!.txid, invalidReason: null };
-                        }
+                if(typeof spendTxnInfo!.txid === 'string') {
+                    let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
+                    if(!this._slpValidator.cachedValidations[spendTxnInfo.txid!])
+                        console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex)
+                    if(valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.SEND)
+                        return { status: TokenUtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, invalidReason: null };
+                    else if(valid) {
                         this._tokenUtxos.delete(txid + ":" + vout);
-                        return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo!.txid, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
+                        return { status: TokenUtxoStatus.SPENT_NOT_IN_SEND, txid: spendTxnInfo!.txid, invalidReason: null };
                     }
+                    this._tokenUtxos.delete(txid + ":" + vout);
+                    return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo!.txid, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
                 }
+                //}
             } catch(_) {
                 this._tokenUtxos.delete(txid + ":" + vout);
                 if(vout < txnOutputLength)
@@ -333,7 +334,8 @@ export class SlpTokenGraph {
                     await m.createNewTokenGraph({ tokenId: self._tokenIdHex, processUpToBlock: processUpToBlock });
                 } else {
                     console.log(`[INFO] Finishing lazy loading for: ${self._tokenIdHex}`);
-                    await m.loadTokenFromDb(self._tokenIdHex, tokenState, true, undefined);
+                    //await m.loadTokenFromDb(self._tokenIdHex, tokenState) //, true, undefined);
+                    await m._updateTokenGraph(self._tokenIdHex, true, undefined);
                 }
                 // zmq publish mempool notifications
                 if(!isParent) {
@@ -547,8 +549,9 @@ export class SlpTokenGraph {
                 console.log("[WARNING]: Transaction is not valid or is unknown token type!", txid);
             }
 
-            if(!isParent)
+            if(!isParent) {
                 await this._updateUtxos(txid);
+            }
         }
 
         // check for possible inputs burned due to outputs < inputs
@@ -872,7 +875,6 @@ export class SlpTokenGraph {
         let self = this;
         if (this._graphUpdateQueue.size === 0 && (this._graphUpdateQueue.pending === 0 || fromGraphUpdateQueue)) {
             await this._statsUpdateQueue.add(async function() {
-                self._slpValidator.cachedRawTransactions = {};
                 await self._updateStatistics(saveToDb);
             });
         } else {
@@ -1071,7 +1073,7 @@ export class SlpTokenGraph {
         return res;
     }
 
-    static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], addresses: AddressBalancesDbo[], db: Db, manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
+    static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
         let tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
         let tg = await manager.getTokenGraph(token.tokenDetails.tokenIdHex, tokenDetails);
 
@@ -1123,6 +1125,8 @@ export class SlpTokenGraph {
             tg._slpValidator.cachedValidations[txid] = validation;
         });
 
+        console.log(`Loaded ${tg._graphTxns.size} validation cache results`);
+
         // Map _addresses -- Can comment out since this is reconstructed in call to "updateStatistics()"
         // addresses.forEach((item, idx) => {
         //     tg._addresses.set(item.address, {
@@ -1135,6 +1139,7 @@ export class SlpTokenGraph {
         tg._lastUpdatedBlock = token.lastUpdatedBlock;
 
         // Map _tokenUtxos
+        // TODO : Consider regenerating this from the loaded graph instead
         tg._tokenUtxos = new Set(utxos.map(u => u.utxo));
 
         return tg;

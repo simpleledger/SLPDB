@@ -92,6 +92,12 @@ const daemon = {
         await SlpdbStatus.changeStateToStartupBlockSync({ 
             network, getSyncdCheckpoint: async () => await Info.getBlockCheckpoint()
         });
+
+        // load token validation caches
+        console.log("Init all tokens");
+        await tokenManager.initAllTokenGraphs();
+        console.log("Init all tokens Complete");
+
         await bit.processBlocksForTNA();
         await bit.processCurrentMempoolForTNA();
         console.timeEnd('[PERF] Initial Block Sync');
@@ -113,7 +119,7 @@ const daemon = {
             console.log("[INFO] initAllTokens complete");
         }
 
-        await tokenManager.initAllTokens({ reprocessFrom: lastSynchronized.height, onComplete, loadFromDb: loadFromDb });
+        await tokenManager.updateAllTokenGraphs({ reprocessFrom: lastSynchronized.height, onComplete, loadFromDb: loadFromDb });
 
         // // look for burned token transactions every hour after startup
         // setInterval(async function() {
@@ -141,7 +147,7 @@ const util = {
         let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
         bit._slpGraphManager = tokenManager;
         bit.listenToZmq();
-        await tokenManager.initAllTokens({ reprocessFrom: 0, loadFromDb: false });
+        await tokenManager.updateAllTokenGraphs({ reprocessFrom: 0, loadFromDb: false });
         await tokenManager._startupQueue.onIdle();
         console.log("[INFO] Reprocess done.");
         process.exit(1);
@@ -158,7 +164,7 @@ const util = {
         await Info.setNetwork(network);
         let currentHeight = await RpcClient.getBlockCount();
         let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
-        await tokenManager.initAllTokens({ reprocessFrom: 0, reprocessTo: block_height });
+        await tokenManager.updateAllTokenGraphs({ reprocessFrom: 0, reprocessTo: block_height });
         await tokenManager._startupQueue.onIdle();
         let blockhash = await RpcClient.getBlockHash(block_height+1);
         await tokenManager.onBlockHash(blockhash);
@@ -256,6 +262,11 @@ async function shutdown(signal: string) {
     console.log(`[INFO] Got ${signal}. Graceful shutdown start ${new Date().toISOString()}`);
 
     try {
+
+        // if(!bit._initialBlockSyncComplete) {
+        //     bit.stopAndCommitBlockSync();
+        // }
+
         console.log('[INFO] Block sync processing stopped.');
     } catch(_) {}
 

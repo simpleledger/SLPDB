@@ -47,7 +47,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         // TODO: prune items which can no longer be updated
     }
 
-    public static toDbo(tg: SlpTokenGraph, recentBlocks: string[]): [GraphTxnDbo[], string[], TokenDBObject] {
+    public static toDbo(tg: SlpTokenGraph, recentBlocks: {hash: string, height: number}[]): [GraphTxnDbo[], string[], TokenDBObject] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(tg._tokenDetails, tg._tokenDetails.decimals);
         let itemsToUpdate: GraphTxnDbo[] = [];
         let itemsToPrune = new Set<string>();
@@ -58,8 +58,10 @@ export class GraphMap extends Map<string, GraphTxn> {
             // We also unload the object from memory if pruning is true.
             let isAgedAndSpent = 
                 recentBlocks.length >= 10 &&
-                !(g.blockHash && recentBlocks.includes(g.blockHash.toString("hex"))) &&
+                !(g.blockHash && recentBlocks.map(i => i.hash).includes(g.blockHash.toString("hex"))) &&
                 !(g.outputs.filter(i => [TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(i.status)).length > 0)
+
+            let pruneHeight = isAgedAndSpent && recentBlocks.length > 0 ? recentBlocks.pop()!.height : null;
 
             if(g.isDirty || isAgedAndSpent) {
                 let dbo: GraphTxnDbo = {
@@ -79,7 +81,7 @@ export class GraphMap extends Map<string, GraphTxn> {
                         }),
                         stats: g.stats,
                         blockHash: g.blockHash,
-                        isAgedAndSpent
+                        pruneHeight
                     }
                 };
                 itemsToUpdate.push(dbo);
@@ -90,13 +92,24 @@ export class GraphMap extends Map<string, GraphTxn> {
             }
         });
 
-        // NOTE: because we have this logic/interaction with token details DBO this method MUST be run before the token DBO commit
+        // Can be pruned means it can be pruned at somepoint, regardless of whether or not the outputs are not aged 10 blocks ()
+        let canBePruned = Array.from(tg._graphTxns.values()).flatMap(i => i.outputs).filter(i => [TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(i.status)).length > 0;
+        
         if (Config.db.pruning) {
-            itemsToPrune.forEach(txid => tg._graphTxns.prune(txid));
-            tg._isGraphPruned = true;
-        } else if (itemsToPrune.size > 0) {
+            if (itemsToPrune.size > 0) {
+                itemsToPrune.forEach(txid => {
+                    tg._graphTxns.prune(txid);
+                    // NOTE: The following is not needed here becuase this cleared elsewhere
+                    // delete tg._slpValidator.cachedRawTransactions[txid];
+                });
+                tg._isGraphPruned = true;
+            } else {
+                tg._isGraphPruned = !canBePruned;
+            }
+        } else if (canBePruned) {
             tg._isGraphPruned = false;
         }
+
         let tokenDbo = GraphMap.tokenDetailstoDbo(tg);
 
         let itemsToDelete = tg._graphTxns._deletedTxids();

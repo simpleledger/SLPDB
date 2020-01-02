@@ -48,8 +48,7 @@ export class Db {
 
     async tokenInsertReplace(token: any) {
         await this.checkClientStatus();
-        await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex })
-        return await this.db.collection('tokens').insertMany([ token ]);
+        await this.db.collection('tokens').replaceOne({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex }, token, { upsert: true });
     }
 
     // async tokenreplace(token: any) {
@@ -67,6 +66,11 @@ export class Db {
         return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
+    async tokenFetchAll(): Promise<TokenDBObject[]|null> {
+        await this.checkClientStatus();
+        return await this.db.collection('tokens').find({}).toArray();
+    }
+
     async tokenReset() {
         await this.checkClientStatus();
         await this.db.collection('tokens').deleteMany({})
@@ -79,16 +83,16 @@ export class Db {
     async graphItemsInsertReplaceDelete(graph: SlpTokenGraph) {
         let recentBlocks = await Info.getRecentBlocks();
 
-        console.log("Recent Blocks");
-        console.log(recentBlocks);
+        //console.log("Recent Blocks");
+        //console.log(recentBlocks);
 
         let [ itemsToUpdate, itemsToDelete, tokenDbo ] = GraphMap.toDbo(graph, recentBlocks);
         await this.checkClientStatus();
-        console.log(`TO DELETE: ${itemsToDelete}`)
+        //console.log(`TO DELETE: ${itemsToDelete}`)
         for (const txid of itemsToDelete) {
             await this.db.collection("graphs").deleteOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": txid });
         }
-        console.log(`TO UPDATE: ${itemsToUpdate.map(g=>g.graphTxn.txid)}`)
+        //console.log(`TO UPDATE: ${itemsToUpdate.map(g=>g.graphTxn.txid)}`)
         for (const g of itemsToUpdate) {
             await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": g.graphTxn.txid }, g, { upsert: true });
         }
@@ -102,12 +106,12 @@ export class Db {
         return await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async graphFetch(tokenIdHex: string, onlyUnspent: boolean): Promise<GraphTxnDbo[]> {
+    async graphFetch(tokenIdHex: string, pruneCutoffHeight?: number): Promise<GraphTxnDbo[]> {
         await this.checkClientStatus();
-        if(onlyUnspent) {
-            return await this.db.collection('graphs').find({ 
+        if(pruneCutoffHeight) {
+            return await this.db.collection('graphs').find({
                 "tokenDetails.tokenIdHex": tokenIdHex, 
-                "$or": [ { "tokenDetails.isAgedAndSpent": false }, { "tokenDetails.isAgedAndSpent": { "$exists": false }}]
+                "$or": [ { "tokenDetails.pruneHeight": { "$gte": pruneCutoffHeight } }, { "tokenDetails.pruneHeight": null }]
             }).toArray();
         } else {
             return await this.db.collection('graphs').find({ 
