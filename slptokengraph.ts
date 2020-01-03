@@ -14,7 +14,7 @@ import { CacheMap } from './cache';
 import { SlpdbStatus, SlpdbState } from './status';
 import { TokenDBObject, AddressBalancesDbo, UtxoDbo, GraphTxnDbo, 
     SlpTransactionDetailsDbo, TokenUtxoStatus, TokenStats, cashAddr, 
-    BatonUtxoStatus, TokenBatonStatus } from './interfaces';
+    BatonUtxoStatus, TokenBatonStatus, GraphTxnOutputDbo, GraphTxnInputDbo } from './interfaces';
 import { GraphMap } from './graphmap';
 
 let cashaddr = require('cashaddrjs-slp');
@@ -31,10 +31,10 @@ export class SlpTokenGraph {
     _tokenUtxos = new Set<string>();
     _mintBatonUtxo = "";
     _nftParentId?: string;
-    _graphTxns = new GraphMap();
+    _graphTxns: GraphMap;
     _isGraphPruned = false;
     _addresses = new Map<cashAddr, AddressBalance>();
-    _slpValidator = new LocalValidator(bitbox, async (txids) => { 
+    _slpValidator = new LocalValidator(bitbox, async (txids) => {
         if (this._manager._bit.doubleSpendCache.has(txids[0])) {
             return [ Buffer.alloc(60).toString('hex') ];
         }
@@ -50,6 +50,7 @@ export class SlpTokenGraph {
     _network: string;
     _db: Db;
     _graphUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: true });
+    _graphUpdateQueueOnIdle?: (self: this) => Promise<void>;
     _statsUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: true });
     _manager: SlpGraphManager;
     //_liveTxoSpendCache = new CacheMap<string, SendTxnQueryResult>(100000);
@@ -60,6 +61,7 @@ export class SlpTokenGraph {
     constructor(tokenDetails: SlpTransactionDetails, db: Db, manager: SlpGraphManager, network: string) {
         this._tokenDetails = tokenDetails;
         this._tokenIdHex = tokenDetails.tokenIdHex;
+        this._graphTxns = new GraphMap(this._tokenIdHex);
         this._db = db;
         this._manager = manager;
         this._network = network;
@@ -327,29 +329,31 @@ export class SlpTokenGraph {
 
         if (!this._loadInitiated && !this.IsLoaded) {
             this._loadInitiated = true;
-            return await (async function() {
+            return this._graphUpdateQueue.add(async function() {
                 let m = self._manager;
-                let tokenState = <TokenDBObject>await self._db.tokenFetch(self._tokenIdHex);
-                if(!tokenState) {
-                    await m.createNewTokenGraph({ tokenId: self._tokenIdHex, processUpToBlock: processUpToBlock });
-                } else {
-                    console.log(`[INFO] Finishing lazy loading for: ${self._tokenIdHex}`);
-                    //await m.loadTokenFromDb(self._tokenIdHex, tokenState) //, true, undefined);
-                    await m._updateTokenGraph(self._tokenIdHex, true, undefined);
-                }
+                await self.updateTokenGraphFrom({ txid, isParent, processUpToBlock, block });
+
+                //let tokenState = <TokenDBObject>await self._db.tokenFetch(self._tokenIdHex);
+                // if(!tokenState) {
+                //     await m.createNewTokenGraph({ tokenId: self._tokenIdHex, processUpToBlock: processUpToBlock });
+                // } else {
+                //     console.log(`[INFO] Finishing lazy loading for: ${self._tokenIdHex}`);
+                //     //await m.loadTokenFromDb(self._tokenIdHex, tokenState) //, true, undefined);
+                //     await m._updateTokenGraph(self._tokenIdHex, true, undefined);
+                // }
                 // zmq publish mempool notifications
+
+                console.log("[INFO] UpdateStatistics: queueTokenGraphUpdateFrom");
+                await self.UpdateStatistics(true, true);
+
                 if(!isParent) {
                     await m.publishZmqNotification(txid);
                 }
-            })();
+            });
         } else {
-            return await this._graphUpdateQueue.add(async function() {
+            return this._graphUpdateQueue.add(async function() {
                 await self.updateTokenGraphFrom({ txid, isParent, processUpToBlock, block });
 
-                // zmq publish mempool notifications
-                if(!isParent)
-                    await self._manager.publishZmqNotification(txid);
-    
                 // Update token's statistics
                 if(self._graphUpdateQueue.size === 0 && self._graphUpdateQueue.pending === 1) {
                     // if block then we should check for double-spends for all graph txns with null blockHash
@@ -374,12 +378,17 @@ export class SlpTokenGraph {
                     //self._liveTxoSpendCache.clear();
                     console.log("[INFO] UpdateStatistics: queueTokenGraphUpdateFrom");
                     await self.UpdateStatistics(true, true);
+
+                    // zmq publish mempool notifications
+                    if(!isParent) {
+                        await self._manager.publishZmqNotification(txid);
+                    }
                 }
             });
         }
     }
 
-    async updateTokenGraphFrom({ txid, isParent = false, updateOutputs = true, processUpToBlock, block=null }: { txid: string; isParent?:boolean; updateOutputs?: boolean; processUpToBlock?: number; block?: { hash: Buffer; transactions: Set<string> }|null}): Promise<boolean|null> {
+    async updateTokenGraphFrom({ txid, isParent = false, updateOutputs = true, processUpToBlock, block=null }: { txid: string; isParent?:boolean; updateOutputs?: boolean; processUpToBlock?: number; block?: { hash: Buffer; transactions: Set<string> }|null; }): Promise<boolean|null> {
 /**
  * purpose for "isParent":
  *      1) skips cached result, allow reprocessing/updating of a previously processed valid txn
@@ -431,7 +440,9 @@ export class SlpTokenGraph {
             }
         }
 
-        if(this._graphTxns.has(txid) && !isParent && this._graphTxns.get(txid)!.isComplete) {   
+        if(this._graphTxns.has(txid) && !isParent ) { // && this._graphTxns.get(txid)!.isComplete) {   
+            return true;
+        } else if (isParent && !this._graphTxns.has(txid)) {
             return true;
         }
 
@@ -470,12 +481,30 @@ export class SlpTokenGraph {
                     this._slpValidator.cachedValidations[previd].validity && 
                     this._slpValidator.cachedValidations[previd].details!.tokenIdHex === this._tokenDetails.tokenIdHex
                 ){
-                    if(!this._graphTxns.has(previd)) {
-                        console.log("[INFO] updateTokenGraphFrom: Add contributing SLP inputs");
-                        await this.updateTokenGraphFrom({ txid: previd, isParent: true, updateOutputs: false });
+                    if(!this._graphTxns.has(previd) ) {
+                        // NOTE: This branch rarely happens
+
+                        // This should only happen when the the prevTxid is pruned, so we 
+                        // should not need to fetch from db very often.  Fetching from db is a compromise,
+                        // and it allows us to prune the totally spent items AND also keep the "inputs"
+                        // property on the graphTxn items.  If we don't need "inputs", which is solely 
+                        // for the purpose of user convenience, we could avoid this whole issue.
+                        //
+                        // It is also worth noting that, because of the "inputs" property
+                        // the first call to the "updateTokenGraphFrom" method must be called with topological 
+                        // ordering maintained.
+                        let res = await this._db.graphTxnFetch(previd);
+                        if (!res) {
+                            throw Error("Graph txid does not found, this should never happen.");
+                            // NOTE: Technically this should not be needed, but due to some bug we need this in here.
+                            //await this.updateTokenGraphFrom({txid: previd, isParent: true, updateOutputs: true, processUpToBlock, block});
+                        } else {
+                            let gt = SlpTokenGraph.MapGraphTxnFromDbo(res, this._tokenDetails.decimals, this._network);
+                            this._graphTxns.set(previd, gt);
+                        }
                     }
-                    let input = this._graphTxns.get(i.prevTxId.toString('hex'))!
-                    let o = input.outputs.find(o => o.vout === i.outputIndex);
+                    let inputTxn = this._graphTxns.get(previd)!;
+                    let o = inputTxn.outputs.find(o => o.vout === i.outputIndex);
                     if(o) {
                         graphTxn.inputs.push({
                             txid: i.prevTxId.toString('hex'),
@@ -483,7 +512,8 @@ export class SlpTokenGraph {
                             slpAmount: o.slpAmount,
                             address: o.address,
                             bchSatoshis: o.bchSatoshis
-                        })
+                        });
+                        graphTxn.isDirty = true;
                     }
                 }
             })
@@ -577,14 +607,14 @@ export class SlpTokenGraph {
             });
         }
 
-        // Continue to complete graph from output UTXOs
-        if(!isParent) {
-            await this.asyncForEach(graphTxn.outputs.filter(o => o.spendTxid && (o.status === TokenUtxoStatus.SPENT_SAME_TOKEN || o.status === BatonUtxoStatus.BATON_SPENT_IN_MINT)), async (o: GraphTxnOutput) => {
-                console.log("[INFO] updateTokenGraphFrom: Continue to complete graph from output UTXOs");
-                await this.updateTokenGraphFrom({ txid: o.spendTxid!, processUpToBlock, block });
-            });
-            graphTxn.isComplete = true;
-        }
+        // // Continue to complete graph from output UTXOs
+        // if(!isParent) {
+        //     await this.asyncForEach(graphTxn.outputs.filter(o => o.spendTxid && (o.status === TokenUtxoStatus.SPENT_SAME_TOKEN || o.status === BatonUtxoStatus.BATON_SPENT_IN_MINT)), async (o: GraphTxnOutput) => {
+        //         console.log("[INFO] updateTokenGraphFrom: Continue to complete graph from output UTXOs");
+        //         await this.updateTokenGraphFrom({ txid: o.spendTxid!, processUpToBlock, block });
+        //     });
+        //     graphTxn.isComplete = true;
+        // }
 
         if(!processUpToBlock)
             this._lastUpdatedBlock = this._manager._bestBlockHeight; //await this._rpcClient.getBlockCount();
@@ -607,7 +637,7 @@ export class SlpTokenGraph {
                     }
                 });
                 n.outputs = [];
-                n.isComplete = false;
+                //n.isComplete = false;
             }
         }
         getChildTxids(txid);
@@ -872,13 +902,14 @@ export class SlpTokenGraph {
     }
 
     async UpdateStatistics(saveToDb=true, fromGraphUpdateQueue=false): Promise<void> {
-        let self = this;
-        if (this._graphUpdateQueue.size === 0 && (this._graphUpdateQueue.pending === 0 || fromGraphUpdateQueue)) {
-            await this._statsUpdateQueue.add(async function() {
-                await self._updateStatistics(saveToDb);
-            });
-        } else {
-            console.log(`[INFO] UpdateStatistics(${saveToDb}, ${fromGraphUpdateQueue}) - skipped graphUpdateQueue.pending: ${this._graphUpdateQueue.pending} graphUpdateQueue.size: ${this._graphUpdateQueue.size}`);
+        if(!this._graphUpdateQueueOnIdle) {
+            this._graphUpdateQueueOnIdle = async (self: this) => {
+                await self._graphUpdateQueue.onIdle();
+                self._graphUpdateQueueOnIdle = undefined;
+                await self._updateStatistics(true);
+                return;
+            }
+            this._graphUpdateQueueOnIdle(this);
         }
     }
 
@@ -921,7 +952,7 @@ export class SlpTokenGraph {
 
             if(saveToDb && !this._exit) {
                 await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
-                await this._db.graphItemsInsertReplaceDelete(this);
+                await this._db.graphItemsUpsert(this);
                 await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
             }
 
@@ -1044,7 +1075,7 @@ export class SlpTokenGraph {
         return date.toISOString().replace("T", " ").replace(".000Z", "")
     }
 
-    static MapDbTokenDetailsFromDbo(details: SlpTransactionDetailsDbo, decimals: number): SlpTransactionDetails {
+    public static MapDbTokenDetailsFromDbo(details: SlpTransactionDetailsDbo, decimals: number): SlpTransactionDetails {
 
         let genesisMintQty = new BigNumber(0);
         if(details.genesisOrMintQuantity)
@@ -1073,6 +1104,26 @@ export class SlpTokenGraph {
         return res;
     }
 
+    public static MapGraphTxnFromDbo(dbo: GraphTxnDbo, decimals: number, network: string): GraphTxn {
+        dbo.graphTxn.outputs.map(o => {
+            if(o.address && o.address.includes("slptest")) {
+                let decoded = cashaddr.decode(o.address);
+                o.address = Utils.slpAddressFromHash160(decoded.hash, network);
+            }
+            o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**decimals)
+        });
+        dbo.graphTxn.inputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**decimals))
+
+        let gt: GraphTxn = {
+            isDirty: false,
+            details: SlpTokenGraph.MapDbTokenDetailsFromDbo(dbo.graphTxn.details, decimals),
+            outputs: dbo.graphTxn.outputs as any as GraphTxnOutput[],
+            inputs: dbo.graphTxn.inputs as any as GraphTxnInput[],
+            blockHash: dbo.graphTxn.blockHash
+        }
+        return gt;
+    };
+
     static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
         let tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
         let tg = await manager.getTokenGraph(token.tokenDetails.tokenIdHex, tokenDetails);
@@ -1095,23 +1146,7 @@ export class SlpTokenGraph {
 
         // Map _txnGraph
         dag.forEach((item, idx) => {
-            dag[idx].graphTxn.outputs.map(o => {
-                if(o.address && o.address.includes("slptest")) {
-                    let decoded = cashaddr.decode(o.address);
-                    o.address = Utils.slpAddressFromHash160(decoded.hash, tg._network);
-                }
-                o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals)
-            });
-            dag[idx].graphTxn.inputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**tg._tokenDetails.decimals))
-
-            let gt: GraphTxn = {
-                isDirty: false,
-                details: this.MapDbTokenDetailsFromDbo(dag[idx].graphTxn.details, token.tokenDetails.decimals),
-                outputs: dag[idx].graphTxn.outputs as any as GraphTxnOutput[],
-                inputs: dag[idx].graphTxn.inputs as any as GraphTxnInput[],
-                stats: dag[idx].graphTxn.stats,
-                blockHash: dag[idx].graphTxn.blockHash
-            }
+            let gt = this.MapGraphTxnFromDbo(item, tg._tokenDetails.decimals, tg._network);
             tg._graphTxns.set(item.graphTxn.txid, gt);
         });
 
@@ -1153,15 +1188,11 @@ export interface AddressBalance {
 
 export interface GraphTxn {
     isDirty: boolean;
-    isComplete?: boolean;
+    //isComplete?: boolean;
     details: SlpTransactionDetails;
     outputs: GraphTxnOutput[];
     inputs: GraphTxnInput[];
-    stats?: {
-        depth: number;
-        txcount: number;
-        depthMap: {[key:string]: [number, number]}
-    }
+    pruneHeight?: number;
     blockHash: Buffer|null;
 }
 

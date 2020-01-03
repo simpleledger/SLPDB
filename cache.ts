@@ -68,6 +68,19 @@ export class CacheMap<T, M> {
         return this.list.length;
     }
 
+    get size(): number {
+        return this.list.length;
+    }
+
+    values(): IterableIterator<M> {
+        let l: M[] = this.list.map(i => this.map.get(i)!);
+        return l.values();
+    }
+
+    keys(): IterableIterator<T> {
+        return this.list.values();
+    }
+
     set(key: T, item: M) {
         this.list.push(key);
         this.map.set(key, item);

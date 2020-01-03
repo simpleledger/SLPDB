@@ -92,13 +92,6 @@ export interface GraphTxnDetailsDbo {
     details: SlpTransactionDetailsDbo;
     outputs: GraphTxnOutputDbo[];
     inputs: GraphTxnInputDbo[];
-    stats?: {
-        depth: number;
-        txcount: number;
-        depthMap: {
-            [key: string]: [number, number];
-        };
-    };
     blockHash: Buffer | null;
     pruneHeight: number | null;
 }
@@ -112,7 +105,7 @@ export interface GraphTxnOutputDbo {
     status: TokenUtxoStatus | BatonUtxoStatus;
     invalidReason: string | null;
 }
-interface GraphTxnInputDbo {
+export interface GraphTxnInputDbo {
     txid: string;
     vout: number;
     slpAmount: Decimal128;

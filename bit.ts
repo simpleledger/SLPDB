@@ -37,15 +37,15 @@ export interface SyncCompletionInfo {
     filteredContent: Map<SyncFilterTypes, Map<txid, txhex>>;
 }
 
-export type CrawlResult = Map<txid, CrawlTxnInfo>;
+export type CrawlResult = CacheMap<txid, CrawlTxnInfo>;
 
 export interface CrawlTxnInfo {
     tnaTxn: TNATxn;
     txHex: string;
+    tokenId: string;
 }
 export type txhex = string;
 export type txid = string;
-//export type TransactionPool = Map<txid, txhex>;
 
 const tna = new TNA();
 
@@ -62,12 +62,12 @@ export class Bit {
     network!: string;
     notifications!: Notifications;
     _spentTxoCache = new CacheMap<string, { txid: string, block: number|null }>(100000);
-    _blockSeenTokenIds = new Set<string>();
     exit = false;
 
     _tokensInLastGraphUpdateInterval = new Set<string>();
+    _tokenStacks = new Map<string, string[]>();
 
-    constructor(db: Db) { 
+    constructor(db: Db) {
         this.db = db;
         this._zmqItemQueue = new pQueue({ concurrency: 1, autoStart: true });
         if(Config.zmq.outgoing.enable) {
@@ -90,7 +90,10 @@ export class Bit {
     }
 
     private async waitForFullNodeSync() {
-        let bitbox = this.network === 'mainnet' ? new BITBOX({ restURL: `https://rest.bitcoin.com/v2/` }) : new BITBOX({ restURL: `https://trest.bitcoin.com/v2/` });
+        let bitbox = this.network === 'mainnet' ? 
+                        new BITBOX({ restURL: `https://rest.bitcoin.com/v2/` }) : 
+                        new BITBOX({ restURL: `https://trest.bitcoin.com/v2/` });
+
         let isSyncd = false;
         let lastReportedSyncBlocks = 0;
         while (!isSyncd) {
@@ -261,7 +264,7 @@ export class Bit {
     }
 
     async crawl(blockIndex: number, syncComplete?: boolean): Promise<CrawlResult|null> {
-        const result = new Map<txid, CrawlTxnInfo>();
+        const result = new CacheMap<txid, CrawlTxnInfo>(-1);
         let blockContent: BlockHeaderResult;
         try {
             blockContent = await RpcClient.getBlockInfo({ index: blockIndex });
@@ -302,24 +305,16 @@ export class Bit {
             }
             console.timeEnd(`Toposort-${blockIndex}`);
 
-            let slpCount = 0;
-            this._blockSeenTokenIds.clear();
+            // We use a recursive async loop so we don't block
+            // the event loop and lock out the possibility of user calling SIGINT
+            async function crawlInternal(self: Bit, i: number, blockSeenTokenIds: Set<string>) {
 
-            for(let i = 0; i < blockTxCache.size; i++) {
-                await crawlInternal(this);
-            }
-
-            // We use a recursive async loop with process.nextTick so we don't block
-            // the event loop during the whole block crawl.
-            async function crawlInternal(self: Bit) {
-
-                let txid = stack.shift()!;
+                let txid = stack[i];
                 const serialized = blockTxCache.get(txid)!.serialized;
                 const deserialized = blockTxCache.get(txid)!.deserialized;
 
                 let t: TNATxn = tna.fromTx(deserialized, { network: self.network });
-
-                await self.setSlpProp(self, deserialized, txid, blockTime, t, blockIndex);
+                let slp = await self.setSlpProp(deserialized, txid, blockTime, t, blockIndex, blockSeenTokenIds);
 
                 if (!self.slpMempool.has(txid) && syncComplete) {
                     console.log("SLP transaction not in mempool:", txid);
@@ -334,11 +329,17 @@ export class Bit {
                     t: blockTime
                 };
 
-                result.set(txid, { txHex: serialized.toString("hex"), tnaTxn: t });
-                slpCount++;
+                if(slp.detail && slp.detail.tokenIdHex) {
+                    result.set(txid, { txHex: serialized.toString("hex"), tnaTxn: t, tokenId: slp.detail.tokenIdHex });
+                }
             }
 
-            console.log('[INFO] Block', blockIndex, 'processed :', block.txs.length, 'BCH txs |', slpCount, 'SLP txs');
+            let blockSeenTokenIdsForLazyLoading = new Set<string>();
+            for (let i = 0; i < stack.length; i++) {
+                await crawlInternal(this, i, blockSeenTokenIdsForLazyLoading);
+            }
+
+            console.log(`[INFO] Block ${blockIndex} processed : ${block.txs.length} BCH tx | ${stack.length} SLP tx`);
             return result;
     
         } else {
@@ -346,10 +347,10 @@ export class Bit {
         }
     }
 
-    private async setSlpProp(self: this, txn: bitcore.Transaction, txid: string, blockTime: number|null, t: TNATxn, blockIndex: number|null) {
+    private async setSlpProp(txn: bitcore.Transaction, txid: string, blockTime: number|null, t: TNATxn, blockIndex: number|null, blockSeenTokenIds: Set<string>|null) {
         let slpMsg: SlpTransactionDetails | undefined, slpTokenGraph: SlpTokenGraph | undefined, validation: Validation, detail: SlpTransactionDetailsTnaDbo | null = null, invalidReason: string | null = null, valid = false;
         try {
-            slpMsg = self._slpGraphManager.slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
+            slpMsg = this._slpGraphManager.slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
         }
         catch (err) {
             invalidReason = err.message;
@@ -373,13 +374,12 @@ export class Bit {
                                 '0' + d.getUTCHours(),
                                 '0' + d.getUTCMinutes(),
                                 '0' + d.getUTCSeconds()
-                            ].map((c: string) => c.slice(-2))
+                            ].map((c: string) => c.slice(-2));
                             res.unshift(d.getUTCFullYear().toString());
                             return res;
                         }
                         let d: string[] = formatDate(blockTime);
                         slpTokenGraph._tokenDetails.timestamp = d.slice(0,3).join('-') + ' ' + d.slice(3).join(':');
-                        console.log(slpTokenGraph._tokenDetails.timestamp);
                     }
                 }
                 valid = await slpTokenGraph.validateTxid(txid);
@@ -420,10 +420,10 @@ export class Bit {
                 if (validation.details) {
                     detail = SlpGraphManager.MapTokenDetailsToTnaDbo(validation.details, slpTokenGraph._tokenDetails, addresses);
                 }
-                if (!this._blockSeenTokenIds.has(slpMsg.tokenIdHex) && blockTime && blockIndex) {
-                    await Info.setLastBlockSeen(slpMsg.tokenIdHex, blockIndex);
-                    this._blockSeenTokenIds.add(slpMsg.tokenIdHex);
-                }
+                // if (blockTime && blockIndex && blockSeenTokenIds && !blockSeenTokenIds.has(slpMsg.tokenIdHex)) {
+                //     await Info.setLastBlockSeen(slpMsg.tokenIdHex, blockIndex);
+                //     blockSeenTokenIds.add(slpMsg.tokenIdHex);
+                // }
             }
             catch (err) {
                 if (!slpTokenGraph) {
@@ -617,14 +617,24 @@ export class Bit {
                                 await self.removeMempoolTransaction(tna.tx.h);
                             };
                         }
+                        if(!hash) {
+                            for (let v of content.values()) {
+                                if (!self._tokenStacks.has(v.tokenId)) {
+                                    self._tokenStacks.set(v.tokenId, []);
+                                } 
+                                let stack = self._tokenStacks.get(v.tokenId)!;
+                                stack.push(v.tnaTxn.tx.h);
+                            }
+                        }
                     }
                     if (!hash && (index % Config.db.block_sync_graph_update_interval === 0 || index === currentHeight)) {
-                        if(self._tokensInLastGraphUpdateInterval.size > 0) {
-                            console.log(`[INFO] Updating ${self._tokensInLastGraphUpdateInterval.size} token graphs`);
-                            await self._slpGraphManager.updateTokenIds({ tokenIds: self._tokensInLastGraphUpdateInterval, from: index-Config.db.block_sync_graph_update_interval, upTo: index });
+                        if(self._tokenStacks.size > 0) {
+                            console.log(`[INFO] Updating ${self._tokenStacks.size} token graphs`);
+
+                            await self._slpGraphManager.updateTokenIds({ tokenStacks: self._tokenStacks, from: index-Config.db.block_sync_graph_update_interval, upTo: index });
                             console.log("[INFO] Finished Updating token graphs");
                         }
-                        self._tokensInLastGraphUpdateInterval.clear();
+                        self._tokenStacks.clear();
                     }
                     if (index - 100 > 0) {
                         await Info.deleteBlockCheckpointHash(index - 100);
@@ -672,7 +682,7 @@ export class Bit {
                 if (txn) {
                     let content: TNATxn = tna.fromTx(txn, { network: self.network });
 
-                    await self.setSlpProp(self, txn, txn.id, null, content, null);
+                    await self.setSlpProp(txn, txn.id, null, content, null, null);
 
                     try {
                         await self.db.unconfirmedInsert(content);

@@ -3,74 +3,95 @@ import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenUtxoStatus, Ba
 import { Decimal128 } from "mongodb";
 import { Config } from "./config";
 import { RpcClient } from "./rpc";
+import { getServers } from "dns";
 
 export class GraphMap extends Map<string, GraphTxn> {
-    public deleted = new Map<string, GraphTxn>();
+    public pruned = new Map<string, GraphTxn>();
+    private rootId: string;
+
+    constructor(rootId: string) {
+        super();
+        this.rootId = rootId;
+    }
 
     public dirtyItems() {
         return Array.from(this.values()).filter(i => i.isDirty);
     }
 
-    public has(txid: string, includeDeletedItems=false): boolean {
-        if(includeDeletedItems) {
-            return super.has(txid) || this.deleted.has(txid);
+    public has(txid: string, includePrunedItems=false): boolean {
+        if(includePrunedItems) {
+            return super.has(txid) || this.pruned.has(txid);
         }
-        //console.log(`Has: ${super.has(txid)}`);
         return super.has(txid);
     }
 
-    public delete(txid: string) {
-        if(this.has(txid)) {
-            this.deleted.set(txid, this.get(txid)!);
-            console.log(`Delete: ${super.delete(txid)}`);
+    public get(txid: string, includePrunedItems=false): GraphTxn|undefined {
+        if(includePrunedItems) {
+            return super.get(txid) || this.pruned.get(txid);
+        }
+        return super.get(txid);
+    }
+
+    // TODO: Prune validator txns
+    public prune(txid: string, pruneHeight: number) {
+        if (this.has(txid) && txid !== this.rootId) {
+            let gt = this.get(txid)!;
+            gt.isDirty = true;
+            gt.pruneHeight = pruneHeight;
+            this.pruned.set(txid, gt);
+            console.log(`Pruned ${txid} : ${this.delete(txid)}`);
             return true;
         }
         return false;
     }
 
-    // TODO: Prune validator txns
-    public prune(txid: string) {
-        console.log(`Pruned ${txid}: ${super.delete(txid)}`);
-        RpcClient.transactionCache.delete(txid);
-    }
-
-    private _deletedTxids() {
-        const txids = Array.from(this.deleted.keys());
+    private flushPrunedTxids() {
+        const txids = Array.from(this.pruned.keys());
         this._flush();
         return txids;
     }
 
     private _flush() {
-        this.deleted.clear();
-        this.forEach(i => i.isDirty = true);
+        this.pruned.forEach((i, txid) => {
+            i.isDirty = true
+            RpcClient.transactionCache.delete(txid);
+            // NOTE: The following is not needed here becuase this cleared elsewhere
+            // delete tg._slpValidator.cachedRawTransactions[txid];
+        });
 
+        this.pruned.clear();
         // TODO: prune items which can no longer be updated
     }
 
-    public static toDbo(tg: SlpTokenGraph, recentBlocks: {hash: string, height: number}[]): [GraphTxnDbo[], string[], TokenDBObject] {
+    public static toDbo(tg: SlpTokenGraph, recentBlocks: {hash: string, height: number}[]): [GraphTxnDbo[], TokenDBObject] {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(tg._tokenDetails, tg._tokenDetails.decimals);
         let itemsToUpdate: GraphTxnDbo[] = [];
-        let itemsToPrune = new Set<string>();
         tg._graphTxns.forEach((g, txid) => {
+            let pruneHeight = null;
 
-            // Here we determine if a graph object should be marked as aged and spent,
-            // this will prevent future loading of the object.  
-            // We also unload the object from memory if pruning is true.
-            let isAgedAndSpent = 
-                recentBlocks.length >= 10 &&
-                !(g.blockHash && recentBlocks.map(i => i.hash).includes(g.blockHash.toString("hex"))) &&
-                !(g.outputs.filter(i => [TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(i.status)).length > 0)
+            if (Config.db.pruning) {
+                // Here we determine if a graph object should be marked as aged and spent,
+                // this will prevent future loading of the object.  
+                // We also unload the object from memory if pruning is true.
+                let isAgedAndSpent = 
+                    recentBlocks.length >= 10 &&
+                    !(g.blockHash && recentBlocks.map(i => i.hash).includes(g.blockHash.toString("hex"))) &&
+                    !(g.outputs.filter(i => [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(i.status)).length > 0)
 
-            let pruneHeight = isAgedAndSpent && recentBlocks.length > 0 ? recentBlocks.pop()!.height : null;
+                if (isAgedAndSpent) {
+                    pruneHeight = recentBlocks[0].height;
+                    tg._graphTxns.prune(txid, pruneHeight);
+                }
+            }
 
-            if(g.isDirty || isAgedAndSpent) {
+            if (g.isDirty) {
                 let dbo: GraphTxnDbo = {
                     tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex },
                     graphTxn: {
                         txid,
-                        details: SlpTokenGraph.MapTokenDetailsToDbo(tg._graphTxns.get(txid)!.details, tg._tokenDetails.decimals),
-                        outputs: GraphMap.txnOutputsToDbo(tg, tg._graphTxns.get(txid)!.outputs),
-                        inputs: tg._graphTxns.get(txid)!.inputs.map((i) => { 
+                        details: SlpTokenGraph.MapTokenDetailsToDbo(g.details, tg._tokenDetails.decimals),
+                        outputs: GraphMap.txnOutputsToDbo(tg, g.outputs),
+                        inputs: g.inputs.map((i) => {
                             return {
                                 address: i.address,
                                 txid: i.txid,
@@ -79,41 +100,31 @@ export class GraphMap extends Map<string, GraphTxn> {
                                 slpAmount: Decimal128.fromString(i.slpAmount.dividedBy(10**tg._tokenDetails.decimals).toFixed())
                             }
                         }),
-                        stats: g.stats,
                         blockHash: g.blockHash,
-                        pruneHeight
+                        pruneHeight: pruneHeight ? pruneHeight : null
                     }
                 };
                 itemsToUpdate.push(dbo);
             }
-
-            if (isAgedAndSpent) {
-                itemsToPrune.add(txid);
-            }
         });
 
-        // Can be pruned means it can be pruned at somepoint, regardless of whether or not the outputs are not aged 10 blocks ()
-        let canBePruned = Array.from(tg._graphTxns.values()).flatMap(i => i.outputs).filter(i => [TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(i.status)).length > 0;
-        
-        if (Config.db.pruning) {
-            if (itemsToPrune.size > 0) {
-                itemsToPrune.forEach(txid => {
-                    tg._graphTxns.prune(txid);
-                    // NOTE: The following is not needed here becuase this cleared elsewhere
-                    // delete tg._slpValidator.cachedRawTransactions[txid];
-                });
-                tg._isGraphPruned = true;
-            } else {
-                tg._isGraphPruned = !canBePruned;
-            }
-        } else if (canBePruned) {
-            tg._isGraphPruned = false;
+        // canBePruned means it can be pruned at somepoint, regardless of whether output age (i.e., 10 blocks req for isAgedAndSpent)
+        let canBePruned = Array.from(tg._graphTxns.values())
+                            .flatMap(i => i.outputs)
+                            .filter(i => 
+                                [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(i.status)
+                            ).length < tg._graphTxns.size;
+
+        if (tg._graphTxns.pruned.size > 0) {
+            tg._isGraphPruned = true;
+        } else {
+            tg._isGraphPruned = !canBePruned;
         }
 
         let tokenDbo = GraphMap.tokenDetailstoDbo(tg);
 
-        let itemsToDelete = tg._graphTxns._deletedTxids();
-        return [ itemsToUpdate, itemsToDelete, tokenDbo ];
+        tg._graphTxns.flushPrunedTxids();
+        return [ itemsToUpdate, tokenDbo ];
     }
 
     public static tokenDetailstoDbo(graph: SlpTokenGraph): TokenDBObject {

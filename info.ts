@@ -162,6 +162,7 @@ export module Info {
 		return await kv.put('confirmedSchemaVersion', version);
 	}
 
+	// Used for future lazy loading -- this is in commented code and not currently utilized
 	export const getLastBlockSeen = async function(tokenId: string): Promise<number|null> {
 		try {
 			return parseInt(await kv.get(`lastSeen-${tokenId}`));
@@ -170,6 +171,7 @@ export module Info {
 		}
 	}
 
+	// Used for future lazy loading -- this is in commented code and not currently utilized
 	export const setLastBlockSeen = async function(tokenId: string, block: number) {
 		return await kv.put(`lastSeen-${tokenId}`, block);
 	}

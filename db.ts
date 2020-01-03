@@ -80,19 +80,10 @@ export class Db {
         })
     }
 
-    async graphItemsInsertReplaceDelete(graph: SlpTokenGraph) {
-        let recentBlocks = await Info.getRecentBlocks();
-
-        //console.log("Recent Blocks");
-        //console.log(recentBlocks);
-
-        let [ itemsToUpdate, itemsToDelete, tokenDbo ] = GraphMap.toDbo(graph, recentBlocks);
+    async graphItemsUpsert(graph: SlpTokenGraph) {
         await this.checkClientStatus();
-        //console.log(`TO DELETE: ${itemsToDelete}`)
-        for (const txid of itemsToDelete) {
-            await this.db.collection("graphs").deleteOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": txid });
-        }
-        //console.log(`TO UPDATE: ${itemsToUpdate.map(g=>g.graphTxn.txid)}`)
+        let recentBlocks = await Info.getRecentBlocks();
+        let [ itemsToUpdate, tokenDbo ] = GraphMap.toDbo(graph, recentBlocks);
         for (const g of itemsToUpdate) {
             await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": g.graphTxn.txid }, g, { upsert: true });
         }
@@ -108,7 +99,7 @@ export class Db {
 
     async graphFetch(tokenIdHex: string, pruneCutoffHeight?: number): Promise<GraphTxnDbo[]> {
         await this.checkClientStatus();
-        if(pruneCutoffHeight) {
+        if (pruneCutoffHeight) {
             return await this.db.collection('graphs').find({
                 "tokenDetails.tokenIdHex": tokenIdHex, 
                 "$or": [ { "graphTxn.pruneHeight": { "$gte": pruneCutoffHeight } }, { "graphTxn.pruneHeight": null }]
