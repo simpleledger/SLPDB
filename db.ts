@@ -111,7 +111,7 @@ export class Db {
         if(pruneCutoffHeight) {
             return await this.db.collection('graphs').find({
                 "tokenDetails.tokenIdHex": tokenIdHex, 
-                "$or": [ { "tokenDetails.pruneHeight": { "$gte": pruneCutoffHeight } }, { "tokenDetails.pruneHeight": null }]
+                "$or": [ { "graphTxn.pruneHeight": { "$gte": pruneCutoffHeight } }, { "graphTxn.pruneHeight": null }]
             }).toArray();
         } else {
             return await this.db.collection('graphs').find({ 
