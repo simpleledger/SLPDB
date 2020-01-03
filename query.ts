@@ -390,7 +390,7 @@ export class Query {
                     let qtyBuf = Buffer.from(res.mintQty as any as string, 'hex');
                     res.mintQty = Utils.buffer2BigNumber(qtyBuf)
                 } catch(err) { 
-                    throw err;
+                    res.mintQty = null;
                 }
                 return res;
             }
