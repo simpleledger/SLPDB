@@ -50,7 +50,7 @@ export class SlpTokenGraph {
     _network: string;
     _db: Db;
     _graphUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: true });
-    _graphUpdateQueueOnIdle?: (self: this) => Promise<void>;
+    _graphUpdateQueueOnIdle?: ((self: this) => Promise<void>) | null;
     _graphUpdateQueueNewTxids = new Set<string>();
     _manager: SlpGraphManager;
     _startupTxoSendCache?: CacheMap<string, SpentTxos>;
@@ -115,7 +115,7 @@ export class SlpTokenGraph {
             await this._graphUpdateQueue.onIdle();
         }
 
-        while (this._graphUpdateQueueOnIdle) {
+        while (this._graphUpdateQueueOnIdle !== undefined) {
             console.log(`Waiting for UpdateStatistics to finish for ${this._tokenIdHex}`);
             await sleep(500);
         }
@@ -928,11 +928,12 @@ export class SlpTokenGraph {
                 await self._graphUpdateQueue.onIdle();
                 let txidToUpdate = Array.from(this._graphUpdateQueueNewTxids);
                 this._graphUpdateQueueNewTxids.clear();
-                self._graphUpdateQueueOnIdle = undefined;
+                self._graphUpdateQueueOnIdle = null;
                 await self._updateStatistics(true);
                 while (txidToUpdate.length > 0) {
                     await this._manager.publishZmqNotificationGraphs(txidToUpdate.pop()!);
                 }
+                self._graphUpdateQueueOnIdle = undefined;
                 return;
             }
             this._graphUpdateQueueOnIdle(this); // Do not await this
