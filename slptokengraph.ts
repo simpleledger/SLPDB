@@ -52,9 +52,7 @@ export class SlpTokenGraph {
     _graphUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: true });
     _graphUpdateQueueOnIdle?: (self: this) => Promise<void>;
     _graphUpdateQueueNewTxids = new Set<string>();
-    _statsUpdateQueue: pQueue<DefaultAddOptions> = new pQueue({ concurrency: 1, autoStart: true });
     _manager: SlpGraphManager;
-    //_liveTxoSpendCache = new CacheMap<string, SendTxnQueryResult>(100000);
     _startupTxoSendCache?: CacheMap<string, SpentTxos>;
     _exit = false;
     _loadInitiated = false;
@@ -112,12 +110,15 @@ export class SlpTokenGraph {
         this._exit = true;
         this._graphUpdateQueue.pause();
         this._graphUpdateQueue.clear();
-        if (this._graphUpdateQueue.pending)
+
+        if (this._graphUpdateQueue.pending) {
             await this._graphUpdateQueue.onIdle();
-        this._statsUpdateQueue.pause();
-        this._statsUpdateQueue.clear();
-        if (this._statsUpdateQueue.pending)
-            await this._graphUpdateQueue.onIdle();
+        }
+
+        while (this._graphUpdateQueueOnIdle) {
+            console.log(`Waiting for UpdateStatistics to finish for ${this._tokenIdHex}`);
+            await sleep(500);
+        }
     }
 
     private async setNftParentId() {
@@ -506,7 +507,7 @@ export class SlpTokenGraph {
                     //
                     let res = await this._db.graphTxnFetch(previd);
                     if (!res) {
-                        throw Error(`Graph txid ${previd} does not found, this should never happen.`);
+                        throw Error(`Graph txid ${previd} was not found, this should never happen.`);
                         // NOTE: Technically this should not be needed, but due to some bug we need this in here.
                         //await this.updateTokenGraphFrom({txid: previd, isParent: true, updateOutputs: true, processUpToBlock, block});
                     } else {
@@ -696,7 +697,11 @@ export class SlpTokenGraph {
 
             let txout: GraphTxnOutput|undefined;
             try {
-                txout = this._graphTxns.get(txid)!.outputs.find(o => vout === o.vout);
+                if (this._graphTxns.has(txid)) {
+                    txout = this._graphTxns.get(txid)!.outputs.find(o => vout === o.vout);
+                } else {
+                    throw Error("This should never happen");
+                }
             } catch(_) {
                 console.log(`[INFO] (updateAddressesFromScratch) Update graph from ${txid}`);
                 await this.updateTokenGraphAt({ txid });
@@ -926,7 +931,7 @@ export class SlpTokenGraph {
                 self._graphUpdateQueueOnIdle = undefined;
                 await self._updateStatistics(true);
                 while (txidToUpdate.length > 0) {
-                    await this._manager.publishZmqNotification(txidToUpdate.pop()!);
+                    await this._manager.publishZmqNotificationGraphs(txidToUpdate.pop()!);
                 }
                 return;
             }

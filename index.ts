@@ -282,10 +282,11 @@ async function shutdown(signal: string) {
     } catch (_) {}
 
     try {
+        console.log('[INFO] Stopping Token graph processing.');
+
         await tokenManager.stop();
-        let tokens = Array.from(tokenManager._tokens);
-        for (let i = 0; i < tokens.length; i++) {
-            await tokens[i][1].stop();
+        for (let [tokenId, token] of tokenManager._tokens) {
+            await token.stop()
         }
         console.log('[INFO] Token graph processing stopped.');
     } catch (_) {}

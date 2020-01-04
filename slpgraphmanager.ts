@@ -486,12 +486,13 @@ export class SlpGraphManager {
         this._exit = true;
         this._updatesQueue.pause();
         this._updatesQueue.clear();
-        if(this._updatesQueue.pending)
+        if(this._updatesQueue.pending) {
             await this._updatesQueue.onIdle();
-        // this._startupQueue.pause();
-        // this._startupQueue.clear();
-        // if(this._startupQueue.pending)
-        //     await this._startupQueue.onIdle();
+        }
+
+        for (let [tokenId, token] of this._tokens) {
+            await token.stop();
+        }
     }
 
 
@@ -542,7 +543,7 @@ export class SlpGraphManager {
         return null;
     }
 
-    async publishZmqNotification(txid: string) {
+    async publishZmqNotificationGraphs(txid: string) {
         if(this.zmqPubSocket && !this._zmqMempoolPubSetList.has(txid) && Config.zmq.outgoing.enable) {
             this._zmqMempoolPubSetList.push(txid);
             let tna: TNATxn | null = await this.db.db.collection('unconfirmed').findOne({ "tx.h": txid });
@@ -550,9 +551,14 @@ export class SlpGraphManager {
                 tna = await this.db.db.collection('confirmed').findOne({ "tx.h": txid });
             }
             console.log("[ZMQ-PUB] SLP mempool notification", tna);
-            this.zmqPubSocket.send(['mempool', JSON.stringify(tna)]);
+            this.zmqPubSocket.send(['mempool-graphs', JSON.stringify(tna)]);
             SlpdbStatus.updateTimeOutgoingTxnZmq();
         }
+    }
+
+    async publishZmqNotification(txid: string) {
+        // TODO: This will be a zmq notification for validity judgement and save to unconfirmed/confirmed collections
+        // e.g.,  this.zmqPubSocket.send(['mempool', JSON.stringify(tna)]);
     }
 }
 
