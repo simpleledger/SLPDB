@@ -20,7 +20,7 @@
             "name": "Start From Checkpoint",
             "program": "${workspaceFolder}/index.js",
             "args": ["run"],
-            "console": "integratedTerminal"
+            "console": "externalTerminal"
         },
         {
             "type": "node",

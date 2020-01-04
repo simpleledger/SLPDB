@@ -39,7 +39,7 @@ export class GraphMap extends Map<string, GraphTxn> {
             gt.isDirty = true;
             gt.pruneHeight = pruneHeight;
             this.pruned.set(txid, gt);
-            console.log(`Pruned ${txid} : ${this.delete(txid)}`);
+            console.log(`Pruned ${txid} with prune height of ${pruneHeight} : ${this.delete(txid)}`);
             return true;
         }
         return false;
@@ -73,14 +73,18 @@ export class GraphMap extends Map<string, GraphTxn> {
                 // Here we determine if a graph object should be marked as aged and spent,
                 // this will prevent future loading of the object.  
                 // We also unload the object from memory if pruning is true.
-                let isAgedAndSpent = 
-                    recentBlocks.length >= 10 &&
-                    !(g.blockHash && recentBlocks.map(i => i.hash).includes(g.blockHash.toString("hex"))) &&
-                    !(g.outputs.filter(i => [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(i.status)).length > 0)
+                const BLOCK_AGE_CUTOFF = 10;
+                let isAgedAndSpent =
+                    g.blockHash &&
+                    recentBlocks.length > BLOCK_AGE_CUTOFF-1 &&
+                    !recentBlocks.map(i => i.hash).includes(g.blockHash.toString("hex")) &&
+                    !(g.outputs.filter(i => [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(i.status)).length > 0);
 
                 if (isAgedAndSpent) {
-                    pruneHeight = recentBlocks[0].height;
+                    pruneHeight = recentBlocks[BLOCK_AGE_CUTOFF-1].height;
                     tg._graphTxns.prune(txid, pruneHeight);
+                    // console.log(`Pruned txid block hash: ${g.blockHash!.toString("hex")}`);
+                    // console.log(`Recent blocks: ${recentBlocks.map(i => i.hash)}`);
                 }
             }
 

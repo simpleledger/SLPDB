@@ -125,6 +125,7 @@ export class Db {
         })
     }
 
+    // this should be replaced with upsert
     async addressInsertReplace(addresses: AddressBalancesDbo[], tokenIdHex: string) {
         await this.checkClientStatus();
         await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
@@ -133,10 +134,9 @@ export class Db {
         }
     }
 
-    // async addressreplace(addresses: AddressBalancesDbo[]) {
-    //     await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": addresses[0].tokenDetails.tokenIdHex })
-    //     return await this.db.collection('addresses').insertMany(addresses);
-    // }
+    async addressUpsert(addresses: AddressBalancesDbo[]) {
+
+    }
 
     async addressDelete(tokenIdHex: string) {
         await this.checkClientStatus();
@@ -157,6 +157,7 @@ export class Db {
         })
     }
 
+    // This should be replaced with upsert
     async utxoInsertReplace(utxos: UtxoDbo[], tokenIdHex: string) {
         await this.checkClientStatus();
         await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
@@ -165,10 +166,9 @@ export class Db {
         }
     }
 
-    // async utxoreplace(utxos: UtxoDbo[]) {
-    //     await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": utxos[0].tokenDetails.tokenIdHex })
-    //     return await this.db.collection('utxos').insertMany(utxos);
-    // }
+    async utxoUpsert(utxos: UtxoDbo[]) {
+
+    }
 
     async utxoDelete(tokenIdHex: string) {
         await this.checkClientStatus();

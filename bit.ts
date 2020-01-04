@@ -133,13 +133,13 @@ export class Bit {
     }
 
     async handleMempoolTransaction(txid: string, txnBuf?: Buffer): Promise<{ isSlp: boolean, added: boolean }> {
-        if(this.slpMempool.has(txid)) {
+        if (this.slpMempool.has(txid)) {
             return { isSlp: true, added: false };  
         }
-        if(this.slpMempoolIgnoreSetList.has(txid)) {
+        if (this.slpMempoolIgnoreSetList.has(txid)) {
             return { isSlp: false, added: false };
         }
-        if(!txnBuf) {
+        if (!txnBuf) {
             try {
                 let txhex = <string>await RpcClient.getRawTransaction(txid);
                 txnBuf = Buffer.from(txhex, 'hex');
@@ -164,7 +164,7 @@ export class Bit {
                     // RpcClient.transactionCache.delete(doubleSpentTxid);
                     this.db.unconfirmedDelete(doubleSpentTxid); // no need to await
                     this.db.confirmedDelete(doubleSpentTxid);   // no need to await
-                    if(this._slpGraphManager._tokens.has(doubleSpentTxid)) {
+                    if (this._slpGraphManager._tokens.has(doubleSpentTxid)) {
                         this._slpGraphManager._tokens.delete(doubleSpentTxid);
                         this.db.tokenDelete(doubleSpentTxid);   // no need to await
                         this.db.graphDelete(doubleSpentTxid);   // no need to await
@@ -185,7 +185,7 @@ export class Bit {
         });
 
         let tokenIdToUpdate= new Set<string>();
-        if(txidToDelete.length > 0) {
+        if (txidToDelete.length > 0) {
             for (let i = 0; i < txidToDelete.length; i++) {
                 for (let [tokenId, g ] of this._slpGraphManager._tokens) { 
                     if (g._graphTxns.has(txidToDelete[i])) {
@@ -205,7 +205,7 @@ export class Bit {
             }
         });
 
-        if(this.slpTransactionFilter(txnBuf)) {
+        if (this.slpTransactionFilter(txnBuf)) {
             this.slpMempool.set(txid, txnBuf.toString("hex"));
             return { isSlp: true, added: true };
         } else {
@@ -243,12 +243,6 @@ export class Bit {
         }
     }
 
-    async asyncForEach(array: any[], callback: Function) {
-        for (let index = 0; index < array.length; index++) {
-          await callback(array[index], index, array);
-        }
-    }
-
     async syncSlpMempool() {
         let currentBchMempoolList = await RpcClient.getRawMemPool();
         console.log('[INFO] BCH mempool txs =', currentBchMempoolList.length);
@@ -258,7 +252,7 @@ export class Bit {
         
         // Add SLP txs to the mempool not in the cache.
         let cachedSlpMempoolTxs = Array.from(this.slpMempool.keys());
-        await this.asyncForEach(currentBchMempoolList, async (txid: string) => cachedSlpMempoolTxs.includes(txid) ? null : await this.handleMempoolTransaction(txid) );
+        for (let txid of currentBchMempoolList) cachedSlpMempoolTxs.includes(txid) ? null : await this.handleMempoolTransaction(txid);
         
         console.log('[INFO] SLP mempool txs =', this.slpMempool.size);
     }
@@ -549,12 +543,12 @@ export class Bit {
             currentBchMempoolList = await RpcClient.getRawMemPool();
 
         // add missing SLP transactions and process
-        await this.asyncForEach(currentBchMempoolList, async (txid: string) => {
+        for (let txid of currentBchMempoolList) {
             if((await this.handleMempoolTransaction(txid)).added) {
                 let syncResult = await Bit.sync(this, 'mempool', txid, this.slpMempool.get(txid));
                 this._slpGraphManager.onTransactionHash!(syncResult!);
             }
-        });
+        }
 
         if(recursive) {
             let residualMempoolList = (await RpcClient.getRawMemPool()).filter(id => !this.slpMempoolIgnoreSetList.has(id) && !Array.from(this.slpMempool.keys()).includes(id))
