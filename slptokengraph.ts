@@ -504,14 +504,6 @@ export class SlpTokenGraph {
                     // This should only happen when the the prevTxid is pruned from the graph and 
                     // a new txn spends a non-SLP input from the pruned txn.
                     //
-                    // // So we should not need to fetch from db very often.  Fetching from db is a compromise,
-                    // // and it allows us to prune the totally spent SLP items AND also keep the "inputs"
-                    // // property on the graphTxn items.  If we don't need "inputs", which is solely 
-                    // // for the purpose of user convenience, we could avoid this whole issue.
-                    // //
-                    // // It is also worth noting that, because of the "inputs" property
-                    // // the first call to the "updateTokenGraphFrom" method must be called with topological 
-                    // // ordering maintained.
                     let res = await this._db.graphTxnFetch(previd);
                     if (!res) {
                         throw Error(`Graph txid ${previd} does not found, this should never happen.`);
