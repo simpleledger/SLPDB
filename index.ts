@@ -35,77 +35,80 @@ new SlpdbStatus(db, process.argv);
 let tokenManager: SlpGraphManager;
 
 const daemon = {
-    run: async function({ startHeight, loadFromDb=true }: { startHeight?: number, loadFromDb?: boolean} ) {
+    run: async ({ startHeight, loadFromDb=true }: { startHeight?: number, loadFromDb?: boolean} ) => {
+        try {
 
-        // persist updated SLPDB status every 10 minutes
-        await SlpdbStatus.loadPreviousAttributes();
-        setInterval(async function() {
+            // persist updated SLPDB status every 10 minutes
+            await SlpdbStatus.loadPreviousAttributes();
+            setInterval(async function() {
+                await SlpdbStatus.saveStatus();
+            }, 60000);
+
+            await bit.init();
+
+            // test RPC connection
+            console.log("[INFO] Testing RPC connection...");
+            await RpcClient.getBlockCount();
+            console.log("[INFO] RPC is initialized.");
+
+            // set start height override
+            if(startHeight)
+                await Info.updateBlockCheckpoint(startHeight, null);
+            
             await SlpdbStatus.saveStatus();
-        }, 60000);
 
-        await bit.init();
+            // try to load tokens filter yaml
+            let filter = TokenFilter.loadFromFile();
 
-        // test RPC connection
-        console.log("[INFO] Testing RPC connection...");
-        await RpcClient.getBlockCount();
-        console.log("[INFO] RPC is initialized.");
+            // check for confirmed collection schema update
+            let schema = await Info.getConfirmedCollectionSchema();
+            if(!schema || schema !== Config.db.confirmed_schema_version) {
+                await Info.setConfirmedCollectionSchema(Config.db.confirmed_schema_version);
+                await Info.checkpointReset();
+                console.log("[INFO] Schema version for the confirmed collection was updated. Reseting block checkpoint reset to", (await Info.getBlockCheckpoint()).height)
+            }
 
-        // set start height override
-        if(startHeight)
-            await Info.updateBlockCheckpoint(startHeight, null);
-        
-        await SlpdbStatus.saveStatus();
+            let lastSynchronized = <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
+            console.log("reprocessFrom: ", lastSynchronized.height);
+            if(lastSynchronized.height > await bit.requestheight()) {
+                lastSynchronized = await Bit.checkForBlockReorg(lastSynchronized);
+                //throw Error("Config.core.from or Config.core.from_testnet cannot be larger than the current blockchain height (check the config.ts file)");
+            }
 
-        // try to load tokens filter yaml
-        let filter = TokenFilter.loadFromFile();
+            console.time('[PERF] Indexing Keys');
+            let from = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
+            if (lastSynchronized.height === from) {
+                console.log('[INFO] Indexing MongoDB With Configured Keys...', new Date());
+                await db.confirmedIndex();
+            }
+            console.timeEnd('[PERF] Indexing Keys');
 
-        // check for confirmed collection schema update
-        let schema = await Info.getConfirmedCollectionSchema();
-        if(!schema || schema !== Config.db.confirmed_schema_version) {
-            await Info.setConfirmedCollectionSchema(Config.db.confirmed_schema_version);
-            await Info.checkpointReset();
-            console.log("[INFO] Schema version for the confirmed collection was updated. Reseting block checkpoint reset to", (await Info.getBlockCheckpoint()).height)
+            console.log('[INFO] Starting to processing SLP Data.', new Date());
+            let currentHeight = await RpcClient.getBlockCount();
+            tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
+            bit._slpGraphManager = tokenManager;
+
+            console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
+            console.time('[PERF] Initial Block Sync');
+            await SlpdbStatus.changeStateToStartupBlockSync({ 
+                network, getSyncdCheckpoint: async () => await Info.getBlockCheckpoint()
+            });
+
+            // load token validation caches
+            console.log("Init all tokens");
+            await tokenManager.initAllTokenGraphs();
+            console.log("Init all tokens Complete");
+
+            await bit.processBlocksForTNA();
+            await bit.processCurrentMempoolForTNA();
+            console.timeEnd('[PERF] Initial Block Sync');
+            console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
+            bit.listenToZmq();
+            await bit.checkForMissingMempoolTxns(undefined, true);
+            tokenManager._updatesQueue.start();
+        } catch(err) {
+            if(err.message !== "Exit signal.") throw err;
         }
-
-        let lastSynchronized = <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
-        console.log("reprocessFrom: ", lastSynchronized.height);
-        if(lastSynchronized.height > await bit.requestheight()) {
-            lastSynchronized = await Bit.checkForBlockReorg(lastSynchronized);
-            //throw Error("Config.core.from or Config.core.from_testnet cannot be larger than the current blockchain height (check the config.ts file)");
-        }
-
-        console.time('[PERF] Indexing Keys');
-        let from = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
-        if (lastSynchronized.height === from) {
-            console.log('[INFO] Indexing MongoDB With Configured Keys...', new Date());
-            await db.confirmedIndex();
-        }
-        console.timeEnd('[PERF] Indexing Keys');
-
-        console.log('[INFO] Starting to processing SLP Data.', new Date());
-        let currentHeight = await RpcClient.getBlockCount();
-        tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
-        bit._slpGraphManager = tokenManager;
-
-        console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
-        console.time('[PERF] Initial Block Sync');
-        await SlpdbStatus.changeStateToStartupBlockSync({ 
-            network, getSyncdCheckpoint: async () => await Info.getBlockCheckpoint()
-        });
-
-        // load token validation caches
-        console.log("Init all tokens");
-        await tokenManager.initAllTokenGraphs();
-        console.log("Init all tokens Complete");
-
-        await bit.processBlocksForTNA();
-        await bit.processCurrentMempoolForTNA();
-        console.timeEnd('[PERF] Initial Block Sync');
-        console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
-
-        bit.listenToZmq();
-        await bit.checkForMissingMempoolTxns(undefined, true);
-        tokenManager._updatesQueue.start();
 
         // let onComplete = async () => {
         //     await tokenManager._startupQueue.onIdle();
@@ -132,7 +135,7 @@ const daemon = {
 }
 
 const util = {
-    reprocess_token: async function(tokenId: string) {
+    reprocess_token: async (tokenId: string) => {
         let network = (await RpcClient.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet'
         await Info.setNetwork(network);
         await bit.init();
@@ -153,7 +156,7 @@ const util = {
         console.log("[INFO] Reprocess done.");
         process.exit(1);
     },
-    reset_to_block: async function(block_height: number) {  //592340
+    reset_to_block: async (block_height: number) => {  //592340
         let includeTokenIds = [
             "8aab2185354926d72c6a8f6bf7e403daaf1469c02e00a5ad5981b84ea776d980",
         ];
@@ -175,7 +178,7 @@ const util = {
     }
 }
 
-const start = async function() {
+const start = async () => {
     let args = process.argv;
     if (args.length > 2) {
         if(args[2] === "run") {
@@ -259,15 +262,11 @@ process.on('SIGTERM', async () => {
     await shutdown('SIGTERM');
 });
 
-async function shutdown(signal: string) {
+let shutdown = async (signal: string) => {
     console.log(`[INFO] Got ${signal}. Graceful shutdown start ${new Date().toISOString()}`);
 
     try {
-
-        // if(!bit._initialBlockSyncComplete) {
-        //     bit.stopAndCommitBlockSync();
-        // }
-
+        bit._exit = true;
         console.log('[INFO] Block sync processing stopped.');
     } catch(_) {}
 

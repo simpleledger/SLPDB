@@ -66,6 +66,7 @@ export class Bit {
 
     _tokensInLastGraphUpdateInterval = new Set<string>();
     _tokenStacks = new Map<string, string[]>();
+    _exit = false;
 
     constructor(db: Db) {
         this.db = db;
@@ -244,6 +245,9 @@ export class Bit {
     }
 
     async syncSlpMempool() {
+        if (this._exit) {
+            throw Error("Exit signal.");
+        }
         let currentBchMempoolList = await RpcClient.getRawMemPool();
         console.log('[INFO] BCH mempool txs =', currentBchMempoolList.length);
         
@@ -342,7 +346,7 @@ export class Bit {
     }
 
     private async setSlpProp(txn: bitcore.Transaction, txid: string, blockTime: number|null, t: TNATxn, blockIndex: number|null, blockSeenTokenIds: Set<string>|null) {
-        let slpMsg: SlpTransactionDetails | undefined, slpTokenGraph: SlpTokenGraph | undefined, validation: Validation, detail: SlpTransactionDetailsTnaDbo | null = null, invalidReason: string | null = null, valid = false;
+        let slpMsg: SlpTransactionDetails | undefined, slpTokenGraph: SlpTokenGraph | undefined | null, validation: Validation, detail: SlpTransactionDetailsTnaDbo | null = null, invalidReason: string | null = null, valid = false;
         try {
             slpMsg = this._slpGraphManager.slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
         }
@@ -356,6 +360,9 @@ export class Bit {
                     slpTokenGraph = await this._slpGraphManager.getTokenGraph(slpMsg.tokenIdHex, slpMsg);
                 } else {
                     slpTokenGraph = await this._slpGraphManager.getTokenGraph(slpMsg.tokenIdHex);
+                }
+                if (!slpTokenGraph) {
+                    throw Error("Invalid token graph.");
                 }
                 if (slpMsg.transactionType === SlpTransactionType.GENESIS) {
                     slpTokenGraph._tokenDetails = slpMsg;
@@ -418,8 +425,7 @@ export class Bit {
                 //     await Info.setLastBlockSeen(slpMsg.tokenIdHex, blockIndex);
                 //     blockSeenTokenIds.add(slpMsg.tokenIdHex);
                 // }
-            }
-            catch (err) {
+            } catch (err) {
                 if (!slpTokenGraph) {
                     t.slp = {
                         valid,
@@ -587,79 +593,76 @@ export class Bit {
     static async sync(self: Bit, type: string, hash?: string, txhex?: string): Promise<SyncCompletionInfo|null> {
         let result: SyncCompletionInfo;
         if (type === 'block') {
-
             result = { syncType: SyncType.Block, filteredContent: new Map<SyncFilterTypes, Map<txid, txhex>>() }
-            try {
-                let lastCheckpoint = hash ? <ChainSyncCheckpoint>await Info.getBlockCheckpoint() : <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
-                
-                lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
-
-                let currentHeight: number = await self.requestheight();
-                let startHeight = lastCheckpoint.height - Config.db.block_sync_graph_update_interval;
-                for (let index: number = startHeight; index <= currentHeight; index++) {
-                    console.time('[PERF] RPC END ' + index);
-                    let syncComplete = hash ? true : false;
-                    let content = <CrawlResult>(await self.crawl(index, syncComplete));
-                    console.timeEnd('[PERF] RPC END ' + index);
-                    console.time('[PERF] DB Insert ' + index);
+            let lastCheckpoint = hash ? <ChainSyncCheckpoint>await Info.getBlockCheckpoint() : <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
             
-                    if(content && content.size > 0) {
-                        let array = Array.from(content.values()).map(c => c.tnaTxn);
-                        await self.db.confirmedReplace(array, index);
-                        if (hash) {
-                            for (let tna of array) {
-                                await self.removeMempoolTransaction(tna.tx.h);
-                            };
-                        }
-                        if(!hash) {
-                            for (let v of content.values()) {
-                                if (!self._tokenStacks.has(v.tokenId)) {
-                                    self._tokenStacks.set(v.tokenId, []);
-                                } 
-                                let stack = self._tokenStacks.get(v.tokenId)!;
-                                stack.push(v.tnaTxn.tx.h);
-                            }
-                        }
-                    }
-                    if (!hash && (index % Config.db.block_sync_graph_update_interval === 0 || index === currentHeight)) {
-                        if(self._tokenStacks.size > 0) {
-                            console.log(`[INFO] Updating ${self._tokenStacks.size} token graphs`);
+            lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
 
-                            await self._slpGraphManager.updateTokenIds({ tokenStacks: self._tokenStacks, from: index-Config.db.block_sync_graph_update_interval, upTo: index });
-                            console.log("[INFO] Finished Updating token graphs");
+            let currentHeight: number = await self.requestheight();
+            let startHeight = lastCheckpoint.height - Config.db.block_sync_graph_update_interval;
+            for (let index: number = startHeight; index <= currentHeight; index++) {
+                if (self._exit) {
+                    throw Error("Exit signal.");
+                }
+                console.time('[PERF] RPC END ' + index);
+                let syncComplete = hash ? true : false;
+                let content = <CrawlResult>(await self.crawl(index, syncComplete));
+                console.timeEnd('[PERF] RPC END ' + index);
+                console.time('[PERF] DB Insert ' + index);
+        
+                if(content && content.size > 0) {
+                    let array = Array.from(content.values()).map(c => c.tnaTxn);
+                    await self.db.confirmedReplace(array, index);
+                    if (hash) {
+                        for (let tna of array) {
+                            await self.removeMempoolTransaction(tna.tx.h);
+                        };
+                    }
+                    if(!hash) {
+                        for (let v of content.values()) {
+                            if (!self._tokenStacks.has(v.tokenId)) {
+                                self._tokenStacks.set(v.tokenId, []);
+                            } 
+                            let stack = self._tokenStacks.get(v.tokenId)!;
+                            stack.push(v.tnaTxn.tx.h);
                         }
-                        self._tokenStacks.clear();
                     }
-                    if (index - 100 > 0) {
-                        await Info.deleteBlockCheckpointHash(index - 100);
-                    }
-                    try {
-                        await Info.updateBlockCheckpoint(index, await RpcClient.getBlockHash(index));
-                    } catch(_) {
-                        lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
-                        index = lastCheckpoint.height;
-                        continue;
-                    }
-                    console.timeEnd('[PERF] DB Insert ' + index);
+                }
+                if (!hash && (index % Config.db.block_sync_graph_update_interval === 0 || index === currentHeight)) {
+                    if(self._tokenStacks.size > 0) {
+                        console.log(`[INFO] Updating ${self._tokenStacks.size} token graphs`);
 
-                    // re-check current height in case it was updated during crawl()
-                    currentHeight = await self.requestheight();
+                        await self._slpGraphManager.updateTokenIds({ tokenStacks: self._tokenStacks, from: index-Config.db.block_sync_graph_update_interval, upTo: index });
+                        console.log("[INFO] Finished Updating token graphs");
+                    }
+                    self._tokenStacks.clear();
                 }
+                if (index - 100 > 0) {
+                    await Info.deleteBlockCheckpointHash(index - 100);
+                }
+                try {
+                    await Info.updateBlockCheckpoint(index, await RpcClient.getBlockHash(index));
+                } catch(_) {
+                    lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
+                    index = lastCheckpoint.height;
+                    continue;
+                }
+                console.timeEnd('[PERF] DB Insert ' + index);
 
-                // clear mempool and synchronize
-                if (lastCheckpoint.height < currentHeight && hash) {
-                    await self.removeExtraneousMempoolTxns();
-                    //await self.checkForMissingMempoolTxns();
-                }
-            
-                if (lastCheckpoint.height === currentHeight) {
-                    return result;
-                } else {
-                    return null;
-                }
-            } catch (e) {
-                console.log('[ERROR] block sync Error');
-                throw e;
+                // re-check current height in case it was updated during crawl()
+                currentHeight = await self.requestheight();
+            }
+
+            // clear mempool and synchronize
+            if (lastCheckpoint.height < currentHeight && hash) {
+                await self.removeExtraneousMempoolTxns();
+                //await self.checkForMissingMempoolTxns();
+            }
+        
+            if (lastCheckpoint.height === currentHeight) {
+                return result;
+            } else {
+                return null;
             }
         } else if (type === 'mempool') {
             result = { syncType: SyncType.Mempool, filteredContent: new Map<SyncFilterTypes, Map<txid, txhex>>() }

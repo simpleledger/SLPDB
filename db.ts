@@ -85,7 +85,9 @@ export class Db {
         let recentBlocks = await Info.getRecentBlocks();
         let [ itemsToUpdate, tokenDbo ] = GraphMap.toDbo(graph, recentBlocks);
         for (const g of itemsToUpdate) {
-            await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": g.graphTxn.txid }, g, { upsert: true });
+            console.log(`[DEBUG] graphItemsUpsert ${g.graphTxn.txid}`);
+            let res = await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": g.graphTxn.txid }, g, { upsert: true });
+            console.log(`[DEBUG] graphItemsUpsert res: ${res.matchedCount + res.modifiedCount + res.upsertedCount} - ${res.result}`);
         }
 
         // This must be called here because the GraphMap.toDbo returns
@@ -102,7 +104,7 @@ export class Db {
         if (pruneCutoffHeight) {
             return await this.db.collection('graphs').find({
                 "tokenDetails.tokenIdHex": tokenIdHex, 
-                "$or": [ { "graphTxn.pruneHeight": { "$gte": pruneCutoffHeight } }, { "graphTxn.pruneHeight": null }]
+                "$or": [ { "graphTxn.pruneHeight": { "$gte": pruneCutoffHeight-1 } }, { "graphTxn.pruneHeight": null }, { "graphTxn.txid": tokenIdHex }]
             }).toArray();
         } else {
             return await this.db.collection('graphs').find({ 

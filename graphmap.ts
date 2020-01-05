@@ -3,7 +3,6 @@ import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenUtxoStatus, Ba
 import { Decimal128 } from "mongodb";
 import { Config } from "./config";
 import { RpcClient } from "./rpc";
-import { getServers } from "dns";
 
 export class GraphMap extends Map<string, GraphTxn> {
     public pruned = new Map<string, GraphTxn>();
@@ -45,22 +44,16 @@ export class GraphMap extends Map<string, GraphTxn> {
         return false;
     }
 
-    private flushPrunedTxids() {
+    private flushPrunedItems() {
         const txids = Array.from(this.pruned.keys());
-        this._flush();
-        return txids;
-    }
-
-    private _flush() {
         this.pruned.forEach((i, txid) => {
-            i.isDirty = true
             RpcClient.transactionCache.delete(txid);
             // NOTE: The following is not needed here becuase this cleared elsewhere
             // delete tg._slpValidator.cachedRawTransactions[txid];
         });
 
         this.pruned.clear();
-        // TODO: prune items which can no longer be updated
+        return txids;
     }
 
     public static toDbo(tg: SlpTokenGraph, recentBlocks: {hash: string, height: number}[]): [GraphTxnDbo[], TokenDBObject] {
@@ -82,9 +75,6 @@ export class GraphMap extends Map<string, GraphTxn> {
 
                 if (isAgedAndSpent) {
                     pruneHeight = recentBlocks[BLOCK_AGE_CUTOFF-1].height;
-                    tg._graphTxns.prune(txid, pruneHeight);
-                    // console.log(`Pruned txid block hash: ${g.blockHash!.toString("hex")}`);
-                    // console.log(`Recent blocks: ${recentBlocks.map(i => i.hash)}`);
                 }
             }
 
@@ -109,8 +99,10 @@ export class GraphMap extends Map<string, GraphTxn> {
                     }
                 };
                 itemsToUpdate.push(dbo);
+                g.isDirty = false;
             }
         });
+
 
         // canBePruned means it can be pruned at somepoint, regardless of whether output age (i.e., 10 blocks req for isAgedAndSpent)
         let canBePruned = Array.from(tg._graphTxns.values())
@@ -118,16 +110,17 @@ export class GraphMap extends Map<string, GraphTxn> {
                             .filter(i => 
                                 [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(i.status)
                             ).length < tg._graphTxns.size;
-
+        
+        // Do the pruning here
+        itemsToUpdate.forEach(dbo => { if (dbo.graphTxn.pruneHeight) tg._graphTxns.prune(dbo.graphTxn.txid, dbo.graphTxn.pruneHeight)});
         if (tg._graphTxns.pruned.size > 0) {
             tg._isGraphPruned = true;
         } else {
             tg._isGraphPruned = !canBePruned;
         }
+        tg._graphTxns.flushPrunedItems();
 
         let tokenDbo = GraphMap.tokenDetailstoDbo(tg);
-
-        tg._graphTxns.flushPrunedTxids();
         return [ itemsToUpdate, tokenDbo ];
     }
 

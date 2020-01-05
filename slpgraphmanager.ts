@@ -50,12 +50,16 @@ export class SlpGraphManager {
             return true;
     }
 
-    async getTokenGraph(tokenIdHex: string, tokenDetailsForGenesis?: SlpTransactionDetails) {
+    async getTokenGraph(tokenIdHex: string, tokenDetailsForGenesis?: SlpTransactionDetails): Promise<SlpTokenGraph|null> {
         if(!this._tokens.has(tokenIdHex)) {
             if (!tokenDetailsForGenesis || tokenDetailsForGenesis.transactionType !== SlpTransactionType.GENESIS) {
                 throw Error("Token details for a new token GENESIS must be provided.");
             }
-            this._tokens.set(tokenIdHex, new SlpTokenGraph(tokenDetailsForGenesis, this.db, this, this._network));
+            let graph = new SlpTokenGraph(tokenDetailsForGenesis, this.db, this, this._network);
+            if (!(await graph.IsValid())) {
+                return null;
+            }
+            this._tokens.set(tokenIdHex, graph);
         }
         return this._tokens.get(tokenIdHex)!;
     }
@@ -379,7 +383,9 @@ export class SlpGraphManager {
             console.log(`Topological ordered updates for TokenId: ${tokenId}`);
             console.log(stack);
             let graph = await this.updateTokenGraph({ tokenId, reprocessFrom: from, reprocessTo: upTo, updateTxidStack: stack });
-            graph._slpValidator.cachedRawTransactions = {};
+            if (graph) {
+                graph._slpValidator.cachedRawTransactions = {};
+            }
         }
     }
 
@@ -444,7 +450,7 @@ export class SlpGraphManager {
     async _updateTokenGraph(tokenIdHex: string, allowGraphUpdates: boolean, reprocessFrom?: number, processUpTo?: number, updateTxidStack?: string[]) {
         let graph = await this.getTokenGraph(tokenIdHex);
         let res: string[] = [];
-        if (allowGraphUpdates) {
+        if (graph && allowGraphUpdates) {
             let potentialReorgFactor = 0; // determine how far back the token graph should be reprocessed
             let lastUpdatedBlock = graph._lastUpdatedBlock ? graph._lastUpdatedBlock : 0;
             let updateFromHeight = lastUpdatedBlock - potentialReorgFactor;
@@ -465,12 +471,12 @@ export class SlpGraphManager {
                     graph._startupTxoSendCache = await Query.getTxoInputSlpSendCache(graph._tokenDetails.tokenIdHex);
                 }
                 console.log(`[INFO] (_updateTokenGraph) queueTokenGraphUpdateFrom for tokenId ${graph._tokenIdHex}`);
-                let p = res.map(txid => graph.queueUpdateForTokenGraphAt({ txid, processUpToBlock: processUpTo }))
+                let p = res.map(txid => graph!.queueUpdateForTokenGraphAt({ txid, processUpToBlock: processUpTo }))
                 await Promise.all(p);
                 console.log(`[INFO] Token graph updated (${graph._tokenDetails.tokenIdHex}).`);
             }
         } else {
-            console.log(`[WARN] Token's graph loaded using allowGraphUpdates=false (${graph._tokenDetails.tokenIdHex})`);
+            console.log(`[WARN] Token's graph loaded using allowGraphUpdates=false (${graph!._tokenDetails.tokenIdHex})`);
         }
         return graph;
     }
@@ -490,9 +496,12 @@ export class SlpGraphManager {
             await this._updatesQueue.onIdle();
         }
 
+        let unspentCount = 0;
         for (let [tokenId, token] of this._tokens) {
             await token.stop();
+            unspentCount += token._graphTxns.size
         }
+        console.log(`[INFO] Total number of unspent graph items for all tokens: ${unspentCount}`);
     }
 
 
@@ -530,9 +539,9 @@ export class SlpGraphManager {
             let timestamp = await Query.getConfirmedTxnTimestamp(tokenId);
             tokenDetails.timestamp = timestamp ? timestamp : undefined;
             let graph = await this.getTokenGraph(tokenId);
-            await graph.initFromScratch({ tokenDetails, processUpToBlock });
-
-            if(!graph.IsValid) {
+            if (graph) {
+                await graph.initFromScratch({ tokenDetails, processUpToBlock });
+            } else {
                 this._tokens.delete(tokenId);
                 return null;
             }

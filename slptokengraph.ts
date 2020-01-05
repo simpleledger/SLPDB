@@ -3,7 +3,7 @@ import BigNumber from 'bignumber.js';
 import { BITBOX } from 'bitbox-sdk';
 import { Config } from './config';
 import * as bitcore from 'bitcore-lib-cash';
-import { SendTxnQueryResult, MintQueryResult, Query } from './query';
+import { SendTxnQueryResult, Query } from './query';
 import { Decimal128 } from 'mongodb';
 import { Db } from './db';
 import { RpcClient } from './rpc';
@@ -54,8 +54,9 @@ export class SlpTokenGraph {
     _graphUpdateQueueNewTxids = new Set<string>();
     _manager: SlpGraphManager;
     _startupTxoSendCache?: CacheMap<string, SpentTxos>;
-    _exit = false;
     _loadInitiated = false;
+    _updateComplete = true;
+    _isValid?: boolean;
 
     constructor(tokenDetails: SlpTransactionDetails, db: Db, manager: SlpGraphManager, network: string) {
         this._tokenDetails = tokenDetails;
@@ -103,22 +104,31 @@ export class SlpTokenGraph {
         this._startupTxoSendCache.clear();
         this._startupTxoSendCache = undefined;
         this._slpValidator.cachedRawTransactions = {};
-        //this._graphUpdateQueue.start();
+        return valid;
     }
 
     async stop() {
-        this._exit = true;
-        this._graphUpdateQueue.pause();
-        this._graphUpdateQueue.clear();
+        console.log(`[INFO] Stopping token graph ${this._tokenIdHex}, with ${this._graphTxns.size} loaded.`);
 
-        if (this._graphUpdateQueue.pending) {
+        if (this._graphUpdateQueue.pending || this._graphUpdateQueue.size) {
+            console.log(`[INFO] Waiting on ${this._graphUpdateQueue.size} queue items.`);
             await this._graphUpdateQueue.onIdle();
+            this._graphUpdateQueue.pause();
+            console.log(`[INFO] Graph update queue is idle and cleared with ${this._graphUpdateQueue.size} items and ${this._graphUpdateQueue.pending} pending.`);
         }
 
-        while (this._graphUpdateQueueOnIdle !== undefined) {
+        let dirtyCount = this._graphTxns.dirtyItems().length;
+        console.log(`[INFO] On stop there are ${dirtyCount} dirty items.`);
+        if (dirtyCount > 0) {
+            this.UpdateStatistics();
+        }
+
+        while (this._graphUpdateQueueOnIdle !== undefined || !this._updateComplete) {
             console.log(`Waiting for UpdateStatistics to finish for ${this._tokenIdHex}`);
+            console.log(`${this._graphUpdateQueueOnIdle} - ${this._updateComplete}`);
             await sleep(500);
         }
+        console.log(`[INFO] Stopped token graph ${this._tokenIdHex}`);
     }
 
     private async setNftParentId() {
@@ -136,8 +146,12 @@ export class SlpTokenGraph {
         }
     }
 
-    get IsValid(): boolean {
-        return this._graphTxns.has(this._tokenDetails.tokenIdHex);
+    async IsValid(): Promise<boolean> {
+        if (this._isValid || this._isValid === false) {
+            return this._isValid;
+        }
+        this._isValid = await this._slpValidator.isValidSlpTxid(this._tokenIdHex);
+        return this._isValid;
     }
 
     get IsLoaded(): boolean {
@@ -330,7 +344,7 @@ export class SlpTokenGraph {
 
         if (!this._loadInitiated && !this.IsLoaded) {
             this._loadInitiated = true;
-            return this._graphUpdateQueue.add(async function() {
+            return this._graphUpdateQueue.add(async () => {
                 let m = self._manager;
                 console.log(`[INFO] (queueTokenGraphUpdateFrom) Initiating graph for ${txid}`);
                 await self.updateTokenGraphAt({ txid, isParent, processUpToBlock, block });
@@ -349,7 +363,7 @@ export class SlpTokenGraph {
                 self.UpdateStatistics(true, true, txid);
             });
         } else {
-            return this._graphUpdateQueue.add(async function() {
+            return this._graphUpdateQueue.add(async () => {
                 console.log(`[INFO] (queueTokenGraphUpdateFrom) Updating graph from ${txid}`);
                 await self.updateTokenGraphAt({ txid, isParent, processUpToBlock, block });
 
@@ -704,7 +718,7 @@ export class SlpTokenGraph {
                 }
             } catch(_) {
                 console.log(`[INFO] (updateAddressesFromScratch) Update graph from ${txid}`);
-                await this.updateTokenGraphAt({ txid });
+                //await this.updateTokenGraphAt({ txid });
                 if (!this._tokenUtxos.has(utxo)) {
                     return
                 }
@@ -924,14 +938,16 @@ export class SlpTokenGraph {
             this._graphUpdateQueueNewTxids.add(zmqTxid);
         }
         if (!this._graphUpdateQueueOnIdle) {
-            this._graphUpdateQueueOnIdle = async (self: this) => {
+            this._updateComplete = false;
+            this._graphUpdateQueueOnIdle = async (self: SlpTokenGraph) => {
                 await self._graphUpdateQueue.onIdle();
-                let txidToUpdate = Array.from(this._graphUpdateQueueNewTxids);
-                this._graphUpdateQueueNewTxids.clear();
+                let txidToUpdate = Array.from(self._graphUpdateQueueNewTxids);
+                self._graphUpdateQueueNewTxids.clear();
                 self._graphUpdateQueueOnIdle = null;
+                this._updateComplete = false;
                 await self._updateStatistics(true);
                 while (txidToUpdate.length > 0) {
-                    await this._manager.publishZmqNotificationGraphs(txidToUpdate.pop()!);
+                    await self._manager.publishZmqNotificationGraphs(txidToUpdate.pop()!);
                 }
                 self._graphUpdateQueueOnIdle = undefined;
                 return;
@@ -941,54 +957,58 @@ export class SlpTokenGraph {
     }
 
     async _updateStatistics(saveToDb=true): Promise<void> {
-        if(this.IsValid) {
-            await this.updateAddressesFromScratch();
-            await this._checkGraphBlockHashes();
-            let block_created = await Query.queryTokenGenesisBlock(this._tokenDetails.tokenIdHex);
-            let block_last_active_mint = await Query.blockLastMinted(this._tokenDetails.tokenIdHex);
-            let block_last_active_send = await Query.blockLastSent(this._tokenDetails.tokenIdHex);
-            let qty_token_minted = await this.getTotalMintQuantity();
-            let minting_baton_status = await this.getBatonStatus();
-
-            this._tokenStats = <TokenStats> {
-                block_created: block_created,
-                block_last_active_mint: block_last_active_mint,
-                block_last_active_send: block_last_active_send,
-                qty_valid_txns_since_genesis: this._graphTxns.size,
-                qty_valid_token_utxos: this._tokenUtxos.size,
-                qty_valid_token_addresses: this._addresses.size,
-                qty_token_minted: qty_token_minted,
-                qty_token_burned: new BigNumber(0),
-                qty_token_circulating_supply: this.getTotalHeldByAddresses(),
-                qty_satoshis_locked_up: this.getTotalSatoshisLockedUp(),
-                minting_baton_status: minting_baton_status
-            }
-            this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply)
-
-            if(this._tokenStats.qty_token_circulating_supply.isGreaterThan(this._tokenStats.qty_token_minted)) {
-                console.log("[ERROR] Cannot have circulating supply larger than total minted quantity.");
-                //console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
-                // TODO: handle this condition gracefully.
-            }
-
-            if(!this._tokenStats.qty_token_circulating_supply.isEqualTo(this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_burned))) {
-                console.log("[WARN] Circulating supply minus burn quantity does not equal minted quantity");
-                //console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
-                // TODO: handle this condition gracefully.
-            }
-
-            if(saveToDb && !this._exit) {
-                await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
-                await this._db.graphItemsUpsert(this);
-                await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
-            }
-
-            console.log("########################################################################################################")
-            console.log("TOKEN STATS/ADDRESSES FOR", this._tokenDetails.name, this._tokenDetails.tokenIdHex)
-            console.log("########################################################################################################")
-            this.logTokenStats();
-            this.logAddressBalances();
+        if (this._isValid === false) {
+            return;
         }
+        this._updateComplete = false;
+        await this.updateAddressesFromScratch();
+        await this._checkGraphBlockHashes();
+        let block_created = await Query.queryTokenGenesisBlock(this._tokenDetails.tokenIdHex);
+        let block_last_active_mint = await Query.blockLastMinted(this._tokenDetails.tokenIdHex);
+        let block_last_active_send = await Query.blockLastSent(this._tokenDetails.tokenIdHex);
+        let qty_token_minted = await this.getTotalMintQuantity();
+        let minting_baton_status = await this.getBatonStatus();
+
+        this._tokenStats = <TokenStats> {
+            block_created: block_created,
+            block_last_active_mint: block_last_active_mint,
+            block_last_active_send: block_last_active_send,
+            qty_valid_txns_since_genesis: this._graphTxns.size,
+            qty_valid_token_utxos: this._tokenUtxos.size,
+            qty_valid_token_addresses: this._addresses.size,
+            qty_token_minted: qty_token_minted,
+            qty_token_burned: new BigNumber(0),
+            qty_token_circulating_supply: this.getTotalHeldByAddresses(),
+            qty_satoshis_locked_up: this.getTotalSatoshisLockedUp(),
+            minting_baton_status: minting_baton_status
+        }
+        this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply)
+
+        if(this._tokenStats.qty_token_circulating_supply.isGreaterThan(this._tokenStats.qty_token_minted)) {
+            console.log("[ERROR] Cannot have circulating supply larger than total minted quantity.");
+            //console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
+            // TODO: handle this condition gracefully.
+        }
+
+        if(!this._tokenStats.qty_token_circulating_supply.isEqualTo(this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_burned))) {
+            console.log("[WARN] Circulating supply minus burn quantity does not equal minted quantity");
+            //console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
+            // TODO: handle this condition gracefully.
+        }
+
+        if(saveToDb) {
+            await this._db.graphItemsUpsert(this);
+            await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
+            await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
+        }
+
+        console.log("########################################################################################################")
+        console.log("TOKEN STATS/ADDRESSES FOR", this._tokenDetails.name, this._tokenDetails.tokenIdHex)
+        console.log("########################################################################################################")
+        this.logTokenStats();
+        this.logAddressBalances();
+        this._updateComplete = true;
+        console.log(`[DEBUG] this._updateComplete = ${this._updateComplete} (${this._tokenIdHex})`);
     }
 
     logTokenStats(): void {
@@ -1020,11 +1040,10 @@ export class SlpTokenGraph {
     }
 
     toAddressesDbObject(): AddressBalancesDbo[] {
-        let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(this._tokenDetails, this._tokenDetails.decimals);
         let result: AddressBalancesDbo[] = [];
         this._addresses.forEach((a, k) => { 
             result.push({ 
-                tokenDetails: { tokenIdHex: tokenDetails.tokenIdHex }, 
+                tokenDetails: { tokenIdHex: this._tokenIdHex }, 
                 address: k, 
                 satoshis_balance: a.satoshis_balance, 
                 token_balance: Decimal128.fromString(a.token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) 
@@ -1155,7 +1174,9 @@ export class SlpTokenGraph {
     static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
         let tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
         let tg = await manager.getTokenGraph(token.tokenDetails.tokenIdHex, tokenDetails);
-
+        if (!tg) {
+            throw Error("This should never happen");
+        }
         tg._loadInitiated = true;
         
         // add minting baton
@@ -1174,18 +1195,18 @@ export class SlpTokenGraph {
 
         // Map _txnGraph
         dag.forEach((item, idx) => {
-            let gt = this.MapGraphTxnFromDbo(item, tg._tokenDetails.decimals, tg._network);
-            tg._graphTxns.set(item.graphTxn.txid, gt);
+            let gt = this.MapGraphTxnFromDbo(item, tg!._tokenDetails.decimals, tg!._network);
+            tg!._graphTxns.set(item.graphTxn.txid, gt);
         });
 
         // Preload SlpValidator with cachedValidations
         tg._graphTxns.forEach((_, txid) => {
             let validation: any = { validity: null, details: null, invalidReason: null, parents: [], waiting: false }
-            validation.validity = tg._graphTxns.get(txid) ? true : false;
-            validation.details = tg._graphTxns.get(txid)!.details;
+            validation.validity = tg!._graphTxns.get(txid) ? true : false;
+            validation.details = tg!._graphTxns.get(txid)!.details;
             if(!validation.details)
                 throw Error("No saved details about transaction" + txid);
-            tg._slpValidator.cachedValidations[txid] = validation;
+            tg!._slpValidator.cachedValidations[txid] = validation;
         });
 
         console.log(`Loaded ${tg._graphTxns.size} validation cache results`);
