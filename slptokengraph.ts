@@ -481,9 +481,10 @@ export class SlpTokenGraph {
 
         // Update parent items (their output statuses) and add contributing SLP inputs
         if (!isParent && graphTxn.inputs.length === 0 && txid !== this._tokenIdHex) {
-
+            let visited = new Set<string>();
             for (let i of txn.inputs) {
                 let previd = i.prevTxId.toString('hex');
+                visited.add(previd);
                 //let prevOut = i.outputIndex;
 
                 let valid;
@@ -500,7 +501,9 @@ export class SlpTokenGraph {
                 // First update the parent items
                 if (this._graphTxns.has(previd)) {
                     console.log("[INFO] updateTokenGraphFrom: update the status of each input txn's outputs");
-                    await this.updateTokenGraphAt({ txid: previd, isParent: true, processUpToBlock });
+                    if (!visited.has(previd)) {
+                        await this.updateTokenGraphAt({ txid: previd, isParent: true, processUpToBlock });
+                    }
                     let inputTxn = this._graphTxns.get(previd)!;
                     let o = inputTxn.outputs.find(o => o.vout === i.outputIndex);
                     if (o) {
