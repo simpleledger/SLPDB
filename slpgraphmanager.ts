@@ -467,7 +467,9 @@ export class SlpGraphManager {
                 console.log(`[INFO] No token transactions after block ${updateFromHeight} were found (${graph._tokenDetails.tokenIdHex})`);
             }
             else {
-                if(res.length > 0) {
+                if(!graph._startupTxoSendCache && res.length > 0) {
+                    // This seeds the graph's initial cache used for looking up the txid spent to
+                    // This cache (or other caches) will be updated as we crawl blocks and receive wire notifications.
                     graph._startupTxoSendCache = await Query.getTxoInputSlpSendCache(graph._tokenDetails.tokenIdHex);
                 }
                 console.log(`[INFO] (_updateTokenGraph) queueTokenGraphUpdateFrom for tokenId ${graph._tokenIdHex}`);
