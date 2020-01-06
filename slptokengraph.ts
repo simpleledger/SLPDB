@@ -22,6 +22,7 @@ let cashaddr = require('cashaddrjs-slp');
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const bitbox = new BITBOX();
+const slp = new Slp(bitbox);
 
 export class SlpTokenGraph {
     _tokenIdHex: string;
@@ -136,7 +137,6 @@ export class SlpTokenGraph {
         let tx = Primatives.Transaction.parseFromBuffer(Buffer.from(txnhex, 'hex'));
         let nftBurnTxnHex = (await this._slpValidator.getRawTransactions([tx.inputs[0].previousTxHash]))[0];
         let nftBurnTxn = Primatives.Transaction.parseFromBuffer(Buffer.from(nftBurnTxnHex, 'hex'));
-        let slp = new Slp(bitbox);
         let nftBurnSlp = slp.parseSlpOutputScript(Buffer.from(nftBurnTxn.outputs[0].scriptPubKey));
         if (nftBurnSlp.transactionType === SlpTransactionType.GENESIS) {
             this._nftParentId = tx.inputs[0].previousTxHash;
@@ -496,13 +496,14 @@ export class SlpTokenGraph {
 
                 valid = this._slpValidator.cachedValidations[previd].validity;
 
-                // First update the parent items
                 if (this._graphTxns.has(previd)) {
+                    // update the parent items
                     console.log("[INFO] updateTokenGraphFrom: update the status of each input txn's outputs");
                     if (!visited.has(previd)) {
                         visited.add(previd);
                         await this.updateTokenGraphAt({ txid: previd, isParent: true, processUpToBlock });
                     }
+                    // add the current input item to the current graphTxn object
                     let inputTxn = this._graphTxns.get(previd)!;
                     let o = inputTxn.outputs.find(o => o.vout === i.outputIndex);
                     if (o) {
@@ -516,21 +517,34 @@ export class SlpTokenGraph {
                         graphTxn.isDirty = true;
                     }
                 } else if (valid) {
-                    // NOTE: This branch rarely happens, and acts as only a temporary check that can be disabled later.
-
-                    // This should only happen when the the prevTxid is pruned from the graph and 
-                    // a new txn spends a non-SLP input from the pruned txn.
                     //
-                    let res = await this._db.graphTxnFetch(previd);
-                    if (!res) {
-                        throw Error(`Graph txid ${previd} was not found, this should never happen.`);
-                        // NOTE: Technically this should not be needed, but due to some bug we need this in here.
-                        //await this.updateTokenGraphFrom({txid: previd, isParent: true, updateOutputs: true, processUpToBlock, block});
-                    } else {
-                        let gt = SlpTokenGraph.MapGraphTxnFromDbo(res, this._tokenDetails.decimals, this._network);
-                        // this._graphTxns.set(previd, gt);
-                        if (gt.outputs.filter(o => [TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(o.status)).length>0) {
-                            throw Error(`Graph txid ${previd} was loaded from db with unspent outputs, this should never happen.`);
+                    // NOTE: This branch should only happen in one of the following situations:
+                    //          1) a new graph txn is spending non-SLP inputs from a pruned txn, OR
+                    //          2) a valid NFT1 child is spending a non-SLP output from a valid NFT1 parent
+                    //
+                    // NOTE: A graph in SLPDB is an individual dag with 1 Genesis, whereas in slp-validate the validator for an NFT Child dag
+                    //       will also cache validity data for the NFT group dag.  This is why #2 in the list above occurs.
+                    //
+                    if (!visited.has(previd)) {
+                        visited.add(previd);
+                        let res = await this._db.graphTxnFetch(previd);
+                        if (!res) {
+                            // NOTE: Since situation #2 (with the NFT1 parent) may not yet have this specific graph item commited to db, so let's 
+                            //       parse the txn details and check token type !== NFT1_PARENT before we throw.
+                            let slpMessage = slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
+                            if (this._tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child &&
+                                slpMessage.versionType === SlpVersionType.TokenVersionType1_NFT_Parent) {
+                                continue;
+                            }
+                            throw Error(`Graph txid ${previd} was not found, this should never happen.`);
+                        } else {
+                            let gt = SlpTokenGraph.MapGraphTxnFromDbo(res, this._tokenDetails.decimals, this._network);
+                            let unspentCount = gt.outputs.filter(o => [TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(o.status)).length
+                            if (gt.details.tokenIdHex === this._tokenIdHex &&
+                                unspentCount > 0) {
+                                throw Error(`Graph txid ${previd} was loaded from db with unspent outputs, this should never happen.`);
+                            }
+                            continue;
                         }
                     }
                 }
