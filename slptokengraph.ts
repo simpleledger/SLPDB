@@ -484,8 +484,6 @@ export class SlpTokenGraph {
             let visited = new Set<string>();
             for (let i of txn.inputs) {
                 let previd = i.prevTxId.toString('hex');
-                visited.add(previd);
-                //let prevOut = i.outputIndex;
 
                 let valid;
                 if (!this._slpValidator.cachedValidations[previd]) {
@@ -502,6 +500,7 @@ export class SlpTokenGraph {
                 if (this._graphTxns.has(previd)) {
                     console.log("[INFO] updateTokenGraphFrom: update the status of each input txn's outputs");
                     if (!visited.has(previd)) {
+                        visited.add(previd);
                         await this.updateTokenGraphAt({ txid: previd, isParent: true, processUpToBlock });
                     }
                     let inputTxn = this._graphTxns.get(previd)!;
