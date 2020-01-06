@@ -1181,7 +1181,7 @@ export class SlpTokenGraph {
 
     static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
         let tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
-        let tg = await manager.getTokenGraph(token.tokenDetails.tokenIdHex, tokenDetails);
+        let tg = await manager.getTokenGraph(token.tokenDetails.tokenIdHex, tokenDetails, true);
         if (!tg) {
             throw Error("This should never happen");
         }

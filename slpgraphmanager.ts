@@ -50,13 +50,15 @@ export class SlpGraphManager {
             return true;
     }
 
-    async getTokenGraph(tokenIdHex: string, tokenDetailsForGenesis?: SlpTransactionDetails): Promise<SlpTokenGraph|null> {
-        if(!this._tokens.has(tokenIdHex)) {
+    async getTokenGraph(tokenIdHex: string, tokenDetailsForGenesis?: SlpTransactionDetails, forceValid?: boolean): Promise<SlpTokenGraph|null> {
+        if (!this._tokens.has(tokenIdHex)) {
             if (!tokenDetailsForGenesis || tokenDetailsForGenesis.transactionType !== SlpTransactionType.GENESIS) {
                 throw Error("Token details for a new token GENESIS must be provided.");
             }
             let graph = new SlpTokenGraph(tokenDetailsForGenesis, this.db, this, this._network);
-            if (!(await graph.IsValid())) {
+            if (forceValid) {
+                graph._isValid = true;
+            } else if (!(await graph.IsValid())) {
                 return null;
             }
             this._tokens.set(tokenIdHex, graph);
