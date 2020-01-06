@@ -262,6 +262,10 @@ process.on('SIGTERM', async () => {
     await shutdown('SIGTERM');
 });
 
+process.on('SIGQUIT', async () => {
+    await shutdown('SIGQUIT');
+});
+
 let shutdown = async (signal: string) => {
     console.log(`[INFO] Got ${signal}. Graceful shutdown start ${new Date().toISOString()}`);
 
