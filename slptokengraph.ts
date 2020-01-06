@@ -502,7 +502,7 @@ export class SlpTokenGraph {
                         for (let vout of prevOutpoints) {
                             let spendInfo: SpendDetails|MintSpendDetails;
                             if ([SlpTransactionType.GENESIS, SlpTransactionType.MINT].includes(ptxn!.details.transactionType) &&
-                                ptxn?.details.batonVout === vout) {
+                                ptxn.details.batonVout === vout) {
                                     spendInfo = await this.getMintBatonSpendDetails({ txid: previd, vout, txnOutputLength: null, processUpTo: processUpToBlock });
                             } else {
                                 spendInfo = await this.getSpendDetails({ txid: previd, vout, txnOutputLength: null, processUpTo: processUpToBlock });
