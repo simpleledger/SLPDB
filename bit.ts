@@ -65,7 +65,7 @@ export class Bit {
     exit = false;
 
     _tokensInLastGraphUpdateInterval = new Set<string>();
-    _tokenStacks = new Map<string, string[]>();
+    _tokenStacks = new CacheMap<string, string[]>(-1);
     _exit = false;
 
     constructor(db: Db) {

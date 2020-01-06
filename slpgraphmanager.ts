@@ -19,7 +19,7 @@ const BufferReader = require('bufio/lib/reader');
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 import { RpcClient } from './rpc';
-import { CacheSet } from "./cache";
+import { CacheSet, CacheMap } from "./cache";
 import { SlpdbStatus } from "./status";
 import { TokenFilter } from "./filters";
 import { GraphMap } from "./graphmap";
@@ -378,7 +378,7 @@ export class SlpGraphManager {
     //     }
     // }
 
-    public async updateTokenIds({ tokenStacks, from, upTo }: { tokenStacks: Map<string, string[]>, from: number, upTo: number }) {
+    public async updateTokenIds({ tokenStacks, from, upTo }: { tokenStacks: CacheMap<string, string[]>, from: number, upTo: number }) {
         for (let [tokenId, stack] of tokenStacks) {
             console.log(`Topological ordered updates for TokenId: ${tokenId}`);
             console.log(stack);

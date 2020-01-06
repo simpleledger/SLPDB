@@ -7,6 +7,10 @@ export class CacheSet<T> {
         this.maxSize = maxSize;
     }
 
+    [Symbol.iterator]() {
+        return this.list.values();
+    }
+
     get length(): number {
         return this.list.length;
     }
@@ -64,6 +68,10 @@ export class CacheMap<T, M> {
         this.maxSize = maxSize;
     }
 
+    [Symbol.iterator]() {
+        return this.items();
+    }
+
     get length(): number {
         return this.list.length;
     }
@@ -79,6 +87,11 @@ export class CacheMap<T, M> {
 
     keys(): IterableIterator<T> {
         return this.list.values();
+    }
+
+    items(): IterableIterator<[T,M]> {
+        let l: [T,M][] = this.list.map(i => [i, this.map.get(i)!]);
+        return l.values();
     }
 
     set(key: T, item: M) {
