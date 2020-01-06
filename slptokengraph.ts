@@ -225,13 +225,13 @@ export class SlpTokenGraph {
 
     async getMintBatonSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number; processUpTo?: number }): Promise<MintSpendDetails> {
         let spendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
-        if(this._startupTxoSendCache) {
+        if (this._startupTxoSendCache) {
             spendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
             if(spendTxnInfo) {
                 console.log("[INFO] Used _startupTxoSendCache data", txid, vout);
             }
         }
-        if(!spendTxnInfo) {
+        if (!spendTxnInfo) {
             spendTxnInfo = this._manager._bit._spentTxoCache.get(txid + ":" + vout); //this._liveTxoSpendCache.get(txid + ":" + vout);
             if(spendTxnInfo) {
                 console.log("[INFO] Used bit._spentTxoCache data", txid, vout);
@@ -243,35 +243,31 @@ export class SlpTokenGraph {
                 spendTxnInfo = { txid: res.txid!, block: res.block };
             }
         }
-        if(spendTxnInfo) {
+        if (spendTxnInfo) {
             try {
-                // if(!spendTxnInfo) {
-                //     this._mintBatonUtxo = '';
-                //     if(vout < txnOutputLength)
-                //         return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: null, invalidReason: null };
-                //     return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
-                // } else {
-                if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
+                if  (processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
                     return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, invalidReason: null };
                 }
-                if(typeof spendTxnInfo!.txid === 'string') {
+                if (typeof spendTxnInfo!.txid === 'string') {
                     let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
-                    if(!this._slpValidator.cachedValidations[spendTxnInfo.txid!])
+                    if (!this._slpValidator.cachedValidations[spendTxnInfo.txid!]) {
                         console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex)
-                    if(valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.MINT)
+                    }
+                    if (valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.MINT) {
                         return { status: BatonUtxoStatus.BATON_SPENT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: null };
-                    else if(valid) {
+                    }
+                    else if (valid) {
                         this._mintBatonUtxo = '';
                         return { status: BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: "Baton was spent in a non-mint SLP transaction." };
                     }
                     this._mintBatonUtxo = '';
                     return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: spendTxnInfo!.txid, invalidReason: null };
                 }
-                //}
             } catch(_) {
                 this._mintBatonUtxo = '';
-                if(vout < txnOutputLength)
+                if (vout < txnOutputLength) {
                     return { status: BatonUtxoStatus.BATON_SPENT_INVALID_SLP, txid: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
+                }
                 return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
             }
         }
@@ -281,13 +277,13 @@ export class SlpTokenGraph {
 
     async getSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number; processUpTo?: number; }): Promise<SpendDetails> {
         let spendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
-        if(this._startupTxoSendCache) {
+        if (this._startupTxoSendCache) {
             spendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
             if (spendTxnInfo) {
                 console.log("[INFO] Used _startupTxoSendCache data", txid, vout);
             }
         }
-        if(!spendTxnInfo) {
+        if (!spendTxnInfo) {
             spendTxnInfo = this._manager._bit._spentTxoCache.get(txid + ":" + vout); //this._liveTxoSpendCache.get(txid + ":" + vout);
             if (spendTxnInfo) {
                 console.log("[INFO] Used bit._spentTxoCache spend data", txid, vout);
@@ -299,35 +295,31 @@ export class SlpTokenGraph {
                 spendTxnInfo = { txid: res.txid!, block: res.block };
             }
         }
-        if(spendTxnInfo) {
+        if (spendTxnInfo) {
             try {
-                // if(!spendTxnInfo) {
-                //     this._tokenUtxos.delete(txid + ":" + vout);
-                //     if(vout < txnOutputLength)
-                //        return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, invalidReason: null };
-                //     return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
-                // } else {
-                if(processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
+                if (processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
                     return { status: TokenUtxoStatus.UNSPENT, txid: null, invalidReason: null };
                 }
-                if(typeof spendTxnInfo!.txid === 'string') {
+                if (typeof spendTxnInfo!.txid === 'string') {
                     let valid = await this._slpValidator.isValidSlpTxid(spendTxnInfo.txid!, this._tokenDetails.tokenIdHex);
-                    if(!this._slpValidator.cachedValidations[spendTxnInfo.txid!])
+                    if (!this._slpValidator.cachedValidations[spendTxnInfo.txid!]) {
                         console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex)
-                    if(valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.SEND)
+                    }
+                    if (valid && this._slpValidator.cachedValidations[spendTxnInfo.txid!] && this._slpValidator.cachedValidations[spendTxnInfo.txid!].details!.transactionType === SlpTransactionType.SEND) {
                         return { status: TokenUtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, invalidReason: null };
-                    else if(valid) {
+                    }
+                    else if (valid) {
                         this._tokenUtxos.delete(txid + ":" + vout);
                         return { status: TokenUtxoStatus.SPENT_NOT_IN_SEND, txid: spendTxnInfo!.txid, invalidReason: null };
                     }
                     this._tokenUtxos.delete(txid + ":" + vout);
                     return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo!.txid, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
                 }
-                //}
             } catch(_) {
                 this._tokenUtxos.delete(txid + ":" + vout);
-                if(vout < txnOutputLength)
+                if (vout < txnOutputLength) {
                     return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: null, invalidReason: this._slpValidator.cachedValidations[txid].invalidReason };
+                }
                 return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
             }
         }
