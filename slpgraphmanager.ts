@@ -260,7 +260,7 @@ export class SlpGraphManager {
                     graph = this._tokens.get(tokenId);
                     if (graph) {
                         console.log(`[INFO] (searchBlockForBurnedSlpTxos) Queued graph update at ${txid} for ${tokenId}`);
-                        graph.queueUpdateForTokenGraphAt({ txid, isParent: true });
+                        graph.queueUpdateForTokenGraphAt({ txid }); //isParent: true });
                         graphPromises.push(graph._graphUpdateQueue.onIdle());
                     }
                     continue;
@@ -278,7 +278,7 @@ export class SlpGraphManager {
                     graph = this._tokens.get(tokenId);
                     if(graph) {
                         console.log(`[INFO] (searchBlockForBurnedSlpTxos 2) Queued graph update at ${txid} for ${tokenId}`);
-                        graph.queueUpdateForTokenGraphAt({ txid, isParent: true });
+                        graph.queueUpdateForTokenGraphAt({ txid }); //isParent: true });
                         graphPromises.push(graph._graphUpdateQueue.onIdle());
                     }
                     continue;
@@ -326,8 +326,10 @@ export class SlpGraphManager {
         let tokens = await this.db.tokenFetchAll();
         let pruningCutoff = Config.db.pruning ? await (await Info.getBlockCheckpoint()).height - Config.db.block_sync_graph_update_interval - 1 : undefined;
         if (tokens) {
+            let count = 0;
             for (let token of tokens) {
                 await this.loadTokenFromDb(token, pruningCutoff);
+                console.log(`[INFO] ${++count} tokens loaded from db.`)
             }
         }
     }
@@ -382,6 +384,9 @@ export class SlpGraphManager {
 
     public async updateTokenIds({ tokenStacks, from, upTo }: { tokenStacks: CacheMap<string, string[]>, from: number, upTo: number }) {
         for (let [tokenId, stack] of tokenStacks) {
+            if (this._exit || this._bit._exit) {
+                return;
+            }
             console.log(`Topological ordered updates for TokenId: ${tokenId}`);
             console.log(stack);
             let graph = await this.updateTokenGraph({ tokenId, reprocessFrom: from, reprocessTo: upTo, updateTxidStack: stack });
@@ -469,7 +474,7 @@ export class SlpGraphManager {
                 console.log(`[INFO] No token transactions after block ${updateFromHeight} were found (${graph._tokenDetails.tokenIdHex})`);
             }
             else {
-                if(!graph._startupTxoSendCache && res.length > 0) {
+                if(!graph._startupTxoSendCache && res.length > 1) {
                     // This seeds the graph's initial cache used for looking up the txid spent to
                     // This cache (or other caches) will be updated as we crawl blocks and receive wire notifications.
                     graph._startupTxoSendCache = await Query.getTxoInputSlpSendCache(graph._tokenDetails.tokenIdHex);

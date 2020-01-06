@@ -62,10 +62,10 @@ export class Bit {
     network!: string;
     notifications!: Notifications;
     _spentTxoCache = new CacheMap<string, { txid: string, block: number|null }>(100000);
-    exit = false;
 
     _tokensInLastGraphUpdateInterval = new Set<string>();
     _tokenStacks = new CacheMap<string, string[]>(-1);
+    _isSyncing = false;
     _exit = false;
 
     constructor(db: Db) {
@@ -79,6 +79,14 @@ export class Bit {
     async init() {
         this.network = await Info.getNetwork();
         await this.waitForFullNodeSync();
+    }
+
+    async stop() {
+        this._exit = true;
+        while (this._isSyncing) {
+            console.log("Waiting for block/transaction sync to complete");
+            await sleep(250);
+        }
     }
 
     slpTransactionFilter(txn: string|Buffer): boolean {
@@ -246,7 +254,7 @@ export class Bit {
 
     async syncSlpMempool() {
         if (this._exit) {
-            throw Error("Exit signal.");
+            return;
         }
         let currentBchMempoolList = await RpcClient.getRawMemPool();
         console.log('[INFO] BCH mempool txs =', currentBchMempoolList.length);
@@ -287,12 +295,11 @@ export class Bit {
                     const txid = deserialized.hash;
                     blockTxCache.set(txid, {deserialized, serialized});
                     RpcClient.transactionCache.set(txid, serialized);
-                    deserialized.inputs.forEach((input, i) => {
-                        if (i > 0) {
-                            let prevOutpoint = input.prevTxId.toString("hex") + ":" + input.outputIndex;
-                            this._spentTxoCache.set(prevOutpoint, {txid, block: blockIndex});
-                            // TODO: Scan for SLP token burns elsewhere... for all block transactoins (is this being done already somewhere else?)
-                        }
+                    deserialized.inputs.forEach((input) => {
+                        let prevOutpoint = input.prevTxId.toString("hex") + ":" + input.outputIndex;
+                        this._spentTxoCache.set(prevOutpoint, { txid, block: blockIndex });
+                        console.log(`[INFO] _spentTxoCache.set ${prevOutpoint} -> ${txid} at ${blockIndex}`);
+                        // TODO: Scan for SLP token burns elsewhere... for all block transactoins (is this being done already somewhere else?)
                     });
                 }
             });
@@ -591,6 +598,7 @@ export class Bit {
     }
 
     static async sync(self: Bit, type: string, hash?: string, txhex?: string): Promise<SyncCompletionInfo|null> {
+        self._isSyncing = true;
         let result: SyncCompletionInfo;
         if (type === 'block') {
             result = { syncType: SyncType.Block, filteredContent: new Map<SyncFilterTypes, Map<txid, txhex>>() }
@@ -602,7 +610,8 @@ export class Bit {
             let startHeight = lastCheckpoint.height - Config.db.block_sync_graph_update_interval;
             for (let index: number = startHeight; index <= currentHeight; index++) {
                 if (self._exit) {
-                    throw Error("Exit signal.");
+                    self._isSyncing = false;
+                    return null;
                 }
                 console.time('[PERF] RPC END ' + index);
                 let syncComplete = hash ? true : false;
@@ -660,8 +669,10 @@ export class Bit {
             }
         
             if (lastCheckpoint.height === currentHeight) {
+                self._isSyncing = false;
                 return result;
             } else {
+                self._isSyncing = false;
                 return null;
             }
         } else if (type === 'mempool') {
@@ -700,10 +711,11 @@ export class Bit {
                 } else {
                     console.log("[INFO] Skipping non-SLP transaction:", hash);
                 }
-
+                self._isSyncing = false;
                 return result;
             }
         }
+        self._isSyncing = false;
         return null;
     }
 
@@ -784,6 +796,9 @@ export class Bit {
 
     async processCurrentMempoolForTNA() {
         let items = await this.requestSlpMempool();
+        if (this._exit) {
+            return;
+        }
         await this.db.unconfirmedSync(items);
     }
 }

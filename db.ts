@@ -85,9 +85,14 @@ export class Db {
         let recentBlocks = await Info.getRecentBlocks();
         let [ itemsToUpdate, tokenDbo ] = GraphMap.toDbo(graph, recentBlocks);
         for (const g of itemsToUpdate) {
-            console.log(`[DEBUG] graphItemsUpsert ${g.graphTxn.txid}`);
             let res = await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": g.graphTxn.txid }, g, { upsert: true });
-            console.log(`[DEBUG] graphItemsUpsert res: ${res.matchedCount + res.modifiedCount + res.upsertedCount} - ${res.result}`);
+            if (res.modifiedCount) {
+                console.log(`[DEBUG] graphItemsUpsert - modified: ${g.graphTxn.txid}`);
+            } else if (res.upsertedCount) {
+                console.log(`[DEBUG] graphItemsUpsert - inserted: ${g.graphTxn.txid}`);
+            } else {
+                throw Error(`Graph record was not updated: ${g.graphTxn.txid} (token: ${graph._tokenDetails.tokenIdHex})`);
+            }
         }
 
         // This must be called here because the GraphMap.toDbo returns
