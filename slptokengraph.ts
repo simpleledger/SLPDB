@@ -426,15 +426,15 @@ export class SlpTokenGraph {
             return false;
         }
 
-        let graphTxn: GraphTxn = 
-            { details: txnSlpDetails, 
-                outputs: [], 
-                inputs: [], 
-                blockHash: blockHash ? blockHash : null, 
-                isDirty: true 
-            };
+        let graphTxn: GraphTxn = { 
+            details: txnSlpDetails, 
+            outputs: [], 
+            inputs: [], 
+            blockHash: blockHash ? blockHash : null, 
+            isDirty: true 
+        };
 
-        console.log("[INFO] Valid txns", this._graphTxns.size);
+        console.log(`[INFO] Unprunned txn count: ${this._graphTxns.size}`);
 
         // Update parent items (their output statuses) and add contributing SLP inputs
         if (txid !== this._tokenIdHex) {
