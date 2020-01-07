@@ -7,10 +7,12 @@ import { RpcClient } from "./rpc";
 export class GraphMap extends Map<string, GraphTxn> {
     public pruned = new Map<string, GraphTxn>();
     private rootId: string;
+    private graph: SlpTokenGraph;
 
-    constructor(rootId: string) {
+    constructor(graph: SlpTokenGraph) {
         super();
-        this.rootId = rootId;
+        this.rootId = graph._tokenIdHex;
+        this.graph = graph;
     }
 
     public dirtyItems() {
@@ -48,8 +50,8 @@ export class GraphMap extends Map<string, GraphTxn> {
         const txids = Array.from(this.pruned.keys());
         this.pruned.forEach((i, txid) => {
             RpcClient.transactionCache.delete(txid);
-            // NOTE: The following is not needed here becuase this cleared elsewhere
-            // delete tg._slpValidator.cachedRawTransactions[txid];
+            delete this.graph._slpValidator.cachedRawTransactions[txid];
+            delete this.graph._slpValidator.cachedValidations[txid];
         });
 
         this.pruned.clear();

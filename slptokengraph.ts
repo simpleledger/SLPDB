@@ -16,7 +16,6 @@ import { TokenDBObject, AddressBalancesDbo, UtxoDbo, GraphTxnDbo,
     SlpTransactionDetailsDbo, TokenUtxoStatus, TokenStats, cashAddr, 
     BatonUtxoStatus, TokenBatonStatus } from './interfaces';
 import { GraphMap } from './graphmap';
-import { fromPrefixLen } from 'ip';
 
 let cashaddr = require('cashaddrjs-slp');
 
@@ -84,7 +83,7 @@ export class SlpTokenGraph {
     constructor(tokenDetails: SlpTransactionDetails, db: Db, manager: SlpGraphManager, network: string, blockCreated: number|null) {
         this._tokenDetails = tokenDetails;
         this._tokenIdHex = tokenDetails.tokenIdHex;
-        this._graphTxns = new GraphMap(this._tokenIdHex);
+        this._graphTxns = new GraphMap(this);
         this._db = db;
         this._manager = manager;
         this._network = network;
@@ -403,59 +402,13 @@ export class SlpTokenGraph {
     }
 
     async addGraphTransaction({ txid, processUpToBlock, blockHash }: { txid: string; processUpToBlock?: number; blockHash?: Buffer; }): Promise<boolean|null> {
-/**
- * purpose for "isParent":
- *      1) skips cached result, allow reprocessing/updating of a previously processed valid txn
- *      2) prevents recursive reprocessing of a parent txn's inputs (since we only want to update output status for 1 group of parents)
- *      3) prevents recursive processing of outputs (since the calling child will do this)
- */
 
-        // if (block) {
-        //     if(!(block.transactions.has(txid))) {
-        //         try {
-        //             await RpcClient.getTransactionBlockHash(txid);
-        //         } catch (_) {
-        //             this.deleteAllChildren(txid, true);
-        //             return null;
-        //         }
-        //         if (!this._graphTxns.has(txid)) {
-        //             console.log(`[INFO] (updateTokenGraphFrom block branch) Queued graph update for ${txid}`);
-        //             await this.updateTokenGraphAt({ txid });
-        //         }
-        //         return null;
-        //     }
-
-        //     if (this._graphTxns.has(txid)) {
-        //         let graphTxn = this._graphTxns.get(txid)!;
-        //         // TODO: check each output. If the output is already marked spent, then verify the spend txid is correct.
-        //         for (let i=0; i< graphTxn.outputs.length;i++) {
-        //             console.log(`[INFO] Checking block transaction output ${i} (${txid})`);
-        //             let status = graphTxn.outputs[i].status;
-        //             let spendTxid = graphTxn.outputs[i].spendTxid;
-        //             let skip = [ TokenUtxoStatus.UNSPENT, 
-        //                             TokenUtxoStatus.EXCESS_INPUT_BURNED, 
-        //                             TokenUtxoStatus.MISSING_BCH_VOUT,
-        //                             BatonUtxoStatus.BATON_UNSPENT,
-        //                             BatonUtxoStatus.BATON_MISSING_BCH_VOUT ];
-        //             if (!skip.includes(status)) {
-        //                 if (spendTxid) {
-        //                     try {
-        //                         await RpcClient.getRawTransaction(txid);
-        //                     } catch(err) {
-        //                         console.log(`[ERROR] Could not get transaction ${txid} in updateTokenGraphFrom: ${err}`)
-        //                         console.log(`[INFO] Found an output with non-existant spend txid.`);
-        //                         console.log(`[INFO] Will delete ${spendTxid} and all txns downstream.`);
-        //                         this.deleteAllChildren(spendTxid, true);
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //         graphTxn.blockHash = block ? block.hash : null;
-        //         //isParentInfo = {};
-        //     }
-        // }
-
-        if (this._graphTxns.has(txid)) {  
+        if (this._graphTxns.has(txid)) {
+            let gt = this._graphTxns.get(txid)!;
+            if (!gt.blockHash && blockHash) {
+                gt.blockHash = blockHash;
+                gt.isDirty = true;
+            }
             return true;
         }
 
@@ -464,7 +417,7 @@ export class SlpTokenGraph {
         let txn: bitcore.Transaction = new bitcore.Transaction(await this._slpValidator.retrieveRawTransaction(txid));
 
         if (!isValid) {
-            console.log("[WARN] updateTokenGraphFrom: Not valid token transaction:", txid);        
+            console.log("[WARN] updateTokenGraphFrom: Not valid token transaction:", txid);
             return false;
         }
 
