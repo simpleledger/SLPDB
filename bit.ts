@@ -16,6 +16,7 @@ import { SlpGraphManager, SlpTransactionDetailsTnaDbo } from './slpgraphmanager'
 import { Notifications } from './notifications';
 import { SlpdbStatus } from './status';
 import { SlpTokenGraph } from './slptokengraph';
+import { TokenStats } from './interfaces';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const filterBuf = Buffer.from("6a04534c5000", "hex");
@@ -61,17 +62,17 @@ export class Bit {
     _zmqItemQueue: pQueue<pQueue.DefaultAddOptions>;
     network!: string;
     notifications!: Notifications;
-    _spentTxoCache = new CacheMap<string, { txid: string, block: number|null }>(100000);
+    _spentTxoCache = new CacheMap<string, { txid: string; block: number|null }>(100000);
 
-    _tokensInLastGraphUpdateInterval = new Set<string>();
-    _tokenStacks = new CacheMap<string, string[]>(-1);
+    _tokenIdsModified = new Set<string>();
+    //_tokenStacks = new CacheMap<string, string[]>(-1);
     _isSyncing = false;
     _exit = false;
 
     constructor(db: Db) {
         this.db = db;
         this._zmqItemQueue = new pQueue({ concurrency: 1, autoStart: true });
-        if(Config.zmq.outgoing.enable) {
+        if (Config.zmq.outgoing.enable) {
             this.outsock.bindSync('tcp://' + Config.zmq.outgoing.host + ':' + Config.zmq.outgoing.port);
         }
     }
@@ -92,7 +93,7 @@ export class Bit {
     slpTransactionFilter(txn: string|Buffer): boolean {
         if (typeof txn !== "string") {
             return (txn as Buffer).includes(filterBuf);
-        } else if(txn.includes('6a04534c5000')) {
+        } else if (txn.includes('6a04534c5000')) {
             return true;
         }
         return false;
@@ -108,7 +109,7 @@ export class Bit {
         while (!isSyncd) {
             let info = await RpcClient.getBlockchainInfo();
             let chain = info.chain;
-            if(chain === 'regtest') {
+            if (chain === 'regtest') {
                 break;
             }
             let syncdBlocks = info.blocks;
@@ -116,8 +117,7 @@ export class Bit {
             isSyncd = syncdBlocks === networkBlocks ? true : false;
             if (syncdBlocks !== lastReportedSyncBlocks) {
                 console.log("[INFO] Waiting for bitcoind to sync with network ( on block", syncdBlocks, "of", networkBlocks, ")");
-            }
-            else {
+            } else {
                 console.log("[WARN] bitcoind sync status did not change, check your bitcoind network connection.");
             }
             lastReportedSyncBlocks = syncdBlocks;
@@ -126,7 +126,7 @@ export class Bit {
     }
     
     async requestheight(): Promise<number> {
-        try{
+        try {
             return await RpcClient.getBlockCount();
         } catch(err) {
             console.log('Check your RPC connection. Could not get height from full node rpc call.')
@@ -135,7 +135,7 @@ export class Bit {
     }
 
     async getSlpMempoolTransaction(txid: string): Promise<bitcore.Transaction|null> {
-        if(this.slpMempool.has(txid)) {
+        if (this.slpMempool.has(txid)) {
             return new bitcore.Transaction(this.slpMempool.get(txid)!);
         }
         return null;
@@ -334,8 +334,12 @@ export class Bit {
                     t: blockTime
                 };
 
-                if(slp.detail && slp.detail.tokenIdHex) {
-                    result.set(txid, { txHex: serialized.toString("hex"), tnaTxn: t, tokenId: slp.detail.tokenIdHex });
+                if (slp.detail && slp.detail.tokenIdHex) {
+                    result.set(txid, { 
+                        txHex: serialized.toString("hex"), 
+                        tnaTxn: t, 
+                        tokenId: slp.detail.tokenIdHex }
+                    );
                 }
             }
 
@@ -364,9 +368,9 @@ export class Bit {
             try {
                 if (slpMsg.transactionType === SlpTransactionType.GENESIS) {
                     slpMsg.tokenIdHex = txid;
-                    slpTokenGraph = await this._slpGraphManager.getTokenGraph(slpMsg.tokenIdHex, slpMsg);
+                    slpTokenGraph = await this._slpGraphManager.getTokenGraph({tokenIdHex: slpMsg.tokenIdHex, slpMsgDetailsGenesis: slpMsg, blockCreated: blockIndex!});
                 } else {
-                    slpTokenGraph = await this._slpGraphManager.getTokenGraph(slpMsg.tokenIdHex);
+                    slpTokenGraph = await this._slpGraphManager.getTokenGraph({tokenIdHex: slpMsg.tokenIdHex});
                 }
                 if (!slpTokenGraph) {
                     throw Error("Invalid token graph.");
@@ -391,9 +395,6 @@ export class Bit {
                     }
                 }
                 valid = await slpTokenGraph.validateTxid(txid);
-                if (valid) {
-                    this._tokensInLastGraphUpdateInterval.add(slpMsg.tokenIdHex);
-                }
                 validation = slpTokenGraph._slpValidator.cachedValidations[txid];
                 invalidReason = validation.invalidReason;
                 let addresses: (string | null)[] = [];
@@ -508,17 +509,17 @@ export class Bit {
             SlpdbStatus.updateTimeIncomingBlockZmq();
             self._zmqItemQueue.add(async function() {
                 let hash = blockHash.toString('hex');
-                if(self.blockHashIgnoreSetList.has(hash)) {
+                if (self.blockHashIgnoreSetList.has(hash)) {
                     console.log('[ZMQ-SUB] Block message ignored:', hash);
                     return;
                 }
                 self.blockHashIgnoreSetList.push(hash); 
                 console.log('[ZMQ-SUB] New block found:', hash);
                 await sync(self, 'block', hash);
-                if(!self._slpGraphManager.zmqPubSocket) {
+                if (!self._slpGraphManager.zmqPubSocket) {
                     self._slpGraphManager.zmqPubSocket = self.outsock;
                 }
-                if(self._slpGraphManager.onBlockHash) {
+                if (self._slpGraphManager.onBlockHash) {
                     self._slpGraphManager.onBlockHash!(hash!);
                 }
             });
@@ -528,12 +529,12 @@ export class Bit {
             SlpdbStatus.updateTimeIncomingTxnZmq();
             self._zmqItemQueue.add(async function() {
                 let hash = Buffer.from(bitbox.Crypto.hash256(message).toJSON().data.reverse()).toString('hex');
-                if((await self.handleMempoolTransaction(hash, message)).added) {
+                if ((await self.handleMempoolTransaction(hash, message)).added) {
                     console.log('[ZMQ-SUB] New unconfirmed transaction added:', hash);
                     let syncResult = await sync(self, 'mempool', hash);
-                    if(!self._slpGraphManager.zmqPubSocket)
+                    if (!self._slpGraphManager.zmqPubSocket)
                         self._slpGraphManager.zmqPubSocket = self.outsock;
-                    if(syncResult && self._slpGraphManager.onTransactionHash) {
+                    if (syncResult && self._slpGraphManager.onTransactionHash) {
                         self._slpGraphManager.onTransactionHash!(syncResult);
                     }
                 } else {
@@ -552,24 +553,25 @@ export class Bit {
 
 
     async checkForMissingMempoolTxns(currentBchMempoolList?: string[], recursive=false, log=true) {
-        if(!currentBchMempoolList)
+        if (!currentBchMempoolList) {
             currentBchMempoolList = await RpcClient.getRawMemPool();
+        }
 
         // add missing SLP transactions and process
         for (let txid of currentBchMempoolList) {
-            if((await this.handleMempoolTransaction(txid)).added) {
+            if ((await this.handleMempoolTransaction(txid)).added) {
                 let syncResult = await Bit.sync(this, 'mempool', txid, this.slpMempool.get(txid));
                 this._slpGraphManager.onTransactionHash!(syncResult!);
             }
         }
 
-        if(recursive) {
+        if (recursive) {
             let residualMempoolList = (await RpcClient.getRawMemPool()).filter(id => !this.slpMempoolIgnoreSetList.has(id) && !Array.from(this.slpMempool.keys()).includes(id))
             if(residualMempoolList.length > 0)
                 await this.checkForMissingMempoolTxns(residualMempoolList, true, false)
         }
 
-        if(log) {
+        if (log) {
             console.log('[INFO] BCH mempool txn count:', (await RpcClient.getRawMemPool()).length);
             console.log("[INFO] SLP mempool txn count:", this.slpMempool.size);
         }
@@ -589,81 +591,88 @@ export class Bit {
         // remove extraneous SLP transactions no longer in the mempool
         let cacheCopyForRemovals = new Map(this.slpMempool);
         let txids = cacheCopyForRemovals.keys();
-        for(let i = 0; i < cacheCopyForRemovals.size; i++) {
+        for (let i = 0; i < cacheCopyForRemovals.size; i++) {
             let txid = txids.next().value;
-            if(!currentBchMempoolList.includes(txid)) {
+            if (!currentBchMempoolList.includes(txid)) {
                 await this.removeMempoolTransaction(txid);
             }
         }
     }
 
-    static async sync(self: Bit, type: string, hash?: string, txhex?: string): Promise<SyncCompletionInfo|null> {
+    static async sync(self: Bit, type: string, zmqHash?: string, txhex?: string): Promise<SyncCompletionInfo|null> {
         self._isSyncing = true;
         let result: SyncCompletionInfo;
         if (type === 'block') {
             result = { syncType: SyncType.Block, filteredContent: new Map<SyncFilterTypes, Map<txid, txhex>>() }
-            let lastCheckpoint = hash ? <ChainSyncCheckpoint>await Info.getBlockCheckpoint() : <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
+            let lastCheckpoint = zmqHash ? <ChainSyncCheckpoint>await Info.getBlockCheckpoint() : <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
             
             lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
 
             let currentHeight: number = await self.requestheight();
-            let startHeight = lastCheckpoint.height - Config.db.block_sync_graph_update_interval;
+
+            let startHeight = lastCheckpoint.height;
+            
             for (let index: number = startHeight; index <= currentHeight; index++) {
                 if (self._exit) {
                     self._isSyncing = false;
                     return null;
                 }
                 console.time('[PERF] RPC END ' + index);
-                let syncComplete = hash ? true : false;
-                let content = <CrawlResult>(await self.crawl(index, syncComplete));
+                let syncComplete = zmqHash ? true : false;
+                let crawledTxns = <CrawlResult>(await self.crawl(index, syncComplete));
                 console.timeEnd('[PERF] RPC END ' + index);
                 console.time('[PERF] DB Insert ' + index);
+
+                let blockHash: Buffer;
+                if (!zmqHash) {
+                    blockHash = (await RpcClient.getBlockHash(index, true)) as Buffer;
+                } else {
+                    blockHash = Buffer.from(zmqHash, 'hex');
+                }
         
-                if(content && content.size > 0) {
-                    let array = Array.from(content.values()).map(c => c.tnaTxn);
+                if (crawledTxns && crawledTxns.size > 0) {
+                    let array = Array.from(crawledTxns.values()).map(c => c.tnaTxn);
                     await self.db.confirmedReplace(array, index);
-                    if (hash) {
+                    if (zmqHash) {
                         for (let tna of array) {
                             await self.removeMempoolTransaction(tna.tx.h);
-                        };
+                        }
                     }
-                    if(!hash) {
-                        for (let v of content.values()) {
-                            if (!self._tokenStacks.has(v.tokenId)) {
-                                self._tokenStacks.set(v.tokenId, []);
-                            } 
-                            let stack = self._tokenStacks.get(v.tokenId)!;
-                            stack.push(v.tnaTxn.tx.h);
+
+                    for (let [txid, v] of crawledTxns) {
+                        if (v.tnaTxn.slp?.valid) {
+                            self._tokenIdsModified.add(v.tokenId);
+                            let graph = await self._slpGraphManager.getTokenGraph({ tokenIdHex: v.tokenId });
+                            if (graph) {
+                                await graph!.addGraphTransaction({ txid, processUpToBlock: index, blockHash});
+                            }
                         }
                     }
                 }
-                if (!hash && (index % Config.db.block_sync_graph_update_interval === 0 || index === currentHeight)) {
-                    if(self._tokenStacks.size > 0) {
-                        console.log(`[INFO] Updating ${self._tokenStacks.size} token graphs`);
-
-                        await self._slpGraphManager.updateTokenIds({ tokenStacks: self._tokenStacks, from: index-Config.db.block_sync_graph_update_interval, upTo: index });
-                        console.log("[INFO] Finished Updating token graphs");
+                
+                for (let tokenId of self._tokenIdsModified) {
+                    let graph = (await self._slpGraphManager.getTokenGraph({ tokenIdHex: tokenId }))!;
+                    if (index !== currentHeight) {
+                        // save graph items, save token w/o statistics
+                        await graph._db.graphItemsUpsert(graph);
+                        // (defer utxo and address computation to the end)
+                    } else {
+                          // save graph, utxos, recompute addressses, save token item w/ statistics
+                          await graph!.UpdateStatistics();
                     }
-                    self._tokenStacks.clear();
                 }
+                self._tokenIdsModified.clear();
+
                 if (index - 100 > 0) {
                     await Info.deleteBlockCheckpointHash(index - 100);
                 }
-                try {
-                    await Info.updateBlockCheckpoint(index, await RpcClient.getBlockHash(index));
-                } catch(_) {
-                    lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
-                    index = lastCheckpoint.height;
-                    continue;
-                }
+                await Info.updateBlockCheckpoint(index, blockHash.toString('hex'));
                 console.timeEnd('[PERF] DB Insert ' + index);
-
-                // re-check current height in case it was updated during crawl()
                 currentHeight = await self.requestheight();
             }
 
             // clear mempool and synchronize
-            if (lastCheckpoint.height < currentHeight && hash) {
+            if (lastCheckpoint.height < currentHeight && zmqHash) {
                 await self.removeExtraneousMempoolTxns();
                 //await self.checkForMissingMempoolTxns();
             }
@@ -677,12 +686,12 @@ export class Bit {
             }
         } else if (type === 'mempool') {
             result = { syncType: SyncType.Mempool, filteredContent: new Map<SyncFilterTypes, Map<txid, txhex>>() }
-            if (hash) {
-                let txn: bitcore.Transaction|null = await self.getSlpMempoolTransaction(hash);
-                if(!txn && !self.slpMempoolIgnoreSetList.has(hash)) {
-                    if(!txhex)
+            if (zmqHash) {
+                let txn: bitcore.Transaction|null = await self.getSlpMempoolTransaction(zmqHash);
+                if (!txn && !self.slpMempoolIgnoreSetList.has(zmqHash)) {
+                    if (!txhex)
                         throw Error("Must provide 'txhex' if txid is not in the SLP mempool")
-                    if(self.slpTransactionFilter(txhex)) {
+                    if (self.slpTransactionFilter(txhex)) {
                         txn = new bitcore.Transaction(txhex);
                     }
                 }
@@ -694,7 +703,7 @@ export class Bit {
 
                     try {
                         await self.db.unconfirmedInsert(content);
-                        console.log("[INFO] SLP mempool transaction added: ", hash);
+                        console.log("[INFO] SLP mempool transaction added: ", zmqHash);
                     } catch (e) {
                         if (e.code == 11000) {
                             console.log('[WARN] Mempool item already exists:', content);
@@ -706,13 +715,15 @@ export class Bit {
                     }
 
                     let pool = new Map<txid, txhex>();
-                    pool.set(hash, txn.toString());
+                    pool.set(zmqHash, txn.toString());
                     result.filteredContent.set(SyncFilterTypes.SLP, pool)
                 } else {
-                    console.log("[INFO] Skipping non-SLP transaction:", hash);
+                    console.log("[INFO] Skipping non-SLP transaction:", zmqHash);
                 }
                 self._isSyncing = false;
                 return result;
+            } else {
+                throw Error("Mempool transaction missing txid");
             }
         }
         self._isSyncing = false;
@@ -726,10 +737,10 @@ export class Bit {
         let actualHash: string|null = null;
         let maxRollback = 100;
         let rollbackCount = 0;
-        while(!actualHash) {
+        while (!actualHash) {
             try {
                 console.log(`[INFO] Checking for reorg for ${lastCheckpoint.height}`);
-                actualHash = await RpcClient.getBlockHash(lastCheckpoint.height);
+                actualHash = (await RpcClient.getBlockHash(lastCheckpoint.height)) as string;
                 console.log(`[INFO] Confirmed actual block hash: ${actualHash} at ${lastCheckpoint.height}`);
             } catch (err) {
                 if(lastCheckpoint.height > from) {

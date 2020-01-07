@@ -138,5 +138,6 @@ export enum TokenBatonStatus {
     "NEVER_CREATED" = "NEVER_CREATED",
     "ALIVE" = "ALIVE",
     "DEAD_BURNED" = "DEAD_BURNED",
-    "DEAD_ENDED" = "DEAD_ENDED"
+    "DEAD_ENDED" = "DEAD_ENDED",
+    "UNKNOWN" = "UNKNOWN"
 }

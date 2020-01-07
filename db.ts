@@ -58,17 +58,17 @@ export class Db {
 
     async tokenDelete(tokenIdHex: string) {
         await this.checkClientStatus();
-        return await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
+        return await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex });
     }
 
     async tokenFetch(tokenIdHex: string): Promise<TokenDBObject|null> {
         await this.checkClientStatus();
-        return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenIdHex })
+        return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenIdHex });
     }
 
     async tokenFetchAll(): Promise<TokenDBObject[]|null> {
         await this.checkClientStatus();
-        return await this.db.collection('tokens').find({}).toArray();
+        return await this.db.collection('tokens').find({ "tokenStats.block_created": { "$ne": null }}).toArray();
     }
 
     async tokenReset() {
@@ -109,7 +109,7 @@ export class Db {
         if (pruneCutoffHeight) {
             return await this.db.collection('graphs').find({
                 "tokenDetails.tokenIdHex": tokenIdHex, 
-                "$or": [ { "graphTxn.pruneHeight": { "$gte": pruneCutoffHeight-1 } }, { "graphTxn.pruneHeight": null }, { "graphTxn.txid": tokenIdHex }]
+                "$or": [ { "graphTxn.pruneHeight": { "$gte": pruneCutoffHeight } }, { "graphTxn.pruneHeight": null }, { "graphTxn.txid": tokenIdHex }]
             }).toArray();
         } else {
             return await this.db.collection('graphs').find({ 
@@ -277,40 +277,38 @@ export class Db {
         })
     }
 
-    async confirmedReplace(items: TNATxn[], block_index?: number) {
+    async confirmedReplace(items: TNATxn[], blockIndex: number) {
         await this.checkClientStatus();
 
-        if(items.filter(i => !i.blk).length > 0) {
-            //console.log(items.filter(i => !i.slp).map(i => i.tx.h));
+        if (items.filter(i => !i.blk).length > 0) {
             throw Error("Attempted to add items without BLK property.");
         }
 
-        if(block_index) {
-            console.log('[INFO] Deleting confirmed transactions in block (for replacement):', block_index)
+        if (blockIndex) {
+            console.log('[INFO] Deleting confirmed transactions in block (for replacement):', blockIndex);
             try {
-                await this.db.collection('confirmed').deleteMany({ 'blk.i': block_index })
+                await this.db.collection('confirmed').deleteMany({ 'blk.i': blockIndex });
             } catch(err) {
-                console.log('confirmedReplace ERR ', err)
+                console.log('confirmedReplace ERR ', err);
                 throw err;
             }
-            console.log('[INFO] Updating block', block_index, 'with', items.length, 'items')
+            console.log('[INFO] Updating block', blockIndex, 'with', items.length, 'items');
         } else {
             for(let i=0; i < items.length; i++) {
-                await this.db.collection('confirmed').deleteMany({ "tx.h": items[i].tx.h })
+                await this.db.collection('confirmed').deleteMany({ "tx.h": items[i].tx.h });
             }
         }
 
-
         let index = 0
         while (true) {
-            let chunk = items.slice(index, index+1000)
+            let chunk = items.slice(index, index+1000);
             if (chunk.length > 0) {
                 try {
-                    await this.db.collection('confirmed').insertMany(chunk, { ordered: false })
+                    await this.db.collection('confirmed').insertMany(chunk, { ordered: false });
                 } catch(err) {
                     // duplicates are ok because they will be ignored
                     if (err.code !== 11000) {
-                        console.log('[ERROR] confirmedReplace ERR ', err, items)
+                        console.log('[ERROR] confirmedReplace ERR ', err, items);
                         throw err;
                     }
                 }

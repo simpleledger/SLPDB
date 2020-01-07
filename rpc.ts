@@ -63,13 +63,21 @@ export class RpcClient {
         return await rpc_retry.getBlockchainInfo();
     }
 
-    static async getBlockHash(block_index: number): Promise<string> {
+    static async getBlockHash(block_index: number, asBuffer=false): Promise<string|Buffer> {
         if(RpcClient.useGrpc) {
             console.log("[INFO] gRPC: getBlockInfo (for getBlockHash)");
-            return Buffer.from((await grpc.getBlockInfo({ index: block_index })).getInfo()!.getHash_asU8().reverse()).toString('hex');
+            let hash = Buffer.from((await grpc.getBlockInfo({ index: block_index })).getInfo()!.getHash_asU8().reverse());
+            if(asBuffer) {
+                return hash;
+            }
+            return hash.toString('hex');
         }
         console.log("[INFO] JSON RPC: getBlockHash", block_index);
-        return await rpc.getBlockHash(block_index);
+        let hash = await rpc.getBlockHash(block_index);
+        if (asBuffer) {
+            return Buffer.from(hash, 'hex');
+        }
+        return hash;
     }
 
     static async getRawBlock(hash: string): Promise<string> {

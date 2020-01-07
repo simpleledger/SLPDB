@@ -161,18 +161,19 @@ export class GraphMap extends Map<string, GraphTxn> {
     }
 
     public static mapTokenStatstoDbo(graph: SlpTokenGraph): TokenStatsDbo {
+        let stats = graph.GetTokenStats();
         return {
-            block_created: graph._tokenStats.block_created,
-            block_last_active_send: graph._tokenStats.block_last_active_send,
-            block_last_active_mint: graph._tokenStats.block_last_active_mint,
-            qty_valid_txns_since_genesis: graph._tokenStats.qty_valid_txns_since_genesis,
-            qty_valid_token_utxos: graph._tokenStats.qty_valid_token_utxos,
-            qty_valid_token_addresses: graph._tokenStats.qty_valid_token_addresses,
-            qty_token_minted: Decimal128.fromString(graph._tokenStats.qty_token_minted.dividedBy(10**graph._tokenDetails.decimals).toFixed()),
-            qty_token_burned: Decimal128.fromString(graph._tokenStats.qty_token_burned.dividedBy(10**graph._tokenDetails.decimals).toFixed()),
-            qty_token_circulating_supply: Decimal128.fromString(graph._tokenStats.qty_token_circulating_supply.dividedBy(10**graph._tokenDetails.decimals).toFixed()),
-            qty_satoshis_locked_up: graph._tokenStats.qty_satoshis_locked_up,
-            minting_baton_status: graph._tokenStats.minting_baton_status
+            block_created: stats.block_created,
+            block_last_active_send: stats.block_last_active_send,
+            block_last_active_mint: stats.block_last_active_mint,
+            qty_valid_txns_since_genesis: stats.qty_valid_txns_since_genesis,
+            qty_valid_token_utxos: stats.qty_valid_token_utxos,
+            qty_valid_token_addresses: stats.qty_valid_token_addresses,
+            qty_token_minted: Decimal128.fromString(stats.qty_token_minted.dividedBy(10**graph._tokenDetails.decimals).toFixed()),
+            qty_token_burned: Decimal128.fromString(stats.qty_token_burned.dividedBy(10**graph._tokenDetails.decimals).toFixed()),
+            qty_token_circulating_supply: Decimal128.fromString(stats.qty_token_circulating_supply.dividedBy(10**graph._tokenDetails.decimals).toFixed()),
+            qty_satoshis_locked_up: stats.qty_satoshis_locked_up,
+            minting_baton_status: stats.minting_baton_status
         }
     }
 }

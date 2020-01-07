@@ -168,7 +168,7 @@ const util = {
         let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
         //await tokenManager.updateAllTokenGraphs({ reprocessFrom: 0, reprocessTo: block_height });
         //await tokenManager._startupQueue.onIdle();
-        let blockhash = await RpcClient.getBlockHash(block_height+1);
+        let blockhash = (await RpcClient.getBlockHash(block_height+1)) as string;
         await tokenManager.onBlockHash(blockhash);
         await Info.updateBlockCheckpoint(block_height, null);
         console.log("[INFO] Reset block done.");
