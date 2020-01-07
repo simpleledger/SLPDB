@@ -151,7 +151,7 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 
 ### 4.7. <a name='Filtering'></a>Filtering SLPDB to specific Token IDs
 
-Modify the `example-filters.yml` file to suite your needs and then rename it as `filters.yml` to activate the filtering.  Currently, `include-single` is the only filter type available, reference the example file for useage requirements.
+Modify the `example-filters.yml` file to suit your needs and then rename it as `filters.yml` to activate the filtering.  Currently, `include-single` is the only filter type available, reference the example file for useage requirements.
 
 ### 4.8. <a name='Pruning'></a>Pruning
 
