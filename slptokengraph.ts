@@ -555,9 +555,11 @@ export class SlpTokenGraph {
                         if (!res) {
                             // NOTE: Since situation #2 (with the NFT1 parent) may not yet have this specific graph item commited to db, so let's 
                             //       parse the txn details and check token type !== NFT1_PARENT before we throw.
-                            let slpMessage = slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
+                            let prevTxHex = await RpcClient.getRawTransaction(previd);
+                            let prevTx = new bitcore.Transaction(prevTxHex);
+                            let prevTxSlpMessage = slp.parseSlpOutputScript(prevTx.outputs[0]._scriptBuffer);
                             if (this._tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child &&
-                                slpMessage.versionType === SlpVersionType.TokenVersionType1_NFT_Parent) {
+                                prevTxSlpMessage.versionType === SlpVersionType.TokenVersionType1_NFT_Parent) {
                                 continue;
                             }
                             throw Error(`Graph txid ${previd} was not found, this should never happen.`);
