@@ -155,7 +155,7 @@ Modify the `example-filters.yml` file to suit your needs and then rename it as `
 
 ### 4.8. <a name='Pruning'></a>Pruning
 
-Pruning removes totally spent and aged transactions from the global transaction cache and the in memory token graph.   is enabled by default, but can be disabled using setting `pruning=0` in the `.env` file.  Disabling pruning would only be useful in some development purposes when pruning logic is updated and needs to be reset.
+Pruning removes totally spent and aged transactions from the global transaction cache, the token graph, and the validator cache.  Pruning occurs after a transaction has been totally spent and is aged more than 10 blocks.  At this time there is no custom configuration available for pruning.
 
 ### 4.9. <a name='LazyLoading'></a>Lazy Loading
 

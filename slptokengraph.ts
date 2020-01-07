@@ -54,7 +54,7 @@ export class SlpTokenGraph {
     _mintBatonUtxo = "";
     _nftParentId?: string;
     _graphTxns: GraphMap;
-    _isGraphPruned = false;
+    _isGraphTotallyPruned = false;
     _addresses = new Map<cashAddr, AddressBalance>();
     _slpValidator = new LocalValidator(bitbox, async (txids) => {
         if (this._manager._bit.doubleSpendCache.has(txids[0])) {
@@ -1171,8 +1171,8 @@ export class SlpTokenGraph {
             tg._nftParentId = token.nftParentId;
         }
 
-        if(token.isGraphPruned && Config.db.pruning) {
-            tg._isGraphPruned = token.isGraphPruned;
+        if (token.isGraphPruned) {
+            tg._isGraphTotallyPruned = token.isGraphPruned;
         }
 
         tg._network = network;

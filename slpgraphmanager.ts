@@ -331,7 +331,7 @@ export class SlpGraphManager {
 
     async initAllTokenGraphs() {
         let tokens = await this.db.tokenFetchAll();
-        let pruningCutoff = Config.db.pruning ? await (await Info.getBlockCheckpoint()).height - 10 : undefined;
+        let pruningCutoff = await (await Info.getBlockCheckpoint()).height - 10;
         if (tokens) {
             let count = 0;
             for (let token of tokens) {

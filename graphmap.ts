@@ -64,20 +64,18 @@ export class GraphMap extends Map<string, GraphTxn> {
         tg._graphTxns.forEach((g, txid) => {
             let pruneHeight = null;
 
-            if (Config.db.pruning) {
-                // Here we determine if a graph object should be marked as aged and spent,
-                // this will prevent future loading of the object.  
-                // We also unload the object from memory if pruning is true.
-                const BLOCK_AGE_CUTOFF = 10;
-                let isAgedAndSpent =
-                    g.blockHash &&
-                    recentBlocks.length > BLOCK_AGE_CUTOFF-1 &&
-                    !recentBlocks.map(i => i.hash).includes(g.blockHash.toString("hex")) &&
-                    !(g.outputs.filter(i => [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(i.status)).length > 0);
+            // Here we determine if a graph object should be marked as aged and spent,
+            // this will prevent future loading of the object.  
+            // We also unload the object from memory if pruning is true.
+            const BLOCK_AGE_CUTOFF = 10;
+            let isAgedAndSpent =
+                g.blockHash &&
+                recentBlocks.length > BLOCK_AGE_CUTOFF-1 &&
+                !recentBlocks.map(i => i.hash).includes(g.blockHash.toString("hex")) &&
+                !(g.outputs.filter(i => [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(i.status)).length > 0);
 
-                if (isAgedAndSpent) {
-                    pruneHeight = recentBlocks[BLOCK_AGE_CUTOFF-1].height;
-                }
+            if (isAgedAndSpent) {
+                pruneHeight = recentBlocks[BLOCK_AGE_CUTOFF-1].height;
             }
 
             if (g.isDirty) {
@@ -105,21 +103,19 @@ export class GraphMap extends Map<string, GraphTxn> {
             }
         });
 
-
-        // canBePruned means it can be pruned at somepoint, regardless of whether output age (i.e., 10 blocks req for isAgedAndSpent)
-        let canBePruned = Array.from(tg._graphTxns.values())
-                            .flatMap(i => i.outputs)
-                            .filter(i => 
-                                [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(i.status)
-                            ).length < tg._graphTxns.size;
         
         // Do the pruning here
         itemsToUpdate.forEach(dbo => { if (dbo.graphTxn.pruneHeight) tg._graphTxns.prune(dbo.graphTxn.txid, dbo.graphTxn.pruneHeight)});
-        if (tg._graphTxns.pruned.size > 0) {
-            tg._isGraphPruned = true;
-        } else {
-            tg._isGraphPruned = !canBePruned;
-        }
+
+        // canBePruned means it can still be pruned later (caused by totally spent transactions which are unaged)
+        let canBePruned = Array.from(tg._graphTxns.values())
+                                .flatMap(i => i.outputs)
+                                .filter(i => 
+                                    [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(i.status)
+                                ).length < tg._graphTxns.size;
+        
+        tg._isGraphTotallyPruned = !canBePruned;
+
         tg._graphTxns.flushPrunedItems();
 
         let tokenDbo = GraphMap.tokenDetailstoDbo(tg);
@@ -129,13 +125,9 @@ export class GraphMap extends Map<string, GraphTxn> {
     public static tokenDetailstoDbo(graph: SlpTokenGraph): TokenDBObject {
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(graph._tokenDetails, graph._tokenDetails.decimals);
 
-        if (!Config.db.pruning) {
-            graph._isGraphPruned = false;
-        }
-
         let result: TokenDBObject = {
             schema_version: Config.db.token_schema_version,
-            isGraphPruned: graph._isGraphPruned,
+            isGraphPruned: graph._isGraphTotallyPruned,
             lastUpdatedBlock: graph._lastUpdatedBlock,
             tokenDetails: tokenDetails,
             mintBatonUtxo: graph._mintBatonUtxo,

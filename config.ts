@@ -2,7 +2,6 @@ export interface DbConfig {
 	name: string;
 	name_testnet: string;
 	url: string;
-	pruning: boolean;
 	lazy_loading: number;
 	index: { [key: string]: { [key: string]: string[] } };
 	token_schema_version: number;
@@ -34,7 +33,6 @@ export class Config {
 		url: process.env.db_url ? process.env.db_url : 'mongodb://localhost:27017',
 		confirmed_schema_version: 2,
 		token_schema_version: 74,
-		pruning: process.env.pruning ? ['1', 'true'].includes(process.env.pruning) : true,
 		lazy_loading: process.env.lazy_loading ? Number.parseInt(process.env.lazy_loading) : 0,
 		index: {
 			tokens: {
