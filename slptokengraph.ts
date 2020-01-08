@@ -95,40 +95,40 @@ export class SlpTokenGraph {
         return isValid;
     }
 
-    async initFromScratch({ processUpToBlock }: { tokenDetails: SlpTransactionDetails, processUpToBlock?: number; }) {
-        this._loadInitiated = true;
+    // async initFromScratch({ processUpToBlock }: { tokenDetails: SlpTransactionDetails, processUpToBlock?: number; }) {
+    //     this._loadInitiated = true;
 
-        this._lastUpdatedBlock = 0;
+    //     this._lastUpdatedBlock = 0;
 
-        this._startupTxoSendCache = await Query.getTxoInputSlpSendCache(this._tokenIdHex);
-        console.log(`[INFO] (initFromScratch) Updating graph from ${this._tokenDetails.tokenIdHex}`)
-        let valid = await this.addGraphTransaction({ txid: this._tokenDetails.tokenIdHex, processUpToBlock: processUpToBlock });
-        if (valid) {
-            if (this._tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
-                await this.setNftParentId();
-            } else {
-                let mints = await Query.getMintTransactions(this._tokenDetails.tokenIdHex);
-                if (mints && mints.length > 0) {
-                    for (let m of mints) {
-                        console.log(`[INFO] (initFromScratch minting branch) Updating graph from ${m.txid!}`);
-                        await this.addGraphTransaction({ txid: m.txid!, processUpToBlock: processUpToBlock });
-                    }
-                }
-            }
+    //     this._startupTxoSendCache = await Query.getTxoInputSlpSendCache(this._tokenIdHex);
+    //     console.log(`[INFO] (initFromScratch) Updating graph from ${this._tokenDetails.tokenIdHex}`)
+    //     let valid = await this.addGraphTransaction({ txid: this._tokenDetails.tokenIdHex, processUpToBlock: processUpToBlock });
+    //     if (valid) {
+    //         if (this._tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
+    //             await this.setNftParentId();
+    //         } else {
+    //             let mints = await Query.getMintTransactions(this._tokenDetails.tokenIdHex);
+    //             if (mints && mints.length > 0) {
+    //                 for (let m of mints) {
+    //                     console.log(`[INFO] (initFromScratch minting branch) Updating graph from ${m.txid!}`);
+    //                     await this.addGraphTransaction({ txid: m.txid!, processUpToBlock: processUpToBlock });
+    //                 }
+    //             }
+    //         }
 
-            // set genesis block hash
-            let genesisBlockHash = await RpcClient.getTransactionBlockHash(this._tokenDetails.tokenIdHex);
-            if (genesisBlockHash) {
-                this._graphTxns.get(this._tokenDetails.tokenIdHex)!.blockHash = Buffer.from(genesisBlockHash, 'hex');
-            }
+    //         // set genesis block hash
+    //         let genesisBlockHash = await RpcClient.getTransactionBlockHash(this._tokenDetails.tokenIdHex);
+    //         if (genesisBlockHash) {
+    //             this._graphTxns.get(this._tokenDetails.tokenIdHex)!.blockHash = Buffer.from(genesisBlockHash, 'hex');
+    //         }
 
-            this.UpdateStatistics();
-        }
-        this._startupTxoSendCache.clear();
-        this._startupTxoSendCache = undefined;
-        this._slpValidator.cachedRawTransactions = {};
-        return valid;
-    }
+    //         this.UpdateStatistics();
+    //     }
+    //     this._startupTxoSendCache.clear();
+    //     this._startupTxoSendCache = undefined;
+    //     this._slpValidator.cachedRawTransactions = {};
+    //     return valid;
+    // }
 
     async stop() {
         console.log(`[INFO] Stopping token graph ${this._tokenIdHex}, with ${this._graphTxns.size} loaded.`);
@@ -611,48 +611,48 @@ export class SlpTokenGraph {
         return true;
     }
 
-    private deleteAllChildren(txid: string, deleteSelf=false) {
-        let toDelete = new Set<string>();
-        let self = this;
-        let getChildTxids = function(txid: string) {
-            let n = self._graphTxns.get(txid)!;
-            if(n) {
-                n.outputs.forEach((o, i) => { 
-                    if(o.spendTxid && !toDelete.has(o.spendTxid)) {
-                        toDelete.add(o.spendTxid);
-                        getChildTxids(o.spendTxid);
-                    }
-                });
-                n.outputs = [];
-                //n.isComplete = false;
-            }
-        }
-        getChildTxids(txid);
-        if(deleteSelf) {
-            toDelete.add(txid);
-        }
-        toDelete.forEach(txid => {
-            // must find any graphTxn with an output spendTxid equal to txid
-            this._graphTxns.get(txid)!.inputs.forEach((v, i) => {
-                if(this._graphTxns.has(v.txid)) {
-                    let g = this._graphTxns.get(v.txid)!;
-                    let output = g.outputs.find(o => o.vout === v.vout);
-                    output!.spendTxid = null;
-                    output!.status = TokenUtxoStatus.UNSPENT;
-                    this._tokenUtxos.add(`${txid}:${v.vout}`);
-                }
-            });
-            this._graphTxns.delete(txid);
-            delete this._slpValidator.cachedRawTransactions[txid];
-            delete this._slpValidator.cachedValidations[txid];
-        });
-        this._tokenUtxos.forEach(txo => {
-            let txid = txo.split(':')[0];
-            if(toDelete.has(txid)) {
-                this._tokenUtxos.delete(txo);
-            }
-        });
-    }
+    // private deleteAllChildren(txid: string, deleteSelf=false) {
+    //     let toDelete = new Set<string>();
+    //     let self = this;
+    //     let getChildTxids = function(txid: string) {
+    //         let n = self._graphTxns.get(txid)!;
+    //         if(n) {
+    //             n.outputs.forEach((o, i) => { 
+    //                 if(o.spendTxid && !toDelete.has(o.spendTxid)) {
+    //                     toDelete.add(o.spendTxid);
+    //                     getChildTxids(o.spendTxid);
+    //                 }
+    //             });
+    //             n.outputs = [];
+    //             //n.isComplete = false;
+    //         }
+    //     }
+    //     getChildTxids(txid);
+    //     if(deleteSelf) {
+    //         toDelete.add(txid);
+    //     }
+    //     toDelete.forEach(txid => {
+    //         // must find any graphTxn with an output spendTxid equal to txid
+    //         this._graphTxns.get(txid)!.inputs.forEach((v, i) => {
+    //             if(this._graphTxns.has(v.)) {
+    //                 let g = this._graphTxns.get(v.txid)!;
+    //                 let output = g.outputs.find(o => o.vout === v.vout);
+    //                 output!.spendTxid = null;
+    //                 output!.status = TokenUtxoStatus.UNSPENT;
+    //                 this._tokenUtxos.add(`${txid}:${v.vout}`);
+    //             }
+    //         });
+    //         this._graphTxns.delete(txid);
+    //         delete this._slpValidator.cachedRawTransactions[txid];
+    //         delete this._slpValidator.cachedValidations[txid];
+    //     });
+    //     this._tokenUtxos.forEach(txo => {
+    //         let txid = txo.split(':')[0];
+    //         if(toDelete.has(txid)) {
+    //             this._tokenUtxos.delete(txo);
+    //         }
+    //     });
+    // }
 
     private getAddressStringFromTxnOutput(txn: bitcore.Transaction, outputIndex: number) {
         let address;
@@ -670,69 +670,69 @@ export class SlpTokenGraph {
         return address;
     }
 
-    async updateAddressesFromScratch(): Promise<void> {
-        this._addresses.clear();
+    // async updateAddressesFromScratch(): Promise<void> {
+    //     this._addresses.clear();
 
-        for (let utxo of this._tokenUtxos) {
-            let txid = utxo.split(':')[0];
-            let vout = parseInt(utxo.split(':')[1]);
+    //     for (let utxo of this._tokenUtxos) {
+    //         let txid = utxo.split(':')[0];
+    //         let vout = parseInt(utxo.split(':')[1]);
 
-            let txout: GraphTxnOutput|undefined;
-            try {
-                if (this._graphTxns.has(txid)) {
-                    txout = this._graphTxns.get(txid)!.outputs.find(o => vout === o.vout);
-                } else {
-                    throw Error("This should never happen");
-                }
-            } catch(_) {
-                console.log(`[INFO] (updateAddressesFromScratch) Update graph from ${txid}`);
-                //await this.updateTokenGraphAt({ txid });
-                if (!this._tokenUtxos.has(utxo)) {
-                    return
-                }
-                if (!this._graphTxns.has(txid)) {
-                    this._tokenUtxos.delete(utxo);
-                    return
-                }
-                txout = this._graphTxns.get(txid)!.outputs.find(o => vout === o.vout);
-            }
+    //         let txout: GraphTxnOutput|undefined;
+    //         try {
+    //             if (this._graphTxns.has(txid)) {
+    //                 txout = this._graphTxns.get(txid)!.outputs.find(o => vout === o.vout);
+    //             } else {
+    //                 throw Error("This should never happen");
+    //             }
+    //         } catch(_) {
+    //             console.log(`[INFO] (updateAddressesFromScratch) Update graph from ${txid}`);
+    //             //await this.updateTokenGraphAt({ txid });
+    //             if (!this._tokenUtxos.has(utxo)) {
+    //                 return
+    //             }
+    //             if (!this._graphTxns.has(txid)) {
+    //                 this._tokenUtxos.delete(utxo);
+    //                 return
+    //             }
+    //             txout = this._graphTxns.get(txid)!.outputs.find(o => vout === o.vout);
+    //         }
             
-            if (txout) {
-                let graph = this._graphTxns.get(txid)!
-                let txnDetails = graph.details;
-                let addr = txout.address;
-                let bal;
-                if (graph.outputs[vout-1].status !== TokenUtxoStatus.UNSPENT && graph.outputs[vout-1].status !== BatonUtxoStatus.BATON_UNSPENT) {
-                    console.log(graph.outputs);
-                    console.log(`[INFO] TXO is not unspent (deleting from token UTXO set): ${txid}:${vout}`);
-                    this._tokenUtxos.delete(utxo);
-                    return;
-                }
-                if (this._addresses.has(addr)) {
-                    bal = this._addresses.get(addr)!
-                    bal.satoshis_balance+=txout.bchSatoshis
-                    if (txnDetails.transactionType === SlpTransactionType.SEND) {
-                        bal.token_balance = bal.token_balance.plus(txnDetails.sendOutputs![vout])
-                    }
-                    else if (vout === 1) {
-                        bal.token_balance = bal.token_balance.plus(txnDetails.genesisOrMintQuantity!)
-                    }
-                }
-                else {
-                    if (txnDetails.transactionType === SlpTransactionType.SEND) {
-                        bal = { satoshis_balance: txout.bchSatoshis, token_balance: txnDetails.sendOutputs![vout] }
-                    }
-                    else if (vout === 1) {
-                        bal = { satoshis_balance: txout.bchSatoshis, token_balance: txnDetails.genesisOrMintQuantity! }
-                    }
-                }
+    //         if (txout) {
+    //             let graph = this._graphTxns.get(txid)!
+    //             let txnDetails = graph.details;
+    //             let addr = txout.address;
+    //             let bal;
+    //             if (graph.outputs[vout-1].status !== TokenUtxoStatus.UNSPENT && graph.outputs[vout-1].status !== BatonUtxoStatus.BATON_UNSPENT) {
+    //                 console.log(graph.outputs);
+    //                 console.log(`[INFO] TXO is not unspent (deleting from token UTXO set): ${txid}:${vout}`);
+    //                 this._tokenUtxos.delete(utxo);
+    //                 return;
+    //             }
+    //             if (this._addresses.has(addr)) {
+    //                 bal = this._addresses.get(addr)!
+    //                 bal.satoshis_balance+=txout.bchSatoshis
+    //                 if (txnDetails.transactionType === SlpTransactionType.SEND) {
+    //                     bal.token_balance = bal.token_balance.plus(txnDetails.sendOutputs![vout])
+    //                 }
+    //                 else if (vout === 1) {
+    //                     bal.token_balance = bal.token_balance.plus(txnDetails.genesisOrMintQuantity!)
+    //                 }
+    //             }
+    //             else {
+    //                 if (txnDetails.transactionType === SlpTransactionType.SEND) {
+    //                     bal = { satoshis_balance: txout.bchSatoshis, token_balance: txnDetails.sendOutputs![vout] }
+    //                 }
+    //                 else if (vout === 1) {
+    //                     bal = { satoshis_balance: txout.bchSatoshis, token_balance: txnDetails.genesisOrMintQuantity! }
+    //                 }
+    //             }
 
-                if (bal && bal.token_balance.isGreaterThan(0)) {
-                    this._addresses.set(addr, <any>bal);
-                }
-            }
-        }
-    }
+    //             if (bal && bal.token_balance.isGreaterThan(0)) {
+    //                 this._addresses.set(addr, <any>bal);
+    //             }
+    //         }
+    //     }
+    // }
 
     async getTotalMintQuantity(): Promise<BigNumber> {
         let qty = this._tokenDetails.genesisOrMintQuantity;
@@ -779,127 +779,127 @@ export class SlpTokenGraph {
         return TokenBatonStatus.DEAD_BURNED;
     }
 
-    async searchForNonSlpBurnTransactions(): Promise<void> {
-        for (let txo of this._tokenUtxos) {
-            await this.updateTxoIfSpent(txo)
-        }
-        if(this._mintBatonUtxo !== "") {
-            await this.updateTxoIfSpent(this._mintBatonUtxo);
-        }
-    }
+    // async searchForNonSlpBurnTransactions(): Promise<void> {
+    //     for (let txo of this._tokenUtxos) {
+    //         await this.updateTxoIfSpent(txo)
+    //     }
+    //     if(this._mintBatonUtxo !== "") {
+    //         await this.updateTxoIfSpent(this._mintBatonUtxo);
+    //     }
+    // }
 
-    async updateTxoIfSpent(txo: string) {
-        let txid = txo.split(":")[0];
-        let vout = parseInt(txo.split(":")[1]);
-        let txout = null;
-        try {
-            txout = await RpcClient.getTxOut(txid, vout);
-        } catch(_) { }
-        if (!txout) {
-            // check for a double spent transaction
-            let txn;
-            try {
-                txn = await RpcClient.getRawTransaction(txid);
-            } catch(err) {
-                console.log(`[ERROR] Could not get transaction ${txid} in updateTxoIfSpent: ${err}`);
-            }
-            if (txn) {
-                console.log(`[INFO] (updateTxoIfSpent) Updating graph from ${txo}`);
-                await this.addGraphTransaction({ txid }); //isParent: true });
-            } else {
-                let gt = this._graphTxns.get(txid);
-                if (gt) {
-                    this._slpValidator.cachedValidations[txid].validity = false;
-                    for (let i = 0; i < gt.inputs.length; i++) {
-                        let igt = this._graphTxns.get(gt.inputs[i].txid)
-                        if (igt) {
-                            igt.outputs = [];
-                        }
-                        console.log(`[INFO] (updateTxoIfSpent) Updating graph from ${gt.inputs[i].txid}`);
-                        await this.addGraphTransaction({ txid: gt.inputs[i].txid }); // isParent: true });
-                    }
-                    console.log(`[INFO] updateTxoIfSpent(): Removing unknown transaction from token graph ${txo}`);
-                    let outlength = gt.outputs.length;
-                    this._graphTxns.delete(txid);
-                    for (let i = 0; i < outlength; i++) {
-                        let txo = txid + ":" + vout;
-                        let deleted = this._tokenUtxos.delete(txo);
-                        if (deleted) {
-                            console.log(`[INFO] updateTxoIfSpent(): Removing utxo for unknown transaction ${txo}`);
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // async updateTxoIfSpent(txo: string) {
+    //     let txid = txo.split(":")[0];
+    //     let vout = parseInt(txo.split(":")[1]);
+    //     let txout = null;
+    //     try {
+    //         txout = await RpcClient.getTxOut(txid, vout);
+    //     } catch(_) { }
+    //     if (!txout) {
+    //         // check for a double spent transaction
+    //         let txn;
+    //         try {
+    //             txn = await RpcClient.getRawTransaction(txid);
+    //         } catch(err) {
+    //             console.log(`[ERROR] Could not get transaction ${txid} in updateTxoIfSpent: ${err}`);
+    //         }
+    //         if (txn) {
+    //             console.log(`[INFO] (updateTxoIfSpent) Updating graph from ${txo}`);
+    //             await this.addGraphTransaction({ txid }); //isParent: true });
+    //         } else {
+    //             let gt = this._graphTxns.get(txid);
+    //             if (gt) {
+    //                 this._slpValidator.cachedValidations[txid].validity = false;
+    //                 for (let i = 0; i < gt.inputs.length; i++) {
+    //                     let igt = this._graphTxns.get(gt.inputs[i].txid)
+    //                     if (igt) {
+    //                         igt.outputs = [];
+    //                     }
+    //                     console.log(`[INFO] (updateTxoIfSpent) Updating graph from ${gt.inputs[i].txid}`);
+    //                     await this.addGraphTransaction({ txid: gt.inputs[i].txid }); // isParent: true });
+    //                 }
+    //                 console.log(`[INFO] updateTxoIfSpent(): Removing unknown transaction from token graph ${txo}`);
+    //                 let outlength = gt.outputs.length;
+    //                 this._graphTxns.delete(txid);
+    //                 for (let i = 0; i < outlength; i++) {
+    //                     let txo = txid + ":" + vout;
+    //                     let deleted = this._tokenUtxos.delete(txo);
+    //                     if (deleted) {
+    //                         console.log(`[INFO] updateTxoIfSpent(): Removing utxo for unknown transaction ${txo}`);
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
-    async _checkGraphBlockHashes() {
-        // update blockHash for each graph item.
-        if(this._startupTxoSendCache) {
-            let blockHashes = new Map<string, Buffer|null>();
-            this._startupTxoSendCache.toMap().forEach((i, k) => {
-                blockHashes.set(i.txid, i.blockHash);
-            });
-            blockHashes.forEach((v, k) => {
-                if(this._graphTxns.has(k)) {
-                    this._graphTxns.get(k)!.blockHash = v;
-                }
-            });
-        }
-        let count = 0;
-        for(const [txid, txn] of this._graphTxns) {
-            if(this._graphTxns.has(txid) &&
-                !this._graphTxns.get(txid)!.blockHash && 
-                !this._manager._bit.slpMempool.has(txid))
-            {
-                let hash: string;
-                console.log("[INFO] Querying block hash for graph transaction", txid);
-                try {
-                    if (this._manager._bit.doubleSpendCache.has(txid)) {
-                        this._graphTxns.delete(txid);
-                        continue;
-                    }
-                    hash = await RpcClient.getTransactionBlockHash(txid);
-                    console.log(`[INFO] Block hash: ${hash} for ${txid}`);
-                    // add delay to prevent flooding rpc
-                    if(count++ > 1000) {
-                        await sleep(1000);
-                        count = 0;
-                    }
-                } catch(_) {
-                    console.log("[INFO] Removing unknown transaction", txid);
-                    this._graphTxns.delete(txid);
-                    continue;
-                }
-                if(hash) {
-                    console.log("[INFO] Updating block hash for", txid);
-                    this._graphTxns.get(txid)!.blockHash = Buffer.from(hash, 'hex');
-                } else if (this._manager._bit.slpMempool.has(txid)) {
-                    continue;
-                } else {
-                    console.log("[INFO] Making sure transaction is in BCH mempool.");
-                    let mempool = await RpcClient.getRawMemPool();
-                    if (mempool.includes(txid)) {
-                        continue;
-                    }
-                    throw Error(`Unknown error occured in setting blockhash for ${txid})`);
-                }
-            }
-        }
+    // async _checkGraphBlockHashes() {
+    //     // update blockHash for each graph item.
+    //     if(this._startupTxoSendCache) {
+    //         let blockHashes = new Map<string, Buffer|null>();
+    //         this._startupTxoSendCache.toMap().forEach((i, k) => {
+    //             blockHashes.set(i.txid, i.blockHash);
+    //         });
+    //         blockHashes.forEach((v, k) => {
+    //             if(this._graphTxns.has(k)) {
+    //                 this._graphTxns.get(k)!.blockHash = v;
+    //             }
+    //         });
+    //     }
+    //     let count = 0;
+    //     for(const [txid, txn] of this._graphTxns) {
+    //         if(this._graphTxns.has(txid) &&
+    //             !this._graphTxns.get(txid)!.blockHash && 
+    //             !this._manager._bit.slpMempool.has(txid))
+    //         {
+    //             let hash: string;
+    //             console.log("[INFO] Querying block hash for graph transaction", txid);
+    //             try {
+    //                 if (this._manager._bit.doubleSpendCache.has(txid)) {
+    //                     this._graphTxns.delete(txid);
+    //                     continue;
+    //                 }
+    //                 hash = await RpcClient.getTransactionBlockHash(txid);
+    //                 console.log(`[INFO] Block hash: ${hash} for ${txid}`);
+    //                 // add delay to prevent flooding rpc
+    //                 if(count++ > 1000) {
+    //                     await sleep(1000);
+    //                     count = 0;
+    //                 }
+    //             } catch(_) {
+    //                 console.log("[INFO] Removing unknown transaction", txid);
+    //                 this._graphTxns.delete(txid);
+    //                 continue;
+    //             }
+    //             if(hash) {
+    //                 console.log("[INFO] Updating block hash for", txid);
+    //                 this._graphTxns.get(txid)!.blockHash = Buffer.from(hash, 'hex');
+    //             } else if (this._manager._bit.slpMempool.has(txid)) {
+    //                 continue;
+    //             } else {
+    //                 console.log("[INFO] Making sure transaction is in BCH mempool.");
+    //                 let mempool = await RpcClient.getRawMemPool();
+    //                 if (mempool.includes(txid)) {
+    //                     continue;
+    //                 }
+    //                 throw Error(`Unknown error occured in setting blockhash for ${txid})`);
+    //             }
+    //         }
+    //     }
 
-        // TODO: remove temporary paranoia
-        for(const [txid, txn] of this._graphTxns) {
-            if(!this._graphTxns.get(txid)!.blockHash &&
-               !this._manager._bit.slpMempool.has(txid)) {
-                if(SlpdbStatus.state === SlpdbState.RUNNING) {
-                    throw Error(`No blockhash for ${txid}`);
-                }
-                else {
-                    console.log('[INFO] Allowing missing block hash during startup or deleted conditions.');
-                }
-            }
-        }
-    }
+    //     // TODO: remove temporary paranoia
+    //     for(const [txid, txn] of this._graphTxns) {
+    //         if(!this._graphTxns.get(txid)!.blockHash &&
+    //            !this._manager._bit.slpMempool.has(txid)) {
+    //             if(SlpdbStatus.state === SlpdbState.RUNNING) {
+    //                 throw Error(`No blockhash for ${txid}`);
+    //             }
+    //             else {
+    //                 console.log('[INFO] Allowing missing block hash during startup or deleted conditions.');
+    //             }
+    //         }
+    //     }
+    // }
 
     async UpdateStatistics(zmqTxid?: string): Promise<void> {
         if (zmqTxid) {

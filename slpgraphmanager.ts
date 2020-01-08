@@ -421,38 +421,38 @@ export class SlpGraphManager {
         console.log(`[INFO] Total number of unspent graph items for all tokens: ${unspentCount}`);
     }
 
-    public async createNewTokenGraph({ tokenId, processUpToBlock }: { tokenId: string; processUpToBlock?: number; }): Promise<SlpTokenGraph|null> {
-        //await this.deleteTokenFromDb(tokenId);
-        let txn;
-        try {
-            txn = <string>await RpcClient.getRawTransaction(tokenId, false);
-        } catch(_) {
-            console.log(`[WARN] No such parent token ID exists on the blockchain (token ID: ${tokenId}`);
-            return null;
-        }
-        let tokenDetails = this.parseTokenTransactionDetails(txn);
+    // public async createNewTokenGraph({ tokenId, processUpToBlock }: { tokenId: string; processUpToBlock?: number; }): Promise<SlpTokenGraph|null> {
+    //     //await this.deleteTokenFromDb(tokenId);
+    //     let txn;
+    //     try {
+    //         txn = <string>await RpcClient.getRawTransaction(tokenId, false);
+    //     } catch(_) {
+    //         console.log(`[WARN] No such parent token ID exists on the blockchain (token ID: ${tokenId}`);
+    //         return null;
+    //     }
+    //     let tokenDetails = this.parseTokenTransactionDetails(txn);
 
-        if (tokenDetails) {
-            console.log("########################################################################################################");
-            console.log("NEW GRAPH FOR", tokenId);
-            console.log("########################################################################################################");
+    //     if (tokenDetails) {
+    //         console.log("########################################################################################################");
+    //         console.log("NEW GRAPH FOR", tokenId);
+    //         console.log("########################################################################################################");
             
-            // add timestamp if token is already confirmed
-            let timestamp = await Query.getConfirmedTxnTimestamp(tokenId);
-            tokenDetails.timestamp = timestamp ? timestamp : undefined;
-            let graph = await this.getTokenGraph({ tokenIdHex: tokenId });
-            if (graph) {
-                await graph.initFromScratch({ tokenDetails, processUpToBlock });
-            } else {
-                this._tokens.delete(tokenId);
-                return null;
-            }
+    //         // add timestamp if token is already confirmed
+    //         let timestamp = await Query.getConfirmedTxnTimestamp(tokenId);
+    //         tokenDetails.timestamp = timestamp ? timestamp : undefined;
+    //         let graph = await this.getTokenGraph({ tokenIdHex: tokenId });
+    //         if (graph) {
+    //             await graph.initFromScratch({ tokenDetails, processUpToBlock });
+    //         } else {
+    //             this._tokens.delete(tokenId);
+    //             return null;
+    //         }
 
-            //await this.setAndSaveTokenGraph(graph);
-            return graph;
-        }
-        return null;
-    }
+    //         //await this.setAndSaveTokenGraph(graph);
+    //         return graph;
+    //     }
+    //     return null;
+    // }
 
     async publishZmqNotificationGraphs(txid: string) {
         if (this.zmqPubSocket && !this._zmqMempoolPubSetList.has(txid) && Config.zmq.outgoing.enable) {
