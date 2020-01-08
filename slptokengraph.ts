@@ -350,7 +350,7 @@ export class SlpTokenGraph {
         return { status: TokenUtxoStatus.UNSPENT, txid: null, invalidReason: null };
     }
 
-    async queueAddGraphTransaction({ txid, processUpToBlock, blockHash }: { txid: string, processUpToBlock?: number; blockHash?: Buffer }): Promise<void> {
+    async queueAddGraphTransaction({ txid, processUpToBlock }: { txid: string, processUpToBlock?: number; }): Promise<void> {
         let self = this;
 
         while (this._loadInitiated && !this.IsLoaded) {
@@ -362,7 +362,8 @@ export class SlpTokenGraph {
             this._loadInitiated = true;
             return this._graphUpdateQueue.add(async () => {
                 console.log(`[INFO] (queueTokenGraphUpdateFrom) Initiating graph for ${txid}`);
-                await self.addGraphTransaction({ txid, processUpToBlock, blockHash });
+                await self.addGraphTransaction({ txid, processUpToBlock });
+                await self._db.graphItemsUpsert(self);
 
                 // console.log("[INFO] UpdateStatistics: queueTokenGraphUpdateFrom");
                 // self.UpdateStatistics(txid);
@@ -370,7 +371,7 @@ export class SlpTokenGraph {
         } else {
             return this._graphUpdateQueue.add(async () => {
                 console.log(`[INFO] (queueTokenGraphUpdateFrom) Updating graph from ${txid}`);
-                await self.addGraphTransaction({ txid, processUpToBlock, blockHash });
+                await self.addGraphTransaction({ txid, processUpToBlock });
 
                 // // Update token's statistics
                 // if(self._graphUpdateQueue.size === 0 && self._graphUpdateQueue.pending === 1) {
@@ -528,12 +529,6 @@ export class SlpTokenGraph {
                     }
                 }
             }
-        }
-
-        // Wait for mempool and block sync to complete before proceeding to update anything on graph.
-        while(!this._manager.TnaSynced) {
-            console.log("[INFO] At updateTokenGraphFrom() - Waiting for TNA sync to complete before starting graph updates.");
-            await sleep(500);
         }
 
         // Create or update SLP graph outputs for each valid SLP output

@@ -90,25 +90,28 @@ export class SlpGraphManager {
     async _onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
         if (syncResult && syncResult.filteredContent.size > 0) {
             let txns = Array.from(syncResult.filteredContent.get(SyncFilterTypes.SLP)!);
-            for (let txPair of txns) {
-                console.log("[INFO] Processing possible SLP txn:", txPair[0]);
-                let tokenDetails = this.parseTokenTransactionDetails(txPair[1]);
+            for (let [txid, txnHex] of txns) {
+                console.log("[INFO] Processing possible SLP txn:", txid);
+                let tokenDetails = this.parseTokenTransactionDetails(txnHex);
                 let tokenId = tokenDetails ? tokenDetails.tokenIdHex : null;
 
                 // check token filters
                 if (tokenId && !this._filter.passesAllFilterRules(tokenId)) {
-                    console.log("[INFO] Transaction does not pass token filter:", txPair[0]);
+                    console.log("[INFO] Transaction does not pass token filter:", txid);
                     return;
                 }
 
                 // Based on Txn output OP_RETURN data, update graph for the tokenId 
-                if (tokenId) {
-                    if (!this._tokens.has(tokenId)) {
-                        console.log("[INFO] Creating new token graph for tokenId:", tokenId);
-                        await this.createNewTokenGraph({ tokenId });
+                if (tokenId) {                
+                    let graph: SlpTokenGraph|null;
+                    if (tokenDetails?.transactionType === SlpTransactionType.GENESIS) {
+                        graph = await this.getTokenGraph({ tokenIdHex: tokenId, slpMsgDetailsGenesis: tokenDetails });
                     } else {
-                        console.log(`[INFO] (_onTransactionHash) Queued graph update at ${txPair[0]} for ${tokenId}`);
-                        this._tokens.get(tokenId)!.queueAddGraphTransaction({ txid: txPair[0] } );
+                        graph = await this.getTokenGraph({ tokenIdHex: tokenId });
+                    }
+                    
+                    if (graph) {
+                        await graph!.addGraphTransaction({ txid });
                     }
                 } else {
                     console.log("[INFO] Skipping: TokenId is being filtered.");
@@ -137,8 +140,9 @@ export class SlpGraphManager {
         catch (err) {
             tokenDetails = null;
         }
-        if (tokenDetails && tokenDetails.transactionType === SlpTransactionType.GENESIS)
+        if (tokenDetails && tokenDetails.transactionType === SlpTransactionType.GENESIS) {
             tokenDetails.tokenIdHex = txn.id;
+        }
         
         return tokenDetails;
     }
@@ -176,12 +180,11 @@ export class SlpGraphManager {
                     continue;
                 }
                 let tokenId = tokenDetails ? tokenDetails.tokenIdHex : null;
-                if (tokenId && this._tokens.has(tokenId)) {
-                    let token = this._tokens.get(tokenId)!;
-                    console.log(`[INFO] (_onBlockHash) Queued graph update at ${block.txns[i]!.txid} for ${tokenId}`);
-                    token.queueAddGraphTransaction({ txid: block.txns[i]!.txid, blockHash: Buffer.from(hash, 'hex')});
-                } else if (tokenId && tokenDetails!.transactionType === SlpTransactionType.GENESIS) {
-                    await this.createNewTokenGraph({ tokenId });
+                if (tokenId) {
+                    let token = await this.getTokenGraph({ tokenIdHex: tokenId });
+                    if (token) {
+                        await token.addGraphTransaction({ txid: block.txns[i]!.txid });
+                    }
                 }
             }
 
@@ -191,7 +194,6 @@ export class SlpGraphManager {
                 this.zmqPubSocket.send([ 'block', JSON.stringify(block) ]);
                 SlpdbStatus.updateTimeOutgoingBlockZmq();
             }
-            await this.fixMissingTokenTimestamps();
 
         }
         // DO NOT AWAIT: Search for any burned transactions 
@@ -233,11 +235,11 @@ export class SlpGraphManager {
         return tokens;
     }
 
-    async searchForNonSlpBurnTransactions() {
-        for (let a of this._tokens) {
-            await a[1].searchForNonSlpBurnTransactions();
-        }
-    }
+    // async searchForNonSlpBurnTransactions() {
+    //     for (let a of this._tokens) {
+    //         await a[1].searchForNonSlpBurnTransactions();
+    //     }
+    // }
 
     async searchBlockForBurnedSlpTxos(block_hash: string) {
         console.log('[INFO] Starting to look for any burned tokens resulting from non-SLP transactions');
