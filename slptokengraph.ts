@@ -427,12 +427,13 @@ export class SlpTokenGraph {
             return false;
         }
 
-        let graphTxn: GraphTxn = { 
-            details: txnSlpDetails, 
-            outputs: [], 
-            inputs: [], 
-            blockHash: blockHash ? blockHash : null, 
-            isDirty: true 
+        let graphTxn: GraphTxn = {
+            details: txnSlpDetails,
+            outputs: [],
+            inputs: [],
+            blockHash: blockHash ? blockHash : null,
+            isDirty: true,
+            prevPruneHeight: null
         };
 
         console.log(`[INFO] Unprunned txn count: ${this._graphTxns.size}`);
@@ -445,11 +446,8 @@ export class SlpTokenGraph {
 
                 let valid;
                 if (!this._slpValidator.cachedValidations[previd]) {
-                    console.log(`Should be invalid SLP: ${previd} for token id: ${this._tokenIdHex}`);
-                    valid = await this._slpValidator.isValidSlpTxid(previd, this._tokenDetails.tokenIdHex);
-                    if (!valid) {
-                        continue;
-                    }
+                    console.log(`Assumed invalid SLP input: ${previd}:${i.outputIndex} for token id: ${this._tokenIdHex}`);
+                    continue;
                 }
 
                 valid = this._slpValidator.cachedValidations[previd].validity;
@@ -974,8 +972,8 @@ export class SlpTokenGraph {
 
         if(saveToDb) {
             await this._db.graphItemsUpsert(this);
-            await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
-            await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
+            //await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
+            //await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
         }
 
         console.log("########################################################################################################")
@@ -1129,20 +1127,16 @@ export class SlpTokenGraph {
 
     public static MapGraphTxnFromDbo(dbo: GraphTxnDbo, decimals: number, network: string): GraphTxn {
         dbo.graphTxn.outputs.map(o => {
-            if(o.address && o.address.includes("slptest")) {
-                let decoded = cashaddr.decode(o.address);
-                o.address = Utils.slpAddressFromHash160(decoded.hash, network);
-            }
             o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**decimals)
         });
         dbo.graphTxn.inputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**decimals))
-
         let gt: GraphTxn = {
             isDirty: false,
             details: SlpTokenGraph.MapDbTokenDetailsFromDbo(dbo.graphTxn.details, decimals),
             outputs: dbo.graphTxn.outputs as any as GraphTxnOutput[],
             inputs: dbo.graphTxn.inputs as any as GraphTxnInput[],
-            blockHash: dbo.graphTxn.blockHash
+            blockHash: dbo.graphTxn.blockHash, 
+            prevPruneHeight: dbo.graphTxn.pruneHeight
         }
         return gt;
     };
@@ -1220,7 +1214,7 @@ export interface GraphTxn {
     details: SlpTransactionDetails;
     outputs: GraphTxnOutput[];
     inputs: GraphTxnInput[];
-    pruneHeight?: number;
+    prevPruneHeight: number|null;
     blockHash: Buffer|null;
 }
 

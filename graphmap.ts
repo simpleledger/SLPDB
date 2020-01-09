@@ -37,11 +37,12 @@ export class GraphMap extends Map<string, GraphTxn> {
     public prune(txid: string, pruneHeight: number) {
         if (this.has(txid) && txid !== this.rootId) {
             let gt = this.get(txid)!;
-            gt.isDirty = true;
-            gt.pruneHeight = pruneHeight;
-            this.pruned.set(txid, gt);
-            console.log(`Pruned ${txid} with prune height of ${pruneHeight} : ${this.delete(txid)}`);
-            return true;
+            if (!gt.prevPruneHeight || pruneHeight >= gt.prevPruneHeight) {
+                gt.prevPruneHeight = pruneHeight;
+                this.pruned.set(txid, gt);
+                console.log(`Pruned ${txid} with prune height of ${pruneHeight} : ${this.delete(txid)}`);
+                return true;
+            }
         }
         return false;
     }
@@ -114,7 +115,7 @@ export class GraphMap extends Map<string, GraphTxn> {
                                 .filter(i => 
                                     [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(i.status)
                                 ).length < tg._graphTxns.size;
-        
+
         tg._isGraphTotallyPruned = !canBePruned;
 
         tg._graphTxns.flushPrunedItems();
