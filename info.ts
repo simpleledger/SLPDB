@@ -3,6 +3,7 @@ var kv = level('./_leveldb');
 import * as crypto from 'crypto';
 
 import { Config } from './config';
+import { RpcClient } from './rpc';
 
 /**
 * Return the last synchronized checkpoint
@@ -126,10 +127,13 @@ export module Info {
 		let recentBlocks: { hash: string, height: number }[] = [];
 		let tip = (await Info.getBlockCheckpoint()).height;
 		let hash = await Info.getCheckpointHash(tip);
-		while(hash && recentBlocks.length < 10) {
+		let currentHeight = tip+1;
+		let currentHash = (await RpcClient.getBlockHash(currentHeight)) as string;
+		while(hash && recentBlocks.length < 9) {
 			recentBlocks.unshift({ hash, height: tip });
 			hash = await Info.getCheckpointHash(--tip);
 		}
+		recentBlocks.push({ hash: currentHash, height: currentHeight });
 		return recentBlocks;
 	}
 

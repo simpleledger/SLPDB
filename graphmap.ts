@@ -78,7 +78,7 @@ export class GraphMap extends Map<string, GraphTxn> {
 
             if (isAgedAndSpent) {
                 pruneHeight = recentBlocks[BLOCK_AGE_CUTOFF-1].height;
-                if (g.prevPruneHeight && pruneHeight >= g.prevPruneHeight) {
+                if (!g.prevPruneHeight || pruneHeight >= g.prevPruneHeight) {
                     g.isDirty = true;
                 } else if (g.prevPruneHeight) {
                     pruneHeight = g.prevPruneHeight;
