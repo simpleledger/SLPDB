@@ -111,7 +111,7 @@ export class SlpGraphManager {
                     }
                     
                     if (graph) {
-                        await graph!.addGraphTransaction({ txid });
+                        await graph!.queueAddGraphTransaction({ txid });
                     }
                 } else {
                     console.log("[INFO] Skipping: TokenId is being filtered.");
