@@ -38,10 +38,11 @@ export class GraphMap extends Map<string, GraphTxn> {
         if (this.has(txid) && txid !== this.rootId) {
             let gt = this.get(txid)!;
             if (!gt.prevPruneHeight || pruneHeight >= gt.prevPruneHeight) {
-                gt.prevPruneHeight = pruneHeight;
                 this.pruned.set(txid, gt);
-                console.log(`Pruned ${txid} with prune height of ${pruneHeight} : ${this.delete(txid)}`);
+                console.log(`[INFO] Pruned ${txid} with prune height of ${pruneHeight} : ${this.delete(txid)}`);
                 return true;
+            } else if (pruneHeight < gt.prevPruneHeight) {
+                console.log(`[INFO] Pruning deferred until ${gt.prevPruneHeight}`);
             }
         }
         return false;
@@ -77,7 +78,11 @@ export class GraphMap extends Map<string, GraphTxn> {
 
             if (isAgedAndSpent) {
                 pruneHeight = recentBlocks[BLOCK_AGE_CUTOFF-1].height;
-                g.isDirty = true;
+                if (g.prevPruneHeight && pruneHeight >= g.prevPruneHeight) {
+                    g.isDirty = true;
+                } else if (g.prevPruneHeight) {
+                    pruneHeight = g.prevPruneHeight;
+                }
             }
 
             if (g.isDirty) {
