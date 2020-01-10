@@ -654,7 +654,7 @@ export class Bit {
                     let graph = (await self._slpGraphManager.getTokenGraph({ tokenIdHex: tokenId }))!;
                     if (index !== currentHeight) {
                         // save graph items, save token w/o statistics
-                        await graph._db.graphItemsUpsert(graph);
+                        await graph._db.graphItemsUpsert(graph, { hash: blockHash.toString("hex"), height: index });
                         // (defer utxo and address computation to the end)
                     } else {
                           // save graph, utxos, recompute addressses, save token item w/ statistics

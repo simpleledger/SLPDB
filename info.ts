@@ -123,17 +123,15 @@ export module Info {
 		return null
 	}
 
-	export const getRecentBlocks = async (): Promise<{hash: string, height: number}[]> => {
+	export const getRecentBlocks = async (currentBlock: { hash: string, height: number }): Promise<{ hash: string, height: number }[]> => {
 		let recentBlocks: { hash: string, height: number }[] = [];
 		let tip = (await Info.getBlockCheckpoint()).height;
 		let hash = await Info.getCheckpointHash(tip);
-		let currentHeight = tip+1;
-		let currentHash = (await RpcClient.getBlockHash(currentHeight)) as string;
 		while(hash && recentBlocks.length < 9) {
 			recentBlocks.unshift({ hash, height: tip });
 			hash = await Info.getCheckpointHash(--tip);
 		}
-		recentBlocks.push({ hash: currentHash, height: currentHeight });
+		recentBlocks.push({ hash: currentBlock.hash, height: currentBlock.height });
 		return recentBlocks;
 	}
 

@@ -80,9 +80,12 @@ export class Db {
         })
     }
 
-    async graphItemsUpsert(graph: SlpTokenGraph) {
+    async graphItemsUpsert(graph: SlpTokenGraph, currentBlock?: { hash: string; height: number }) {
         await this.checkClientStatus();
-        let recentBlocks = await Info.getRecentBlocks();
+        let recentBlocks: { hash: string; height: number }[] = [];
+        if (currentBlock) {
+            recentBlocks = await Info.getRecentBlocks(currentBlock);
+        }
         let [ itemsToUpdate, tokenDbo ] = GraphMap.toDbo(graph, recentBlocks);
         for (const g of itemsToUpdate) {
             let res = await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": g.graphTxn.txid }, g, { upsert: true });
