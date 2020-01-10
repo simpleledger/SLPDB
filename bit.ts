@@ -394,8 +394,8 @@ export class Bit {
                         slpTokenGraph._tokenDetails.timestamp = d.slice(0,3).join('-') + ' ' + d.slice(3).join(':');
                     }
                 }
-                valid = await slpTokenGraph.validateTxid(txid);
-                validation = slpTokenGraph._slpValidator.cachedValidations[txid];
+                validation = await slpTokenGraph.validateTxid(txid);
+                valid = valid || validation.validity!;
                 invalidReason = validation.invalidReason;
                 let addresses: (string | null)[] = [];
                 if (valid && validation.details!.transactionType === SlpTransactionType.SEND) {
