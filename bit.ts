@@ -16,7 +16,6 @@ import { SlpGraphManager, SlpTransactionDetailsTnaDbo } from './slpgraphmanager'
 import { Notifications } from './notifications';
 import { SlpdbStatus } from './status';
 import { SlpTokenGraph } from './slptokengraph';
-import { TokenStats } from './interfaces';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const filterBuf = Buffer.from("6a04534c5000", "hex");
@@ -56,22 +55,20 @@ export class Bit {
     slpMempool = new Map<txid, txhex>();
     txoDoubleSpendCache = new CacheMap<string, any>(20);
     doubleSpendCache = new CacheSet<string>(100);
-    slpMempoolIgnoreSetList = new CacheSet<string>(Config.core.slp_mempool_ignore_length);
+    slpTxnNotificationIgnoreList = new CacheSet<string>(Config.core.slp_mempool_ignore_length); // this allows us to quickly ignore txns on block acceptance notification
     blockHashIgnoreSetList = new CacheSet<string>(10);
     _slpGraphManager!: SlpGraphManager;
-    _zmqItemQueue: pQueue<pQueue.DefaultAddOptions>;
+    _zmqItemQueue = new pQueue({ concurrency: 1, autoStart: true });
     network!: string;
     notifications!: Notifications;
     _spentTxoCache = new CacheMap<string, { txid: string; block: number|null }>(100000);
 
     _tokenIdsModified = new Set<string>();
-    //_tokenStacks = new CacheMap<string, string[]>(-1);
     _isSyncing = false;
     _exit = false;
 
     constructor(db: Db) {
         this.db = db;
-        this._zmqItemQueue = new pQueue({ concurrency: 1, autoStart: true });
         if (Config.zmq.outgoing.enable) {
             this.outsock.bindSync('tcp://' + Config.zmq.outgoing.host + ':' + Config.zmq.outgoing.port);
         }
@@ -145,14 +142,16 @@ export class Bit {
         if (this.slpMempool.has(txid)) {
             return { isSlp: true, added: false };  
         }
-        if (this.slpMempoolIgnoreSetList.has(txid)) {
+        if (this.slpTxnNotificationIgnoreList.has(txid)) {
             return { isSlp: false, added: false };
         }
         if (!txnBuf) {
             try {
                 let txhex = <string>await RpcClient.getRawTransaction(txid);
                 txnBuf = Buffer.from(txhex, 'hex');
-                RpcClient.loadTxnIntoCache(txid, txnBuf);
+                if (this.slpTransactionFilter(txnBuf)) {
+                    RpcClient.loadTxnIntoCache(txid, txnBuf);
+                }
             } catch(err) {
                 console.log(`[ERROR] Could not find tranasaction ${txid} in handleMempoolTransaction`);
                 return { isSlp: false, added: false }
@@ -218,7 +217,7 @@ export class Bit {
             this.slpMempool.set(txid, txnBuf.toString("hex"));
             return { isSlp: true, added: true };
         } else {
-            this.slpMempoolIgnoreSetList.push(txid);
+            this.slpTxnNotificationIgnoreList.push(txid);
         }
         return { isSlp: false, added: false };
     }
@@ -530,7 +529,7 @@ export class Bit {
             self._zmqItemQueue.add(async function() {
                 let hash = Buffer.from(bitbox.Crypto.hash256(message).toJSON().data.reverse()).toString('hex');
                 if ((await self.handleMempoolTransaction(hash, message)).added) {
-                    console.log('[ZMQ-SUB] New unconfirmed transaction added:', hash);
+                    console.log('[ZMQ-SUB] New unconfirmed SLP transaction added:', hash);
                     let syncResult = await sync(self, 'mempool', hash);
                     if (!self._slpGraphManager.zmqPubSocket)
                         self._slpGraphManager.zmqPubSocket = self.outsock;
@@ -541,12 +540,13 @@ export class Bit {
                     console.log('[INFO] Transaction ignored:', hash);
                 }
             })
-        }
+        };
+
         this.notifications = new Notifications({ 
             onRawTxnCb: onRawTxn, 
             onBlockHashCb: onBlockHash, 
             useGrpc: Boolean(Config.grpc.url) 
-        })
+        });
 
         console.log('[INFO] Listening for blockchain events...');
     }
@@ -566,7 +566,7 @@ export class Bit {
         }
 
         if (recursive) {
-            let residualMempoolList = (await RpcClient.getRawMemPool()).filter(id => !this.slpMempoolIgnoreSetList.has(id) && !Array.from(this.slpMempool.keys()).includes(id))
+            let residualMempoolList = (await RpcClient.getRawMemPool()).filter(id => !this.slpTxnNotificationIgnoreList.has(id) && !Array.from(this.slpMempool.keys()).includes(id))
             if(residualMempoolList.length > 0)
                 await this.checkForMissingMempoolTxns(residualMempoolList, true, false)
         }
@@ -688,9 +688,10 @@ export class Bit {
             result = { syncType: SyncType.Mempool, filteredContent: new Map<SyncFilterTypes, Map<txid, txhex>>() }
             if (zmqHash) {
                 let txn: bitcore.Transaction|null = await self.getSlpMempoolTransaction(zmqHash);
-                if (!txn && !self.slpMempoolIgnoreSetList.has(zmqHash)) {
-                    if (!txhex)
-                        throw Error("Must provide 'txhex' if txid is not in the SLP mempool")
+                if (!txn && !self.slpTxnNotificationIgnoreList.has(zmqHash)) {
+                    if (!txhex) {
+                        throw Error("Must provide 'txhex' if txid is not in the SLP mempool");
+                    }
                     if (self.slpTransactionFilter(txhex)) {
                         txn = new bitcore.Transaction(txhex);
                     }

@@ -1,7 +1,6 @@
 import { SlpTransactionDetails, SlpTransactionType, LocalValidator, Utils, Slp, SlpVersionType, Primatives  } from 'slpjs';
 import BigNumber from 'bignumber.js';
 import { BITBOX } from 'bitbox-sdk';
-import { Config } from './config';
 import * as bitcore from 'bitcore-lib-cash';
 import { SendTxnQueryResult, Query } from './query';
 import { Decimal128 } from 'mongodb';
@@ -11,7 +10,6 @@ import * as pQueue from 'p-queue';
 import { DefaultAddOptions } from 'p-queue';
 import { SlpGraphManager } from './slpgraphmanager';
 import { CacheMap } from './cache';
-import { SlpdbStatus, SlpdbState } from './status';
 import { TokenDBObject, AddressBalancesDbo, UtxoDbo, GraphTxnDbo, 
     SlpTransactionDetailsDbo, TokenUtxoStatus, TokenStats, cashAddr, 
     BatonUtxoStatus, TokenBatonStatus } from './interfaces';
