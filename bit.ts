@@ -187,9 +187,6 @@ export class Bit {
                     SlpdbStatus.doubleSpendHistory = Array.from(this.txoDoubleSpendCache.toMap()).map(v => { return { txo: v[0], details: v[1]}});
                 }
             }
-            if (!txo.startsWith('0'.repeat(64))) { // ignore coinbase
-                this._spentTxoCache.set(txo, { txid, block: null });
-            }
         });
 
         let tokenIdToUpdate= new Set<string>();
@@ -215,6 +212,12 @@ export class Bit {
 
         if (this.slpTransactionFilter(txnBuf)) {
             this.slpMempool.set(txid, txnBuf.toString("hex"));
+            let inputTxos = Primatives.Transaction.parseFromBuffer(txnBuf).inputs;
+            for (let txo of inputTxos) {
+                if (!txo.previousTxHash.startsWith('0'.repeat(64))) { // ignore coinbase
+                    this._spentTxoCache.set(`${txo.previousTxHash}:${txo.previousTxOutIndex}`, { txid, block: null });
+                }
+            }
             return { isSlp: true, added: true };
         } else {
             this.slpTxnNotificationIgnoreList.push(txid);
@@ -223,49 +226,64 @@ export class Bit {
     }
 
     async removeMempoolTransaction(txid: string) {
-        console.log(`Attempting to delete unconfirmed ${txid}`);
+        console.log(`Deleting unconfirmed ${txid}`);
         let count = await this.db.unconfirmedDelete(txid);
         if (count) {
             this.slpMempool.delete(txid);
-            console.log(`Deleted ${txid}`);
+        } else {
+            console.log(`[WARN] Unconfirmed transaction not deleted.`);
+
         }
     }
 
-    async requestSlpMempool(): Promise<TNATxn[]> {
-        try {
-            await this.syncSlpMempool();
-            let tasks: any[] = [];
-            const limit = pLimit(Config.rpc.limit);
-            let self = this;
-            this.slpMempool.forEach((txhex, txid, map) => {
-                tasks.push(limit(async () => {
-                    let content = <bitcore.Transaction>(await self.getSlpMempoolTransaction(txid));
-                    return tna.fromTx(content, { network: self.network });
-                }));
-            });
-            let res = await Promise.all(tasks);
-            return res;
-        } catch(err) {
-            console.log("An unknown error occurred while processing mempool transactions.");
-            throw err;
-        }
-    }
-
-    async syncSlpMempool() {
+    async syncSlpMempool(currentBchMempoolList?: string[], recursive=false, outerLoop=true) {
+        console.log(`[INFO] Syncing SLP Mempool...`);
         if (this._exit) {
             return;
         }
-        let currentBchMempoolList = await RpcClient.getRawMemPool();
+
+        if (!currentBchMempoolList) {
+            currentBchMempoolList = await RpcClient.getRawMemPool();
+        }
+
         console.log('[INFO] BCH mempool txs =', currentBchMempoolList.length);
         
-        // Remove cached txs not in the mempool.
-        await this.removeExtraneousMempoolTxns();
-        
-        // Add SLP txs to the mempool not in the cache.
-        let cachedSlpMempoolTxs = Array.from(this.slpMempool.keys());
-        for (let txid of currentBchMempoolList) cachedSlpMempoolTxs.includes(txid) ? null : await this.handleMempoolTransaction(txid);
-        
-        console.log('[INFO] SLP mempool txs =', this.slpMempool.size);
+        // Perform a toposort on current bch mempool.
+        const mempoolSlpTxs = new Map<string, { deserialized: bitcore.Transaction, serialized: Buffer}>();
+        for (let txid of currentBchMempoolList) {
+            const serialized: Buffer = Buffer.from(await RpcClient.getRawTransaction(txid), "hex");
+            if (this.slpTransactionFilter(serialized)) {
+                // @ts-ignore
+                const deserialized: bitcore.Transaction = new bitcore.Transaction(serialized);
+                const txid = deserialized.hash;
+                mempoolSlpTxs.set(txid, {deserialized, serialized});
+                RpcClient.transactionCache.set(txid, serialized);
+            }
+        }
+        let sortedStack: string[] = [];
+        await this.topologicalSort(mempoolSlpTxs, sortedStack);
+        if (sortedStack.length !== mempoolSlpTxs.size) {
+            throw Error("Transaction count is incorrect after topological sorting.");
+        }
+
+        for (let _ of mempoolSlpTxs) {
+            let txid = sortedStack.shift()!;
+            await this.handleRawTransaction({ txnBuf: mempoolSlpTxs.get(txid)!.serialized, txid });
+        }
+
+        // since this method is async, recursion ensures that we get all mempool txns when the outer loop exits
+        if (recursive) {
+            let residualMempoolList = (await RpcClient.getRawMemPool()).filter(id => !this.slpTxnNotificationIgnoreList.has(id) && !Array.from(this.slpMempool.keys()).includes(id));
+            if(residualMempoolList.length > 0)  {
+                await this.syncSlpMempool(residualMempoolList, true, false)
+            }
+        }
+
+        if (outerLoop) {
+            await this.removeExtraneousMempoolTxns();
+            console.log('[INFO] BCH mempool txn count:', (await RpcClient.getRawMemPool()).length);
+            console.log("[INFO] SLP mempool txn count:", this.slpMempool.size);
+        }
     }
 
     async crawl(blockIndex: number, syncComplete?: boolean): Promise<CrawlResult|null> {
@@ -296,7 +314,7 @@ export class Bit {
                     RpcClient.transactionCache.set(txid, serialized);
                     deserialized.inputs.forEach((input) => {
                         let prevOutpoint = input.prevTxId.toString("hex") + ":" + input.outputIndex;
-                        this._spentTxoCache.set(prevOutpoint, { txid, block: blockIndex });
+                        this._spentTxoCache.set(prevOutpoint, { txid, block: blockIndex });  // TODO: update to only cache slp outpoints?
                         console.log(`[INFO] _spentTxoCache.set ${prevOutpoint} -> ${txid} at ${blockIndex}`);
                         // TODO: Scan for SLP token burns elsewhere... for all block transactoins (is this being done already somewhere else?)
                     });
@@ -456,8 +474,6 @@ export class Bit {
         return { valid, detail, invalidReason };
     }
 
-
-
     private async topologicalSort(
         transactions: Map<string, { deserialized: bitcore.Transaction, serialized: Buffer }>,
         stack: string[]
@@ -527,63 +543,35 @@ export class Bit {
         let onRawTxn = function(message: Buffer) {
             SlpdbStatus.updateTimeIncomingTxnZmq();
             self._zmqItemQueue.add(async function() {
-                let hash = Buffer.from(bitbox.Crypto.hash256(message).toJSON().data.reverse()).toString('hex');
-                if ((await self.handleMempoolTransaction(hash, message)).added) {
-                    console.log('[ZMQ-SUB] New unconfirmed SLP transaction added:', hash);
-                    let syncResult = await sync(self, 'mempool', hash);
-                    if (!self._slpGraphManager.zmqPubSocket)
-                        self._slpGraphManager.zmqPubSocket = self.outsock;
-                    if (syncResult && self._slpGraphManager.onTransactionHash) {
-                        self._slpGraphManager.onTransactionHash!(syncResult);
-                    }
-                } else {
-                    console.log('[INFO] Transaction ignored:', hash);
-                }
-            })
+                await self.handleRawTransaction({ txnBuf: message });
+            });
         };
 
         this.notifications = new Notifications({ 
-            onRawTxnCb: onRawTxn, 
-            onBlockHashCb: onBlockHash, 
-            useGrpc: Boolean(Config.grpc.url) 
+            onRawTxnCb: onRawTxn,
+            onBlockHashCb: onBlockHash,
+            useGrpc: Boolean(Config.grpc.url)
         });
 
         console.log('[INFO] Listening for blockchain events...');
     }
 
-
-    async checkForMissingMempoolTxns(currentBchMempoolList?: string[], recursive=false, log=true) {
-        if (!currentBchMempoolList) {
-            currentBchMempoolList = await RpcClient.getRawMemPool();
+    async handleRawTransaction({ txnBuf, txid }: {txnBuf: Buffer; txid?: string}) {
+        if (!txid) {
+            txid = Buffer.from(bitbox.Crypto.hash256(txnBuf).toJSON().data.reverse()).toString('hex');
         }
-
-        // add missing SLP transactions and process
-        for (let txid of currentBchMempoolList) {
-            if ((await this.handleMempoolTransaction(txid)).added) {
-                let syncResult = await Bit.sync(this, 'mempool', txid, this.slpMempool.get(txid));
-                this._slpGraphManager.onTransactionHash!(syncResult!);
+        if ((await this.handleMempoolTransaction(txid, txnBuf)).added) {
+            console.log('[ZMQ-SUB] Possible SLP transaction added:', txid);
+            let syncResult = await Bit.sync(this, 'mempool', txid);
+            if (!this._slpGraphManager.zmqPubSocket) //{}
+                this._slpGraphManager.zmqPubSocket = this.outsock;
+            if (syncResult) {
+                this._slpGraphManager.onTransactionHash!(syncResult);
             }
-        }
-
-        if (recursive) {
-            let residualMempoolList = (await RpcClient.getRawMemPool()).filter(id => !this.slpTxnNotificationIgnoreList.has(id) && !Array.from(this.slpMempool.keys()).includes(id))
-            if(residualMempoolList.length > 0)
-                await this.checkForMissingMempoolTxns(residualMempoolList, true, false)
-        }
-
-        if (log) {
-            console.log('[INFO] BCH mempool txn count:', (await RpcClient.getRawMemPool()).length);
-            console.log("[INFO] SLP mempool txn count:", this.slpMempool.size);
+        } else {
+            console.log('[INFO] Transaction ignored:', txid);
         }
     }
-
-    // async checkCurrentBlockHeight() { 
-    //     //let ldb_block = await Info.getBlockCheckpoint();
-    //     let rpc_block = await this.rpc.getBlockCount();
-    //     if(rpc_block > this.lastBlockProcessing) {
-
-    //     }
-    // }
 
     async removeExtraneousMempoolTxns() {
         let currentBchMempoolList = await RpcClient.getRawMemPool();
@@ -644,7 +632,7 @@ export class Bit {
                             self._tokenIdsModified.add(v.tokenId);
                             let graph = await self._slpGraphManager.getTokenGraph({ tokenIdHex: v.tokenId });
                             if (graph) {
-                                await graph!.addGraphTransaction({ txid, processUpToBlock: index, blockHash});
+                                await graph!.addGraphTransaction({ txid, processUpToBlock: index, blockHash });
                             }
                         }
                     }
@@ -652,13 +640,9 @@ export class Bit {
                 
                 for (let tokenId of self._tokenIdsModified) {
                     let graph = (await self._slpGraphManager.getTokenGraph({ tokenIdHex: tokenId }))!;
-                    if (index !== currentHeight) {
-                        // save graph items, save token w/o statistics
-                        await graph._db.graphItemsUpsert(graph, { hash: blockHash.toString("hex"), height: index });
-                        // (defer utxo and address computation to the end)
-                    } else {
-                          // save graph, utxos, recompute addressses, save token item w/ statistics
-                          await graph!.UpdateStatistics();
+                    await graph._db.graphItemsUpsert(graph, { hash: blockHash.toString("hex"), height: index });
+                    if (index === currentHeight) {
+                        await graph!.UpdateStatistics();
                     }
                 }
                 self._tokenIdsModified.clear();
@@ -676,7 +660,7 @@ export class Bit {
                 await self.removeExtraneousMempoolTxns();
                 //await self.checkForMissingMempoolTxns();
             }
-        
+
             if (lastCheckpoint.height === currentHeight) {
                 self._isSyncing = false;
                 return result;
@@ -707,7 +691,7 @@ export class Bit {
                         console.log("[INFO] SLP mempool transaction added: ", zmqHash);
                     } catch (e) {
                         if (e.code == 11000) {
-                            console.log('[WARN] Mempool item already exists:', content);
+                            console.log(`[WARN] Mempool item already exists: ${zmqHash}`);
                             //await self.db.mempoolreplace(content);
                         } else {
                             console.log('[ERROR] Mempool sync ERR:', e, content);
@@ -802,16 +786,12 @@ export class Bit {
         return { hash: actualHash, height: lastCheckpoint.height, hadReorg };
     }
 
-    async processBlocksForTNA() {
+    async processBlocksForSLP() {
         await Bit.sync(this, 'block');
     }
 
-    async processCurrentMempoolForTNA() {
-        let items = await this.requestSlpMempool();
-        if (this._exit) {
-            return;
-        }
-        await this.db.unconfirmedSync(items);
+    async processCurrentMempoolForSLP() {
+        await this.syncSlpMempool();
     }
 }
 

@@ -240,28 +240,6 @@ export class Db {
         return (await this.db.collection('unconfirmed').find().toArray()).filter((i:TNATxn) => i.slp);
     }
 
-    async unconfirmedSync(items: TNATxn[]) {
-        await this.checkClientStatus();
-        await this.db.collection('unconfirmed').deleteMany({})
-        .catch(function(err) {
-            console.log('[ERROR] unconfirmedSync ERR ', err)
-        })
-
-        while (true) {
-            let chunk = items.splice(0, 1000)
-            if (chunk.length > 0) {
-                await this.db.collection('unconfirmed').insertMany(chunk, { ordered: false }).catch(function(err) {
-                    if (err.code !== 11000) {
-                        console.log('[ERROR] ## ERR ', err, items)
-                        throw err;
-                    }
-                })
-            } else {
-                break
-            }
-        }
-    }
-
     async confirmedFetch(txid: string): Promise<TNATxn|null> {
         await this.checkClientStatus();
         return await this.db.collection('confirmed').findOne({ "tx.h": txid }) as TNATxn;

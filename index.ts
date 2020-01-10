@@ -97,16 +97,21 @@ const daemon = {
         await tokenManager.initAllTokenGraphs();
         console.log("Init all tokens Complete");
 
-        await bit.processBlocksForTNA();
+        // sync with full node's block height
+        await bit.processBlocksForSLP();
         if (bit._exit) {
             return;
         }
-        await bit.processCurrentMempoolForTNA();
-        console.timeEnd('[PERF] Initial Block Sync');
-        console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
+        // sync with mempool and listen for wire notifications
+        await bit.processCurrentMempoolForSLP();
         bit.listenToZmq();
-        await bit.checkForMissingMempoolTxns(undefined, true);
+        console.timeEnd('[PERF] Initial Block Sync');
+        await bit.removeExtraneousMempoolTxns();
+
         tokenManager._updatesQueue.start();
+        await SlpdbStatus.changeStateToRunning({
+            getSlpMempoolSize: () => tokenManager._bit.slpMempool.size
+        });
 
         // let onComplete = async () => {
         //     await tokenManager._startupQueue.onIdle();
@@ -139,8 +144,8 @@ const util = {
         await bit.init();
         console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
         console.time('[PERF] Initial Block Sync');
-        await bit.processBlocksForTNA();
-        await bit.processCurrentMempoolForTNA();
+        await bit.processBlocksForSLP();
+        await bit.processCurrentMempoolForSLP();
         console.timeEnd('[PERF] Initial Block Sync');
         console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
         let filter = new TokenFilter();

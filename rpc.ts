@@ -145,10 +145,11 @@ export class RpcClient {
             return Buffer.from((await grpc.getRawTransaction({ hash: hash, reverseOrder: true })).getTransaction_asU8()).toString('hex');
         } 
         console.log("[INFO] JSON RPC: getRawTransaction", hash);
-        if(retryRpc)
+        if(retryRpc) {
             return await rpc_retry.getRawTransaction(hash);
-        else
+        } else {
             return await rpc.getRawTransaction(hash);
+        }
     }
 
     static async getTransactionBlockHash(hash: string): Promise<string> {

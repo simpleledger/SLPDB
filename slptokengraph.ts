@@ -99,41 +99,6 @@ export class SlpTokenGraph {
         return this._tokenStats;
     }
 
-    // async initFromScratch({ processUpToBlock }: { tokenDetails: SlpTransactionDetails, processUpToBlock?: number; }) {
-    //     this._loadInitiated = true;
-
-    //     this._lastUpdatedBlock = 0;
-
-    //     this._startupTxoSendCache = await Query.getTxoInputSlpSendCache(this._tokenIdHex);
-    //     console.log(`[INFO] (initFromScratch) Updating graph from ${this._tokenDetails.tokenIdHex}`)
-    //     let valid = await this.addGraphTransaction({ txid: this._tokenDetails.tokenIdHex, processUpToBlock: processUpToBlock });
-    //     if (valid) {
-    //         if (this._tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
-    //             await this.setNftParentId();
-    //         } else {
-    //             let mints = await Query.getMintTransactions(this._tokenDetails.tokenIdHex);
-    //             if (mints && mints.length > 0) {
-    //                 for (let m of mints) {
-    //                     console.log(`[INFO] (initFromScratch minting branch) Updating graph from ${m.txid!}`);
-    //                     await this.addGraphTransaction({ txid: m.txid!, processUpToBlock: processUpToBlock });
-    //                 }
-    //             }
-    //         }
-
-    //         // set genesis block hash
-    //         let genesisBlockHash = await RpcClient.getTransactionBlockHash(this._tokenDetails.tokenIdHex);
-    //         if (genesisBlockHash) {
-    //             this._graphTxns.get(this._tokenDetails.tokenIdHex)!.blockHash = Buffer.from(genesisBlockHash, 'hex');
-    //         }
-
-    //         this.UpdateStatistics();
-    //     }
-    //     this._startupTxoSendCache.clear();
-    //     this._startupTxoSendCache = undefined;
-    //     this._slpValidator.cachedRawTransactions = {};
-    //     return valid;
-    // }
-
     async stop() {
         console.log(`[INFO] Stopping token graph ${this._tokenIdHex}, with ${this._graphTxns.size} loaded.`);
 
@@ -182,71 +147,6 @@ export class SlpTokenGraph {
     get IsLoaded(): boolean {
         return this._graphTxns.size > 0;
     }
-
-    // async _updateUtxos(txid: string) {
-    //     let txnHex = (await this._slpValidator.getRawTransactions([txid]))[0];
-    //     let txn = Primatives.Transaction.parseFromBuffer(Buffer.from(txnHex, 'hex'));
-    //     let validation = this._slpValidator.cachedValidations[txid];
-    //     if(validation.validity && this._graphTxns.has(txid)) {
-    //         if(validation!.details!.transactionType === SlpTransactionType.SEND) {
-    //             txn.inputs.forEach(txo => {
-    //                 if(this._tokenUtxos.delete(`${txo.previousTxHash}:${txo.previousTxOutIndex}`)) {
-    //                     console.log(`[INFO] Token UTXO deleted: ${txo.previousTxHash}:${txo.previousTxOutIndex}`);
-    //                 }
-    //             });
-    //             this._graphTxns.get(txid)!.outputs.forEach(o => {
-    //                 if(!this._tokenUtxos.has(txid + ":" + o.vout) && 
-    //                     o.status !== TokenUtxoStatus.EXCESS_INPUT_BURNED &&
-    //                     o.status !== TokenUtxoStatus.MISSING_BCH_VOUT &&
-    //                     o.status !== TokenUtxoStatus.SPENT_INVALID_SLP &&
-    //                     o.status !== TokenUtxoStatus.SPENT_NON_SLP &&
-    //                     o.status !== TokenUtxoStatus.SPENT_NOT_IN_SEND &&
-    //                     o.status !== TokenUtxoStatus.SPENT_WRONG_TOKEN
-    //                 ){
-    //                     console.log(`[INFO] Token UTXO added: ${txid}:${o.vout}`);
-    //                     this._tokenUtxos.add(txid + ":" + o.vout);
-    //                 }
-    //             });
-    //         }
-    //         else if(validation!.details!.transactionType === SlpTransactionType.MINT) {
-    //             console.log(`[INFO] Token UTXO added: ${txid}:1`);
-    //             this._tokenUtxos.add(txid + ":" + 1);
-    //             txn.inputs.forEach(txo => {
-    //                 if(this._mintBatonUtxo === txo.previousTxHash + ':' + txo.previousTxOutIndex) {
-    //                     let baton = validation.details!.batonVout;
-    //                     let out = this._graphTxns.get(txid)!.outputs.find(o => o.vout === baton);
-    //                     if(baton &&
-    //                         out!.status !== BatonUtxoStatus.BATON_MISSING_BCH_VOUT &&
-    //                         out!.status !== BatonUtxoStatus.BATON_SPENT_INVALID_SLP &&
-    //                         out!.status !== BatonUtxoStatus.BATON_SPENT_NON_SLP &&
-    //                         out!.status !== BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT
-    //                     ){
-    //                         this._mintBatonUtxo = txid + ':' + baton;
-    //                         console.log(`[INFO] Mint baton replaced: ${txid}:${baton}`);
-    //                     } else {
-    //                         this._mintBatonUtxo = '';
-    //                         console.log(`[INFO] Mint baton ended: ${txo.previousTxHash}:${txo.previousTxOutIndex}`);
-    //                     }
-    //                 }
-    //             });
-    //         }
-    //         else if(validation!.details!.transactionType === SlpTransactionType.GENESIS) {
-    //             if(!this._tokenUtxos.has(txid + ":" + 1)) {
-    //                 console.log(`[INFO] Token UTXO added: ${txid}:1`);
-    //                 this._tokenUtxos.add(txid + ":" + 1);
-    //             }
-
-    //             let baton = validation!.details!.batonVout;
-    //             if(baton && this._mintBatonUtxo !== txid + ':' + baton) {
-    //                 this._mintBatonUtxo = txid + ':' + baton;
-    //                 console.log(`[INFO] Mint baton created: ${txid}:${baton}`);
-    //             }
-    //         }
-    //         else {
-    //             throw Error("Unknown transction type");
-    //         }
-    //     }
-    // }
 
     async getMintBatonSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number|null; processUpTo?: number }): Promise<MintSpendDetails> {
         let spendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
@@ -362,14 +262,17 @@ export class SlpTokenGraph {
                 console.log(`[INFO] (queueTokenGraphUpdateFrom) Initiating graph for ${txid}`);
                 await self.addGraphTransaction({ txid, processUpToBlock });
                 await self._db.graphItemsUpsert(self);
+                self.UpdateStatistics(txid);
 
                 // console.log("[INFO] UpdateStatistics: queueTokenGraphUpdateFrom");
-                // self.UpdateStatistics(txid);
+                //self.UpdateStatistics(txid);
             });
         } else {
             return this._graphUpdateQueue.add(async () => {
                 console.log(`[INFO] (queueTokenGraphUpdateFrom) Updating graph from ${txid}`);
                 await self.addGraphTransaction({ txid, processUpToBlock });
+                await self._db.graphItemsUpsert(self);
+                self.UpdateStatistics(txid);
 
                 // // Update token's statistics
                 // if(self._graphUpdateQueue.size === 0 && self._graphUpdateQueue.pending === 1) {
@@ -434,7 +337,7 @@ export class SlpTokenGraph {
             prevPruneHeight: null
         };
 
-        console.log(`[INFO] Unprunned txn count: ${this._graphTxns.size}`);
+        console.log(`[INFO] Unprunned txn count: ${this._graphTxns.size} (token: ${this._tokenIdHex})`);
 
         // Update parent items (their output statuses) and add contributing SLP inputs
         if (txid !== this._tokenIdHex) {
@@ -444,7 +347,7 @@ export class SlpTokenGraph {
 
                 let valid;
                 if (!this._slpValidator.cachedValidations[previd]) {
-                    console.log(`Assumed invalid SLP input: ${previd}:${i.outputIndex} for token id: ${this._tokenIdHex}`);
+                    console.log(`Skipping assumed invalid SLP input: ${previd}:${i.outputIndex} in txn: ${txid}`);
                     continue;
                 }
 
@@ -923,10 +826,6 @@ export class SlpTokenGraph {
         return;
     }
 
-    private _buildUtxosFromGraph() {
-        //this._tokenUtxos
-    }
-
     async _updateStatistics(saveToDb=true): Promise<void> {
         if (this._isValid === false) {
             return;
@@ -945,9 +844,9 @@ export class SlpTokenGraph {
             block_created: block_created,
             block_last_active_mint: block_last_active_mint,
             block_last_active_send: block_last_active_send,
-            qty_valid_txns_since_genesis: this._graphTxns.size,
-            qty_valid_token_utxos: this._tokenUtxos.size,
-            qty_valid_token_addresses: this._addresses.size,
+            qty_valid_txns_since_genesis: 0,//this._graphTxns.size,
+            qty_valid_token_utxos: 0,//this._tokenUtxos.size,
+            qty_valid_token_addresses: 0,//this._addresses.size,
             qty_token_minted: qty_token_minted,
             qty_token_burned: new BigNumber(0),
             qty_token_circulating_supply: this.getTotalHeldByAddresses(),
@@ -1139,7 +1038,7 @@ export class SlpTokenGraph {
         return gt;
     };
 
-    static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], utxos: UtxoDbo[], manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
+    static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
         let tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
         if (!token.tokenStats?.block_created!) {
             throw Error("Must have a block created for token");
@@ -1195,7 +1094,7 @@ export class SlpTokenGraph {
 
         // Map _tokenUtxos
         // TODO : Consider regenerating this from the loaded graph instead
-        tg._tokenUtxos = new Set(utxos.map(u => u.utxo));
+        //tg._tokenUtxos = new Set(utxos.map(u => u.utxo));
 
         return tg;
     }
