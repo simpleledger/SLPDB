@@ -200,11 +200,6 @@ export class Bit {
                 }
             }
         }
-        tokenIdToUpdate.forEach(tokenId => {
-            if (this._slpGraphManager._tokens.has(tokenId)) {
-                this._slpGraphManager._tokens.get(tokenId)!.UpdateStatistics({});  // no need to await
-            }
-        });
 
         if (this.slpTransactionFilter(txnBuf)) {
             this.slpMempool.set(txid, txnBuf.toString("hex"));
@@ -634,12 +629,10 @@ export class Bit {
                     }
                 }
                 
+                let recentBlocks = await Info.getRecentBlocks({ hash: blockHash.toString("hex"), height: index });
                 for (let tokenId of self._tokenIdsModified) {
                     let graph = (await self._slpGraphManager.getTokenGraph({ tokenIdHex: tokenId }))!;
-                    await graph.commitToDb({ hash: blockHash.toString("hex"), height: index });
-                    if (index === currentHeight) {
-                        await graph!.UpdateStatistics({});
-                    }
+                    await graph.commitToDb(recentBlocks);
                 }
                 self._tokenIdsModified.clear();
 

@@ -1,21 +1,18 @@
-import { SlpTransactionDetails, SlpTransactionType, LocalValidator, Utils, Slp, SlpVersionType, Primatives  } from 'slpjs';
+import { SlpTransactionDetails, SlpTransactionType, LocalValidator, 
+         Utils, Slp, SlpVersionType, Primatives  } from 'slpjs';
 import BigNumber from 'bignumber.js';
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { SendTxnQueryResult, Query } from './query';
-import { Decimal128 } from 'mongodb';
 import { Db } from './db';
 import { RpcClient } from './rpc';
 import * as pQueue from 'p-queue';
 import { DefaultAddOptions } from 'p-queue';
 import { SlpGraphManager } from './slpgraphmanager';
 import { CacheMap } from './cache';
-import { TokenDBObject, AddressBalancesDbo, UtxoDbo, GraphTxnDbo, 
-    SlpTransactionDetailsDbo, TokenUtxoStatus, TokenStats, cashAddr, 
-    BatonUtxoStatus, TokenBatonStatus, GraphTxn } from './interfaces';
+import { TokenDBObject, GraphTxnDbo, SlpTransactionDetailsDbo, TokenUtxoStatus,
+         BatonUtxoStatus, TokenBatonStatus, GraphTxn } from './interfaces';
 import { GraphMap } from './graphmap';
-
-let cashaddr = require('cashaddrjs-slp');
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -24,18 +21,14 @@ const slp = new Slp(bitbox);
 
 export class SlpTokenGraph {
 
-
     _tokenIdHex: string;
     _lastUpdatedBlock!: number;
     _tokenDetails: SlpTransactionDetails;
     _blockCreated: number|null;
-    private _tokenStats!: TokenStats;
     _tokenUtxos = new Set<string>();
     _mintBatonUtxo = "";
     _nftParentId?: string;
     private _graphTxns: GraphMap;
-    _isGraphTotallyPruned = false;
-    _addresses = new Map<cashAddr, AddressBalance>();
     _slpValidator = new LocalValidator(bitbox, async (txids) => {
         if (this._manager._bit.doubleSpendCache.has(txids[0])) {
             return [ Buffer.alloc(60).toString('hex') ];
@@ -74,22 +67,25 @@ export class SlpTokenGraph {
         return this._graphTxns.size;
     }
 
-    scanDoubleSpendTxids(txidToDelete: string[]): boolean {
+    public scanDoubleSpendTxids(txidToDelete: string[]): boolean {
         for (let txid of txidToDelete) {
             if (this._graphTxns.has(txid)) {
                 RpcClient.transactionCache.delete(txid);
-                this._graphTxns.delete(txid);
+                this._graphTxns.deleteDoubleSpend(txid);
+                this.commitToDb();
                 return true;
             }
         }
         return false
     }
 
-    async commitToDb(currentHeight: { hash: string; height: number; }) {
-        await this._db.graphItemsUpsert(this._graphTxns, currentHeight);
+    public async commitToDb(recentBlocks?: { hash: string; height: number; }[]) {
+        // NOTE: leaving out "recentBlocks" will only disable pruning for that particular commit to db
+        await this._db.graphItemsUpsert(this._graphTxns, recentBlocks);
+        this._updateComplete = true;
     }
 
-    async validateTxid(txid: string) {
+    public async validateTxid(txid: string) {
         await this._slpValidator.isValidSlpTxid(txid, this._tokenIdHex);
         const validation = this._slpValidator.cachedValidations[txid];
         if (!validation.validity) {
@@ -99,26 +95,7 @@ export class SlpTokenGraph {
         return validation;
     }
 
-    GetTokenStats() {
-        if (!this._tokenStats) {
-            this._tokenStats = <TokenStats> {
-                block_created: this._blockCreated ? this._blockCreated : null,
-                block_last_active_mint: null,
-                block_last_active_send: null,
-                qty_valid_txns_since_genesis: 0,
-                qty_valid_token_utxos: 0,
-                qty_valid_token_addresses: 0,
-                qty_token_minted: new BigNumber(0),
-                qty_token_burned: new BigNumber(0),
-                qty_token_circulating_supply: new BigNumber(0),
-                qty_satoshis_locked_up: 0,
-                minting_baton_status: TokenBatonStatus.UNKNOWN
-            }
-        }
-        return this._tokenStats;
-    }
-
-    async stop() {
+    public async stop() {
         console.log(`[INFO] Stopping token graph ${this._tokenIdHex}, with ${this._graphTxns.size} loaded.`);
 
         if (this._graphUpdateQueue.pending || this._graphUpdateQueue.size) {
@@ -131,7 +108,7 @@ export class SlpTokenGraph {
         let dirtyCount = this._graphTxns.dirtyItems().length;
         console.log(`[INFO] On stop there are ${dirtyCount} dirty items.`);
         if (dirtyCount > 0) {
-            this.UpdateStatistics({});
+            this.commitToDb();
         }
 
         while (this._graphUpdateQueueOnIdle !== undefined || !this._updateComplete) {
@@ -155,7 +132,7 @@ export class SlpTokenGraph {
         }
     }
 
-    async IsValid(): Promise<boolean> {
+    public async IsValid(): Promise<boolean> {
         if (this._isValid || this._isValid === false) {
             return this._isValid;
         }
@@ -163,11 +140,11 @@ export class SlpTokenGraph {
         return this._isValid;
     }
 
-    get IsLoaded(): boolean {
+    public get IsLoaded(): boolean {
         return this._graphTxns.size > 0;
     }
 
-    async getMintBatonSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number|null; processUpTo?: number }): Promise<MintSpendDetails> {
+    private async getMintBatonSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number|null; processUpTo?: number }): Promise<MintSpendDetails> {
         let spendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
         if (this._startupTxoSendCache) {
             spendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
@@ -217,7 +194,7 @@ export class SlpTokenGraph {
         return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, invalidReason: null };
     }
 
-    async getSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number|null; processUpTo?: number; }): Promise<SpendDetails> {
+    private async getSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number|null; processUpTo?: number; }): Promise<SpendDetails> {
         let spendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
         if (this._startupTxoSendCache) {
             spendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
@@ -267,7 +244,7 @@ export class SlpTokenGraph {
         return { status: TokenUtxoStatus.UNSPENT, txid: null, invalidReason: null };
     }
 
-    async queueAddGraphTransaction({ txid, processUpToBlock }: { txid: string, processUpToBlock?: number; }): Promise<void> {
+    public async queueAddGraphTransaction({ txid, processUpToBlock }: { txid: string, processUpToBlock?: number; }): Promise<void> {
         let self = this;
 
         while (this._loadInitiated && !this.IsLoaded) {
@@ -280,52 +257,16 @@ export class SlpTokenGraph {
             return this._graphUpdateQueue.add(async () => {
                 console.log(`[INFO] (queueTokenGraphUpdateFrom) Initiating graph for ${txid}`);
                 await self.addGraphTransaction({ txid, processUpToBlock });
-
-                // console.log("[INFO] UpdateStatistics: queueTokenGraphUpdateFrom");
-                //self.UpdateStatistics(txid);
             });
         } else {
             return this._graphUpdateQueue.add(async () => {
                 console.log(`[INFO] (queueTokenGraphUpdateFrom) Updating graph from ${txid}`);
                 await self.addGraphTransaction({ txid, processUpToBlock });
-                //self.UpdateStatistics(txid);
-
-                // // Update token's statistics
-                // if(self._graphUpdateQueue.size === 0 && self._graphUpdateQueue.pending === 1) {
-                //     // if block then we should check for double-spends for all graph txns with null blockHash
-                //     if(blockHash) {
-                //         let txnsWithNoBlock = Array.from(self._graphTxns).filter(i => !i[1].blockHash);
-                //         let mempool = await RpcClient.getRawMemPool();
-                //         for (let i of txnsWithNoBlock) {
-                //             let txid = i[0];
-                //             if(!mempool.includes(txid)) {
-                //                 try {
-                //                     await RpcClient.getRawTransaction(txid);
-                //                 } catch(err) {
-                //                     console.log(`[ERROR] Could not get transaction ${txid} in queueTokenGraphUpdateFrom: ${err}`)
-                //                     self._graphTxns.delete(txid);
-                //                     delete self._slpValidator.cachedRawTransactions[txid];
-                //                     delete self._slpValidator.cachedValidations[txid];
-                //                     //self._liveTxoSpendCache.clear();
-                //                 }
-                //             }
-                //         }
-                //     }
-                //     //self._liveTxoSpendCache.clear();
-                //     console.log("[INFO] UpdateStatistics: queueTokenGraphUpdateFrom");
-                //     self.UpdateStatistics(txid);
-                // }
             });
         }
     }
 
-    async addGraphTransaction({ txid, processUpToBlock, blockHash }: { txid: string; processUpToBlock?: number; blockHash?: Buffer; }): Promise<boolean|null> {
-        if (!blockHash) {
-            this.UpdateStatistics({ zmqTxid: txid });
-        } else {
-            this.UpdateStatistics({});
-        }
-
+    public async addGraphTransaction({ txid, processUpToBlock, blockHash }: { txid: string; processUpToBlock?: number; blockHash?: Buffer; }): Promise<boolean|null> {
         if (this._graphTxns.has(txid)) {
             let gt = this._graphTxns.get(txid)!;
             if (!gt.blockHash && blockHash) {
@@ -438,7 +379,7 @@ export class SlpTokenGraph {
                             }
                             throw Error(`Graph txid ${previd} was not found, this should never happen.`);
                         } else {
-                            let gt = GraphMap.mapGraphTxnFromDbo(res, this._tokenDetails.decimals, this._network);
+                            let gt = GraphMap.mapGraphTxnFromDbo(res, this._tokenDetails.decimals);
                             let unspentCount = gt.outputs.filter(o => [TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(o.status)).length
                             if (gt.details.tokenIdHex === this._tokenIdHex &&
                                 unspentCount > 0) {
@@ -528,51 +469,12 @@ export class SlpTokenGraph {
 
         this._graphTxns.set(txid, graphTxn);
 
+        if (!blockHash) {
+            this.mempoolCommitToDb({ zmqTxid: txid });
+        }
+
         return true;
     }
-
-    // private deleteAllChildren(txid: string, deleteSelf=false) {
-    //     let toDelete = new Set<string>();
-    //     let self = this;
-    //     let getChildTxids = function(txid: string) {
-    //         let n = self._graphTxns.get(txid)!;
-    //         if(n) {
-    //             n.outputs.forEach((o, i) => { 
-    //                 if(o.spendTxid && !toDelete.has(o.spendTxid)) {
-    //                     toDelete.add(o.spendTxid);
-    //                     getChildTxids(o.spendTxid);
-    //                 }
-    //             });
-    //             n.outputs = [];
-    //             //n.isComplete = false;
-    //         }
-    //     }
-    //     getChildTxids(txid);
-    //     if(deleteSelf) {
-    //         toDelete.add(txid);
-    //     }
-    //     toDelete.forEach(txid => {
-    //         // must find any graphTxn with an output spendTxid equal to txid
-    //         this._graphTxns.get(txid)!.inputs.forEach((v, i) => {
-    //             if(this._graphTxns.has(v.)) {
-    //                 let g = this._graphTxns.get(v.txid)!;
-    //                 let output = g.outputs.find(o => o.vout === v.vout);
-    //                 output!.spendTxid = null;
-    //                 output!.status = TokenUtxoStatus.UNSPENT;
-    //                 this._tokenUtxos.add(`${txid}:${v.vout}`);
-    //             }
-    //         });
-    //         this._graphTxns.delete(txid);
-    //         delete this._slpValidator.cachedRawTransactions[txid];
-    //         delete this._slpValidator.cachedValidations[txid];
-    //     });
-    //     this._tokenUtxos.forEach(txo => {
-    //         let txid = txo.split(':')[0];
-    //         if(toDelete.has(txid)) {
-    //             this._tokenUtxos.delete(txo);
-    //         }
-    //     });
-    // }
 
     private getAddressStringFromTxnOutput(txn: bitcore.Transaction, outputIndex: number) {
         let address;
@@ -590,70 +492,6 @@ export class SlpTokenGraph {
         return address;
     }
 
-    // async updateAddressesFromScratch(): Promise<void> {
-    //     this._addresses.clear();
-
-    //     for (let utxo of this._tokenUtxos) {
-    //         let txid = utxo.split(':')[0];
-    //         let vout = parseInt(utxo.split(':')[1]);
-
-    //         let txout: GraphTxnOutput|undefined;
-    //         try {
-    //             if (this._graphTxns.has(txid)) {
-    //                 txout = this._graphTxns.get(txid)!.outputs.find(o => vout === o.vout);
-    //             } else {
-    //                 throw Error("This should never happen");
-    //             }
-    //         } catch(_) {
-    //             console.log(`[INFO] (updateAddressesFromScratch) Update graph from ${txid}`);
-    //             //await this.updateTokenGraphAt({ txid });
-    //             if (!this._tokenUtxos.has(utxo)) {
-    //                 return
-    //             }
-    //             if (!this._graphTxns.has(txid)) {
-    //                 this._tokenUtxos.delete(utxo);
-    //                 return
-    //             }
-    //             txout = this._graphTxns.get(txid)!.outputs.find(o => vout === o.vout);
-    //         }
-            
-    //         if (txout) {
-    //             let graph = this._graphTxns.get(txid)!
-    //             let txnDetails = graph.details;
-    //             let addr = txout.address;
-    //             let bal;
-    //             if (graph.outputs[vout-1].status !== TokenUtxoStatus.UNSPENT && graph.outputs[vout-1].status !== BatonUtxoStatus.BATON_UNSPENT) {
-    //                 console.log(graph.outputs);
-    //                 console.log(`[INFO] TXO is not unspent (deleting from token UTXO set): ${txid}:${vout}`);
-    //                 this._tokenUtxos.delete(utxo);
-    //                 return;
-    //             }
-    //             if (this._addresses.has(addr)) {
-    //                 bal = this._addresses.get(addr)!
-    //                 bal.satoshis_balance+=txout.bchSatoshis
-    //                 if (txnDetails.transactionType === SlpTransactionType.SEND) {
-    //                     bal.token_balance = bal.token_balance.plus(txnDetails.sendOutputs![vout])
-    //                 }
-    //                 else if (vout === 1) {
-    //                     bal.token_balance = bal.token_balance.plus(txnDetails.genesisOrMintQuantity!)
-    //                 }
-    //             }
-    //             else {
-    //                 if (txnDetails.transactionType === SlpTransactionType.SEND) {
-    //                     bal = { satoshis_balance: txout.bchSatoshis, token_balance: txnDetails.sendOutputs![vout] }
-    //                 }
-    //                 else if (vout === 1) {
-    //                     bal = { satoshis_balance: txout.bchSatoshis, token_balance: txnDetails.genesisOrMintQuantity! }
-    //                 }
-    //             }
-
-    //             if (bal && bal.token_balance.isGreaterThan(0)) {
-    //                 this._addresses.set(addr, <any>bal);
-    //             }
-    //         }
-    //     }
-    // }
-
     async getTotalMintQuantity(): Promise<BigNumber> {
         let qty = this._tokenDetails.genesisOrMintQuantity;
         if(!qty)
@@ -663,18 +501,6 @@ export class SlpTokenGraph {
                 qty = qty!.plus(t.details.genesisOrMintQuantity!)
         })
         return qty;
-    }
-
-    getTotalHeldByAddresses(): BigNumber {
-        let qty = new BigNumber(0);
-        this._addresses.forEach(a => qty = qty.plus(a.token_balance))
-        return qty;
-    }
-
-    getTotalSatoshisLockedUp(): number {
-        let qty = 0;
-        this._addresses.forEach(a => qty+=a.satoshis_balance);
-        return Math.round(qty);
     }
 
     async getBatonStatus(): Promise<TokenBatonStatus> {
@@ -821,7 +647,7 @@ export class SlpTokenGraph {
     //     }
     // }
 
-    async UpdateStatistics({ zmqTxid }: { zmqTxid?: string }): Promise<void> {
+    private async mempoolCommitToDb({ zmqTxid }: { zmqTxid: string }): Promise<void> {
         if (zmqTxid) {
             this._graphUpdateQueueNewTxids.add(zmqTxid);
         }
@@ -836,7 +662,7 @@ export class SlpTokenGraph {
                 self._graphUpdateQueueNewTxids.clear();
                 self._graphUpdateQueueOnIdle = null;
                 self._updateComplete = false;
-                await self._updateStatistics(true);
+                await self.commitToDb();
                 while (txidToUpdate.length > 0) {
                     await self._manager.publishZmqNotificationGraphs(txidToUpdate.pop()!);
                 }
@@ -847,163 +673,6 @@ export class SlpTokenGraph {
             return this._graphUpdateQueueOnIdle(this); // Do not await this
         }
         return;
-    }
-
-    async _updateStatistics(saveToDb=true): Promise<void> {
-        if (this._isValid === false) {
-            return;
-        }
-        this._updateComplete = false;
-        //let minting_baton_status = TokenBatonStatus.ALIVE; //await this.getBatonStatus();
-
-        let graphStats = this._graphTxns.ComputeStatistics();
-
-        this._tokenStats = <TokenStats> {
-            block_created: 0, //this._tokenDetails.,
-            block_last_active_mint: 0,//block_last_active_mint,
-            block_last_active_send: 0, //block_last_active_send,
-            qty_valid_txns_since_genesis: this._graphTxns.TotalTransactionCount,
-            qty_valid_token_utxos: graphStats.utxoCount,
-            qty_valid_token_addresses: graphStats.addressCount,
-            qty_token_minted: graphStats.mintQuantity,
-            qty_token_burned: new BigNumber(0),
-            qty_token_circulating_supply: this.getTotalHeldByAddresses(),
-            qty_satoshis_locked_up: this.getTotalSatoshisLockedUp(),
-            minting_baton_status: graphStats.mintStatus
-        }
-        this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply)
-
-        if(this._tokenStats.qty_token_circulating_supply.isGreaterThan(this._tokenStats.qty_token_minted)) {
-            console.log("[ERROR] Cannot have circulating supply larger than total minted quantity.");
-            //console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
-            // TODO: handle this condition gracefully.
-        }
-
-        if(!this._tokenStats.qty_token_circulating_supply.isEqualTo(this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_burned))) {
-            console.log("[WARN] Circulating supply minus burn quantity does not equal minted quantity");
-            //console.log("[INFO] Statistics will be recomputed after update queue is cleared.");
-            // TODO: handle this condition gracefully.
-        }
-
-        if(saveToDb) {
-            await this._db.graphItemsUpsert(this._graphTxns);
-            //await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
-            //await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
-        }
-
-        console.log("########################################################################################################")
-        console.log("TOKEN STATS/ADDRESSES FOR", this._tokenDetails.name, this._tokenDetails.tokenIdHex)
-        console.log("########################################################################################################")
-        this.logTokenStats();
-        this.logAddressBalances();
-        this._updateComplete = true;
-        console.log(`[DEBUG] this._updateComplete = ${this._updateComplete} (${this._tokenIdHex})`);
-    }
-
-    logTokenStats(): void {
-        console.log("TOKEN STATS:")
-        console.log({
-            block_created: this._tokenStats.block_created,
-            block_last_active_mint: this._tokenStats.block_last_active_mint,
-            block_last_active_send: this._tokenStats.block_last_active_send,
-            qty_valid_txns_since_genesis: this._tokenStats.qty_valid_txns_since_genesis,
-            qty_valid_token_utxos: this._tokenStats.qty_valid_token_utxos,
-            qty_valid_token_addresses: this._tokenStats.qty_valid_token_addresses,
-            qty_token_minted: this._tokenStats.qty_token_minted.dividedBy(10**this._tokenDetails.decimals).toFixed(),
-            qty_token_burned: this._tokenStats.qty_token_burned.dividedBy(10**this._tokenDetails.decimals).toFixed(),
-            qty_token_circulating_supply: this._tokenStats.qty_token_circulating_supply.dividedBy(10**this._tokenDetails.decimals).toFixed(),
-            qty_satoshis_locked_up: this._tokenStats.qty_satoshis_locked_up,
-            minting_baton_status: this._tokenStats.minting_baton_status
-        })
-    }
-
-    logAddressBalances(): void {
-        console.log("ADDRESS BALANCES:")
-        console.log(Array.from(this._addresses).map((v, _, __) => { 
-                return { 
-                    addr: v[0], 
-                    bal: v[1].token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed() 
-                }
-            })
-        )
-    }
-
-    toAddressesDbObject(): AddressBalancesDbo[] {
-        let result: AddressBalancesDbo[] = [];
-        this._addresses.forEach((a, k) => { 
-            result.push({ 
-                tokenDetails: { tokenIdHex: this._tokenIdHex }, 
-                address: k, 
-                satoshis_balance: a.satoshis_balance, 
-                token_balance: Decimal128.fromString(a.token_balance.dividedBy(10**this._tokenDetails.decimals).toFixed()) 
-            }) 
-        })
-        return result;
-    }
-
-    toUtxosDbObject(): UtxoDbo[] {
-        let result: UtxoDbo[] = [];
-        this._tokenUtxos.forEach(u => {
-            let txid = u.split(":")[0];
-            let vout = u.split(":")[1];
-            let output = this.utxoToUtxoDbo(txid, vout);
-            if (output) {
-                result.push(output);
-            }
-        });
-        return result;
-    }
-
-    utxoToUtxoDbo(txid: string, vout: string) {
-        if (!this._graphTxns.has(txid)) {
-            this._tokenUtxos.delete(`${txid}:${vout}`);
-            return undefined;
-        }
-        let output = this._graphTxns.get(txid)!.outputs.find(o => o.vout == parseInt(vout));
-        if (output) {
-            return <UtxoDbo>{
-                tokenDetails: {
-                    tokenIdHex: this._tokenDetails.tokenIdHex
-                },
-                utxo: txid + ":" + vout,
-                txid: txid,
-                vout: parseInt(vout),
-                address: output.address,
-                bchSatoshis: output.bchSatoshis,
-                slpAmount: Decimal128.fromString(output.slpAmount.dividedBy(10 ** this._tokenDetails.decimals).toFixed())
-            };
-        }
-        return undefined;
-    }
-
-    static MapTokenDetailsToDbo(details: SlpTransactionDetails, decimals: number): SlpTransactionDetailsDbo {
-        let res: SlpTransactionDetailsDbo = {
-            decimals: details.decimals,
-            tokenIdHex: details.tokenIdHex,
-            timestamp: details.timestamp ? details.timestamp : null,
-            timestamp_unix: details.timestamp ? this.ConvertToUnixTime(details.timestamp) : null,
-            transactionType: details.transactionType,
-            versionType: details.versionType,
-            documentUri: details.documentUri,
-            documentSha256Hex: details.documentSha256 ? details.documentSha256.toString('hex') : null,
-            symbol: details.symbol,
-            name: details.name,
-            batonVout: details.batonVout,
-            containsBaton: details.containsBaton ? true : false,
-            genesisOrMintQuantity: details.genesisOrMintQuantity ? Decimal128.fromString(details.genesisOrMintQuantity!.dividedBy(10**decimals).toFixed()) : null,
-            sendOutputs: details.sendOutputs ? details.sendOutputs.map(o => Decimal128.fromString(o.dividedBy(10**decimals).toFixed())) : null
-        }
-
-        return res;
-    }
-    
-    static ConvertToUnixTime(Y_m_d_H_M_S: string): number|null {
-        // timestamp is formatted as "%Y-%m-%d %H:%M:%S"
-        if(Y_m_d_H_M_S) {
-            let d = Y_m_d_H_M_S.split(" ")[0] + "T" + Y_m_d_H_M_S.split(" ")[1] + "Z";
-            return Date.parse(d)/1000;
-        }
-        return null;
     }
 
     static FormatUnixToDateString(unix_time: number): string {
@@ -1042,7 +711,7 @@ export class SlpTokenGraph {
 
     static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
         let tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
-        if (!token.tokenStats?.block_created!) {
+        if (!token.tokenStats.block_created && token.tokenStats.block_created !== 0) {
             throw Error("Must have a block created for token");
         }
         let tg = await manager.getTokenGraph({ tokenIdHex: token.tokenDetails.tokenIdHex, slpMsgDetailsGenesis: tokenDetails, forceValid: true, blockCreated: token.tokenStats?.block_created! });
@@ -1057,10 +726,6 @@ export class SlpTokenGraph {
         // add nft parent id
         if(token.nftParentId) {
             tg._nftParentId = token.nftParentId;
-        }
-
-        if (token.isGraphPruned) {
-            tg._isGraphTotallyPruned = token.isGraphPruned;
         }
 
         tg._network = network;
@@ -1085,29 +750,17 @@ export class SlpTokenGraph {
 
         console.log(`[INFO] Loaded ${tg._graphTxns.size} validation cache results`);
 
-        // Map _addresses -- Can comment out since this is reconstructed in call to "updateStatistics()"
-        // addresses.forEach((item, idx) => {
-        //     tg._addresses.set(item.address, {
-        //         satoshis_balance: addresses[idx].satoshis_balance, 
-        //         token_balance: (new BigNumber(addresses[idx].token_balance.toString())).multipliedBy(10**tg._tokenDetails.decimals)
-        //     });
-        // });
-
         // Map _lastUpdatedBlock
         tg._lastUpdatedBlock = token.lastUpdatedBlock;
-
-        // Map _tokenUtxos
-        // TODO : Consider regenerating this from the loaded graph instead
-        //tg._tokenUtxos = new Set(utxos.map(u => u.utxo));
 
         return tg;
     }
 }
 
-export interface AddressBalance {
-    token_balance: BigNumber; 
-    satoshis_balance: number;
-}
+// export interface AddressBalance {
+//     token_balance: BigNumber; 
+//     satoshis_balance: number;
+// }
 
 interface SpendDetails {
     status: TokenUtxoStatus;
@@ -1121,8 +774,8 @@ interface MintSpendDetails {
     invalidReason: string|null;
 }
 
-interface SpentTxos { 
+interface SpentTxos {
     txid: string;
     block: number|null;
-    blockHash: Buffer|null 
+    blockHash: Buffer|null;
 }

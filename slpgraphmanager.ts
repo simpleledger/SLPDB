@@ -42,6 +42,8 @@ export class SlpGraphManager {
     _filter: TokenFilter;
     _exit = false;
     _cacheGraphTxnCount = 0;
+    // _isMaintenanceRunning = false;
+    // _graphMaintenanceTimeout: NodeJS.Timeout;
 
     get TnaSynced(): boolean {
         if(this._TnaQueue) {
@@ -188,8 +190,10 @@ export class SlpGraphManager {
             }
 
         }
+
         // DO NOT AWAIT: Search for any burned transactions 
-        this.searchBlockForBurnedSlpTxos(hash);   // NOTE: We need to make sure this is also done on initial block sync.
+        //this.searchBlockForBurnedSlpTxos(hash);   // NOTE: We need to make sure this is also done on initial block sync.
+
         SlpdbStatus.updateSlpProcessedBlockHeight(this._bestBlockHeight);
     }
 
@@ -205,27 +209,24 @@ export class SlpGraphManager {
         // this._startupQueue.on('active', () => {
         //     console.log(`[INFO] Loading new token.  Loaded: ${self._startupTokenCount++}.  Total: ${this._tokens.size}.  Queue Size: ${this._startupQueue.size}.  Queue Pending: ${this._startupQueue.pending}`);
         // })
+
+        //this._graphMaintenanceTimeout = setTimeout(async () => await this.runGraphMaintenance(), 6000);
     }
 
-    async fixMissingTokenTimestamps() {
-        let tokens = await Query.queryForConfirmedTokensMissingTimestamps();
-        if (tokens) {
-            for (let token of tokens) {
-                console.log("[INFO] Checking for missing timestamps for:", token.txid, token.blk.t);
-                let timestamp = SlpTokenGraph.FormatUnixToDateString(token.blk.t);
-                if (timestamp && this._tokens.has(token.txid)) {
-                    let t = this._tokens.get(token.txid)!;
-                    t._tokenDetails.timestamp = timestamp;
-                    //t._tokenStats.block_created = token.blk.i;
-                    t.UpdateStatistics();
-                } else {
-                    await this.createNewTokenGraph({ tokenId: token.txid });
-                    await this.fixMissingTokenTimestamps();
-                }
-            }
-        }
-        return tokens;
-    }
+    // async runGraphMaintenance() {
+    //     if (!this._isMaintenanceRunning) {
+    //         this._isMaintenanceRunning = true;
+    //         for (let [tokenId, graph] of this._tokens) {
+    //             if (!graph._isGraphTotallyPruned) {
+    //                 let currentHeight = (await Info.getBlockCheckpoint()).height;
+    //                 // 
+    //             } else {
+    //                 // TODO: once lazy loading is complet, here we can unload the graph if has not been active in X days
+    //             }
+    //         }
+    //         this._isMaintenanceRunning = false;
+    //     }
+    // }
 
     // async searchForNonSlpBurnTransactions() {
     //     for (let a of this._tokens) {

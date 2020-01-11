@@ -4,20 +4,6 @@ import BigNumber from 'bignumber.js';
 
 export type cashAddr = string;
 
-export interface TokenStats {
-    block_created: number|null;
-    block_last_active_send: number|null;
-    block_last_active_mint: number|null;
-    qty_valid_txns_since_genesis: number;
-    qty_valid_token_utxos: number;
-    qty_valid_token_addresses: number;
-    qty_token_minted: BigNumber;
-    qty_token_burned: BigNumber;
-    qty_token_circulating_supply: BigNumber;
-    qty_satoshis_locked_up: number;
-    minting_baton_status: TokenBatonStatus;
-}
-
 export interface GraphTxn {
     isDirty: boolean;
     //isComplete?: boolean;
@@ -60,21 +46,29 @@ export interface TokenStatsDbo {
     minting_baton_status: TokenBatonStatus;
 }
 
+// export interface Commitments {
+//     utxosSha256: Buffer;
+//     utxosChecksum: Buffer;
+//     slpAddrBalanceTotal: Decimal128;
+//     bchAddrBalanceTotal: number;
+// }
+
 export interface TokenDBObject {
     schema_version: number;
-    isGraphPruned: boolean;
     tokenDetails: SlpTransactionDetailsDbo;
-    tokenStats: TokenStats | TokenStatsDbo | null;
+    tokenStats: TokenStatsDbo;
     pruningState: TokenPruneStateDbo;
     mintBatonUtxo: string;
     lastUpdatedBlock: number;
     nftParentId?: string;
+    //commitments: Commitments;
 }
 
 export interface TokenPruneStateDbo {
     sendCount: number;
     mintCount: number;
     mintQuantity: Decimal128;
+    canBePruned: boolean;
 }
 
 export interface GraphTxnDbo {
@@ -94,6 +88,7 @@ export interface UtxoDbo {
     address: string;
     bchSatoshis: number;
     slpAmount: Decimal128;
+    utxosChecksum: Buffer;
 }
 
 export interface AddressBalancesDbo {
@@ -103,6 +98,7 @@ export interface AddressBalancesDbo {
     address: cashAddr;
     satoshis_balance: number;
     token_balance: Decimal128;
+    //utxosChecksum: Buffer;
 }
 
 export interface SlpTransactionDetailsDbo {
