@@ -12,7 +12,7 @@ import { SlpGraphManager } from './slpgraphmanager';
 import { CacheMap } from './cache';
 import { TokenDBObject, AddressBalancesDbo, UtxoDbo, GraphTxnDbo, 
     SlpTransactionDetailsDbo, TokenUtxoStatus, TokenStats, cashAddr, 
-    BatonUtxoStatus, TokenBatonStatus } from './interfaces';
+    BatonUtxoStatus, TokenBatonStatus, GraphTxn } from './interfaces';
 import { GraphMap } from './graphmap';
 
 let cashaddr = require('cashaddrjs-slp');
@@ -33,7 +33,7 @@ export class SlpTokenGraph {
     _tokenUtxos = new Set<string>();
     _mintBatonUtxo = "";
     _nftParentId?: string;
-    _graphTxns: GraphMap;
+    private _graphTxns: GraphMap;
     _isGraphTotallyPruned = false;
     _addresses = new Map<cashAddr, AddressBalance>();
     _slpValidator = new LocalValidator(bitbox, async (txids) => {
@@ -68,6 +68,25 @@ export class SlpTokenGraph {
         this._manager = manager;
         this._network = network;
         this._blockCreated =  blockCreated;
+    }
+
+    get graphSize() {
+        return this._graphTxns.size;
+    }
+
+    scanDoubleSpendTxids(txidToDelete: string[]): boolean {
+        for (let txid of txidToDelete) {
+            if (this._graphTxns.has(txid)) {
+                RpcClient.transactionCache.delete(txid);
+                this._graphTxns.delete(txid);
+                return true;
+            }
+        }
+        return false
+    }
+
+    async commitToDb(currentHeight: { hash: string; height: number; }) {
+        await this._db.graphItemsUpsert(this._graphTxns, currentHeight);
     }
 
     async validateTxid(txid: string) {
@@ -112,7 +131,7 @@ export class SlpTokenGraph {
         let dirtyCount = this._graphTxns.dirtyItems().length;
         console.log(`[INFO] On stop there are ${dirtyCount} dirty items.`);
         if (dirtyCount > 0) {
-            this.UpdateStatistics();
+            this.UpdateStatistics({});
         }
 
         while (this._graphUpdateQueueOnIdle !== undefined || !this._updateComplete) {
@@ -261,8 +280,6 @@ export class SlpTokenGraph {
             return this._graphUpdateQueue.add(async () => {
                 console.log(`[INFO] (queueTokenGraphUpdateFrom) Initiating graph for ${txid}`);
                 await self.addGraphTransaction({ txid, processUpToBlock });
-                await self._db.graphItemsUpsert(self);
-                self.UpdateStatistics(txid);
 
                 // console.log("[INFO] UpdateStatistics: queueTokenGraphUpdateFrom");
                 //self.UpdateStatistics(txid);
@@ -271,8 +288,7 @@ export class SlpTokenGraph {
             return this._graphUpdateQueue.add(async () => {
                 console.log(`[INFO] (queueTokenGraphUpdateFrom) Updating graph from ${txid}`);
                 await self.addGraphTransaction({ txid, processUpToBlock });
-                await self._db.graphItemsUpsert(self);
-                self.UpdateStatistics(txid);
+                //self.UpdateStatistics(txid);
 
                 // // Update token's statistics
                 // if(self._graphUpdateQueue.size === 0 && self._graphUpdateQueue.pending === 1) {
@@ -304,6 +320,11 @@ export class SlpTokenGraph {
     }
 
     async addGraphTransaction({ txid, processUpToBlock, blockHash }: { txid: string; processUpToBlock?: number; blockHash?: Buffer; }): Promise<boolean|null> {
+        if (!blockHash) {
+            this.UpdateStatistics({ zmqTxid: txid });
+        } else {
+            this.UpdateStatistics({});
+        }
 
         if (this._graphTxns.has(txid)) {
             let gt = this._graphTxns.get(txid)!;
@@ -417,7 +438,7 @@ export class SlpTokenGraph {
                             }
                             throw Error(`Graph txid ${previd} was not found, this should never happen.`);
                         } else {
-                            let gt = SlpTokenGraph.MapGraphTxnFromDbo(res, this._tokenDetails.decimals, this._network);
+                            let gt = GraphMap.mapGraphTxnFromDbo(res, this._tokenDetails.decimals, this._network);
                             let unspentCount = gt.outputs.filter(o => [TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(o.status)).length
                             if (gt.details.tokenIdHex === this._tokenIdHex &&
                                 unspentCount > 0) {
@@ -800,7 +821,7 @@ export class SlpTokenGraph {
     //     }
     // }
 
-    async UpdateStatistics(zmqTxid?: string): Promise<void> {
+    async UpdateStatistics({ zmqTxid }: { zmqTxid?: string }): Promise<void> {
         if (zmqTxid) {
             this._graphUpdateQueueNewTxids.add(zmqTxid);
         }
@@ -808,11 +829,13 @@ export class SlpTokenGraph {
             this._updateComplete = false;
             this._graphUpdateQueueOnIdle = async (self: SlpTokenGraph) => {
                 self._graphUpdateQueue.pause();
-                await self._graphUpdateQueue.onIdle();
+                if (self._graphUpdateQueue.size !== 0 || self._graphUpdateQueue.pending !== 0) {
+                    await self._graphUpdateQueue.onIdle();
+                }
                 let txidToUpdate = Array.from(self._graphUpdateQueueNewTxids);
                 self._graphUpdateQueueNewTxids.clear();
                 self._graphUpdateQueueOnIdle = null;
-                this._updateComplete = false;
+                self._updateComplete = false;
                 await self._updateStatistics(true);
                 while (txidToUpdate.length > 0) {
                     await self._manager.publishZmqNotificationGraphs(txidToUpdate.pop()!);
@@ -831,27 +854,22 @@ export class SlpTokenGraph {
             return;
         }
         this._updateComplete = false;
-        //this._buildUtxosFromGraph();
-        //await this.updateAddressesFromScratch();
-        //await this._checkGraphBlockHashes();
-        let block_created = await Query.queryTokenGenesisBlock(this._tokenDetails.tokenIdHex);
-        let block_last_active_mint = await Query.blockLastMinted(this._tokenDetails.tokenIdHex);
-        let block_last_active_send = await Query.blockLastSent(this._tokenDetails.tokenIdHex);
-        let qty_token_minted = await this.getTotalMintQuantity();
-        let minting_baton_status = await this.getBatonStatus();
+        //let minting_baton_status = TokenBatonStatus.ALIVE; //await this.getBatonStatus();
+
+        let graphStats = this._graphTxns.ComputeStatistics();
 
         this._tokenStats = <TokenStats> {
-            block_created: block_created,
-            block_last_active_mint: block_last_active_mint,
-            block_last_active_send: block_last_active_send,
-            qty_valid_txns_since_genesis: 0,//this._graphTxns.size,
-            qty_valid_token_utxos: 0,//this._tokenUtxos.size,
-            qty_valid_token_addresses: 0,//this._addresses.size,
-            qty_token_minted: qty_token_minted,
+            block_created: 0, //this._tokenDetails.,
+            block_last_active_mint: 0,//block_last_active_mint,
+            block_last_active_send: 0, //block_last_active_send,
+            qty_valid_txns_since_genesis: this._graphTxns.TotalTransactionCount,
+            qty_valid_token_utxos: graphStats.utxoCount,
+            qty_valid_token_addresses: graphStats.addressCount,
+            qty_token_minted: graphStats.mintQuantity,
             qty_token_burned: new BigNumber(0),
             qty_token_circulating_supply: this.getTotalHeldByAddresses(),
             qty_satoshis_locked_up: this.getTotalSatoshisLockedUp(),
-            minting_baton_status: minting_baton_status
+            minting_baton_status: graphStats.mintStatus
         }
         this._tokenStats.qty_token_burned = this._tokenStats.qty_token_minted.minus(this._tokenStats.qty_token_circulating_supply)
 
@@ -868,7 +886,7 @@ export class SlpTokenGraph {
         }
 
         if(saveToDb) {
-            await this._db.graphItemsUpsert(this);
+            await this._db.graphItemsUpsert(this._graphTxns);
             //await this._db.utxoInsertReplace(this.toUtxosDbObject(), this._tokenDetails.tokenIdHex);
             //await this._db.addressInsertReplace(this.toAddressesDbObject(), this._tokenDetails.tokenIdHex);
         }
@@ -1022,22 +1040,6 @@ export class SlpTokenGraph {
         return res;
     }
 
-    public static MapGraphTxnFromDbo(dbo: GraphTxnDbo, decimals: number, network: string): GraphTxn {
-        dbo.graphTxn.outputs.map(o => {
-            o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**decimals)
-        });
-        dbo.graphTxn.inputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**decimals))
-        let gt: GraphTxn = {
-            isDirty: false,
-            details: SlpTokenGraph.MapDbTokenDetailsFromDbo(dbo.graphTxn.details, decimals),
-            outputs: dbo.graphTxn.outputs as any as GraphTxnOutput[],
-            inputs: dbo.graphTxn.inputs as any as GraphTxnInput[],
-            blockHash: dbo.graphTxn.blockHash, 
-            prevPruneHeight: dbo.graphTxn.pruneHeight
-        }
-        return gt;
-    };
-
     static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
         let tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
         if (!token.tokenStats?.block_created!) {
@@ -1064,10 +1066,12 @@ export class SlpTokenGraph {
         tg._network = network;
 
         // Map _txnGraph
-        dag.forEach((item, idx) => {
-            let gt = this.MapGraphTxnFromDbo(item, tg!._tokenDetails.decimals, tg!._network);
-            tg!._graphTxns.set(item.graphTxn.txid, gt);
-        });
+        tg!._graphTxns.fromDbos(
+            dag, 
+            token.pruningState.sendCount,
+            token.pruningState.mintCount,
+            new BigNumber(token.pruningState.mintQuantity.toString())
+        );
 
         // Preload SlpValidator with cachedValidations
         tg._graphTxns.forEach((_, txid) => {
@@ -1104,36 +1108,6 @@ export interface AddressBalance {
     token_balance: BigNumber; 
     satoshis_balance: number;
 }
-
-export interface GraphTxn {
-    isDirty: boolean;
-    //isComplete?: boolean;
-    details: SlpTransactionDetails;
-    outputs: GraphTxnOutput[];
-    inputs: GraphTxnInput[];
-    prevPruneHeight: number|null;
-    blockHash: Buffer|null;
-}
-
-export interface GraphTxnOutput {
-    address: string;
-    vout: number;
-    bchSatoshis: number;
-    slpAmount: BigNumber; 
-    spendTxid: string | null;
-    status: TokenUtxoStatus|BatonUtxoStatus;
-    invalidReason: string | null;
- }
-
- interface GraphTxnInput {
-    txid: string;
-    vout: number;
-    slpAmount: BigNumber; 
-    address: string;
-    bchSatoshis: number;
-}
-
-type txid = string;
 
 interface SpendDetails {
     status: TokenUtxoStatus;

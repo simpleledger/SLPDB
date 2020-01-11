@@ -233,64 +233,64 @@ export class SlpGraphManager {
     //     }
     // }
 
-    async searchBlockForBurnedSlpTxos(block_hash: string) {
-        console.log('[INFO] Starting to look for any burned tokens resulting from non-SLP transactions');
-        let blockHex = <string>await RpcClient.getRawBlock(block_hash);
-        let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
-        let graphPromises: Promise<void>[] = [];
-        console.time("BlockSearchForBurn-"+block_hash);
-        for (let i=1; i < block.txs.length; i++) { // skip coinbase with i=1
-            let txnbuf: Buffer = block.txs[i].toRaw();
-            let txn: Primatives.Transaction = Primatives.Transaction.parseFromBuffer(txnbuf);
-            let inputs: Primatives.TransactionInput[] = txn.inputs;
-            for (let j=0; j < inputs.length; j++) {
-                let txid: string = inputs[j].previousTxHash!;
-                let vout = inputs[j].previousTxOutIndex.toString();
-                let graph: SlpTokenGraph|undefined;
-                let send_txo: UtxoDbo|undefined;
-                this._tokens.forEach(t => {
-                    if (t._tokenUtxos.has(txid + ":" + vout)) {
-                        send_txo = t.utxoToUtxoDbo(txid, vout);
-                        return;
-                    }
-                });
-                if (send_txo) {
-                    console.log("Potential burned transaction found (" + txid + ":" + vout + ")");
-                    let tokenId = send_txo.tokenDetails.tokenIdHex;
-                    graph = this._tokens.get(tokenId);
-                    if (graph) {
-                        console.log(`[INFO] (searchBlockForBurnedSlpTxos) Queued graph update at ${txid} for ${tokenId}`);
-                        graph.queueAddGraphTransaction({ txid }); //isParent: true });
-                        graphPromises.push(graph._graphUpdateQueue.onIdle());
-                    }
-                    continue;
-                }
-                let mint_txo: TokenDBObject|undefined;
-                this._tokens.forEach(t => {
-                    if (t._mintBatonUtxo === txid + ":" + vout) {
-                        mint_txo = GraphMap.tokenDetailstoDbo(t);
-                        return;
-                    }
-                })
-                if (mint_txo) {
-                    console.log("Potential burned minting transaction found (" + txid + ":" + vout + ")");
-                    let tokenId = mint_txo.tokenDetails.tokenIdHex;
-                    graph = this._tokens.get(tokenId);
-                    if (graph) {
-                        console.log(`[INFO] (searchBlockForBurnedSlpTxos 2) Queued graph update at ${txid} for ${tokenId}`);
-                        graph.queueAddGraphTransaction({ txid }); //isParent: true });
-                        graphPromises.push(graph._graphUpdateQueue.onIdle());
-                    }
-                    continue;
-                }
-            }
-        }
-        console.timeEnd("BlockSearchForBurn-"+block_hash);
-        console.time("BlockBurnQueueWait-"+block_hash);
-        await Promise.all(graphPromises);
-        console.timeEnd("BlockBurnQueueWait-"+block_hash);
-        console.log('[INFO] Finished looking for burned tokens.');
-    }
+    // async searchBlockForBurnedSlpTxos(block_hash: string) {
+    //     console.log('[INFO] Starting to look for any burned tokens resulting from non-SLP transactions');
+    //     let blockHex = <string>await RpcClient.getRawBlock(block_hash);
+    //     let block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
+    //     let graphPromises: Promise<void>[] = [];
+    //     console.time("BlockSearchForBurn-"+block_hash);
+    //     for (let i=1; i < block.txs.length; i++) { // skip coinbase with i=1
+    //         let txnbuf: Buffer = block.txs[i].toRaw();
+    //         let txn: Primatives.Transaction = Primatives.Transaction.parseFromBuffer(txnbuf);
+    //         let inputs: Primatives.TransactionInput[] = txn.inputs;
+    //         for (let j=0; j < inputs.length; j++) {
+    //             let txid: string = inputs[j].previousTxHash!;
+    //             let vout = inputs[j].previousTxOutIndex.toString();
+    //             let graph: SlpTokenGraph|undefined;
+    //             let send_txo: UtxoDbo|undefined;
+    //             this._tokens.forEach(t => {
+    //                 if (t._tokenUtxos.has(txid + ":" + vout)) {
+    //                     send_txo = t.utxoToUtxoDbo(txid, vout);
+    //                     return;
+    //                 }
+    //             });
+    //             if (send_txo) {
+    //                 console.log("Potential burned transaction found (" + txid + ":" + vout + ")");
+    //                 let tokenId = send_txo.tokenDetails.tokenIdHex;
+    //                 graph = this._tokens.get(tokenId);
+    //                 if (graph) {
+    //                     console.log(`[INFO] (searchBlockForBurnedSlpTxos) Queued graph update at ${txid} for ${tokenId}`);
+    //                     graph.queueAddGraphTransaction({ txid }); //isParent: true });
+    //                     graphPromises.push(graph._graphUpdateQueue.onIdle());
+    //                 }
+    //                 continue;
+    //             }
+    //             let mint_txo: TokenDBObject|undefined;
+    //             this._tokens.forEach(t => {
+    //                 if (t._mintBatonUtxo === txid + ":" + vout) {
+    //                     mint_txo = GraphMap.tokenDetailstoDbo(t);
+    //                     return;
+    //                 }
+    //             })
+    //             if (mint_txo) {
+    //                 console.log("Potential burned minting transaction found (" + txid + ":" + vout + ")");
+    //                 let tokenId = mint_txo.tokenDetails.tokenIdHex;
+    //                 graph = this._tokens.get(tokenId);
+    //                 if (graph) {
+    //                     console.log(`[INFO] (searchBlockForBurnedSlpTxos 2) Queued graph update at ${txid} for ${tokenId}`);
+    //                     graph.queueAddGraphTransaction({ txid }); //isParent: true });
+    //                     graphPromises.push(graph._graphUpdateQueue.onIdle());
+    //                 }
+    //                 continue;
+    //             }
+    //         }
+    //     }
+    //     console.timeEnd("BlockSearchForBurn-"+block_hash);
+    //     console.time("BlockBurnQueueWait-"+block_hash);
+    //     await Promise.all(graphPromises);
+    //     console.timeEnd("BlockBurnQueueWait-"+block_hash);
+    //     console.log('[INFO] Finished looking for burned tokens.');
+    // }
 
 
     static MapTokenDetailsToTnaDbo(details: SlpTransactionDetails, genesisDetails: SlpTransactionDetails, addresses: (string|null)[]): SlpTransactionDetailsTnaDbo {
@@ -358,7 +358,7 @@ export class SlpGraphManager {
         let unspentCount = 0;
         for (let [tokenId, token] of this._tokens) {
             await token.stop();
-            unspentCount += token._graphTxns.size
+            unspentCount += token.graphSize;
         }
         console.log(`[INFO] Total number of unspent graph items for all tokens: ${unspentCount}`);
     }

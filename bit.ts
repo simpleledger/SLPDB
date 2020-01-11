@@ -191,22 +191,18 @@ export class Bit {
 
         let tokenIdToUpdate= new Set<string>();
         if (txidToDelete.length > 0) {
-            for (let i = 0; i < txidToDelete.length; i++) {
-                for (let [tokenId, g ] of this._slpGraphManager._tokens) { 
-                    if (g._graphTxns.has(txidToDelete[i])) {
-                        this.slpMempool.delete(txidToDelete[i]);
-                        RpcClient.transactionCache.delete(txidToDelete[i]);
-                        g._graphTxns.delete(txidToDelete[i]);
-                        tokenIdToUpdate.add(txidToDelete[i]);
-                        tokenIdToUpdate.add(g._tokenDetails.tokenIdHex);
-                        break;
-                    }
+            for (let [tokenId, g ] of this._slpGraphManager._tokens) { 
+                let removedAny = g.scanDoubleSpendTxids(txidToDelete);
+                if (removedAny) {
+                    this.slpMempool.delete(txid);
+                    tokenIdToUpdate.add(txid);
+                    //tokenIdToUpdate.add(tokenId);
                 }
             }
         }
         tokenIdToUpdate.forEach(tokenId => {
             if (this._slpGraphManager._tokens.has(tokenId)) {
-                this._slpGraphManager._tokens.get(tokenId)!.UpdateStatistics();  // no need to await
+                this._slpGraphManager._tokens.get(tokenId)!.UpdateStatistics({});  // no need to await
             }
         });
 
@@ -640,9 +636,9 @@ export class Bit {
                 
                 for (let tokenId of self._tokenIdsModified) {
                     let graph = (await self._slpGraphManager.getTokenGraph({ tokenIdHex: tokenId }))!;
-                    await graph._db.graphItemsUpsert(graph, { hash: blockHash.toString("hex"), height: index });
+                    await graph.commitToDb({ hash: blockHash.toString("hex"), height: index });
                     if (index === currentHeight) {
-                        await graph!.UpdateStatistics();
+                        await graph!.UpdateStatistics({});
                     }
                 }
                 self._tokenIdsModified.clear();

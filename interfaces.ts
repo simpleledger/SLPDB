@@ -1,4 +1,4 @@
-import { SlpTransactionType } from 'slpjs';
+import { SlpTransactionType, SlpTransactionDetails } from 'slpjs';
 import { Decimal128 } from 'mongodb';
 import BigNumber from 'bignumber.js';
 
@@ -16,6 +16,34 @@ export interface TokenStats {
     qty_token_circulating_supply: BigNumber;
     qty_satoshis_locked_up: number;
     minting_baton_status: TokenBatonStatus;
+}
+
+export interface GraphTxn {
+    isDirty: boolean;
+    //isComplete?: boolean;
+    details: SlpTransactionDetails;
+    outputs: GraphTxnOutput[];
+    inputs: GraphTxnInput[];
+    prevPruneHeight: number|null;
+    blockHash: Buffer|null;
+}
+
+export interface GraphTxnOutput {
+    address: string;
+    vout: number;
+    bchSatoshis: number;
+    slpAmount: BigNumber; 
+    spendTxid: string | null;
+    status: TokenUtxoStatus|BatonUtxoStatus;
+    invalidReason: string | null;
+ }
+
+export interface GraphTxnInput {
+    txid: string;
+    vout: number;
+    slpAmount: BigNumber; 
+    address: string;
+    bchSatoshis: number;
 }
 
 export interface TokenStatsDbo {
@@ -37,9 +65,16 @@ export interface TokenDBObject {
     isGraphPruned: boolean;
     tokenDetails: SlpTransactionDetailsDbo;
     tokenStats: TokenStats | TokenStatsDbo | null;
+    pruningState: TokenPruneStateDbo;
     mintBatonUtxo: string;
     lastUpdatedBlock: number;
     nftParentId?: string;
+}
+
+export interface TokenPruneStateDbo {
+    sendCount: number;
+    mintCount: number;
+    mintQuantity: Decimal128;
 }
 
 export interface GraphTxnDbo {

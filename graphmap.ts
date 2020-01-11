@@ -1,18 +1,126 @@
-import { GraphTxn, SlpTokenGraph, GraphTxnOutput } from "./slptokengraph";
-import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenUtxoStatus, BatonUtxoStatus, TokenDBObject, TokenStatsDbo } from "./interfaces";
+import { SlpTokenGraph } from "./slptokengraph";
+import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenUtxoStatus, BatonUtxoStatus, TokenDBObject, TokenStatsDbo, TokenBatonStatus, GraphTxnInput, GraphTxnOutput, GraphTxn } from "./interfaces";
 import { Decimal128 } from "mongodb";
 import { Config } from "./config";
 import { RpcClient } from "./rpc";
+import { SlpTransactionType } from "slpjs";
+import BigNumber from "bignumber.js";
 
 export class GraphMap extends Map<string, GraphTxn> {
     public pruned = new Map<string, GraphTxn>();
-    private rootId: string;
-    private graph: SlpTokenGraph;
+    private _rootId: string;
+    private _parentContainer: SlpTokenGraph;
+    private _prunedSendCount = 0;
+    private _graphSendCount = 0;
+    private _prunedMintCount = 0;
+    private _graphMintCount = 0;
+    private _prunedMintQuantity = new BigNumber(0);
 
     constructor(graph: SlpTokenGraph) {
         super();
-        this.rootId = graph._tokenIdHex;
-        this.graph = graph;
+        this._rootId = graph._tokenIdHex;
+        this._parentContainer = graph;
+        this._graphSendCount = 0;
+        this._graphMintCount = 0;
+    }
+
+    fromDbos(dag: GraphTxnDbo[], prunedSendCount: number, prunedMintCount: number, prunedMintQuantity: BigNumber) {
+        dag.forEach((item, idx) => {
+            let gt = GraphMap.mapGraphTxnFromDbo(item, this._parentContainer._tokenDetails.decimals, this._parentContainer._network);
+            this.set(item.graphTxn.txid, gt);
+        });
+
+        this._prunedSendCount = prunedSendCount;
+        this._prunedMintCount = prunedMintCount;
+        this._prunedMintQuantity = prunedMintQuantity;
+    }
+
+    get SendCount() {
+        return this._prunedSendCount + this._graphSendCount;
+    }
+
+    get MintCount() {
+        return this._prunedMintCount + this._graphMintCount
+    }
+
+    get TotalTransactionCount() {
+        return this.SendCount + this.MintCount;
+    }
+
+    public ComputeUtxosAndAddresses() {
+        let txns = Array.from(this.values());
+        let outputs = txns.flatMap(txn => txn.outputs);
+        let utxos = outputs.filter(o => o.status === TokenUtxoStatus.UNSPENT);
+        let flags: { [key:string]: boolean } = {};
+        let addresses = utxos.filter(txo => {
+            if (flags[txo.address]) {
+                return false;
+            }
+            flags[txo.address] = true;
+            return true;
+        }).map(o => o.address);
+
+        return {
+            txns,
+            outputs,
+            utxos,
+            addresses
+        };
+    }
+
+    public ComputeStatistics() {
+        let flattened = this.ComputeUtxosAndAddresses();
+        let txns = flattened.txns;
+        let mints = txns.filter(txn => txn.details.transactionType === SlpTransactionType.MINT);
+        let mintQuantity = mints.map(txn => txn.outputs.find(o => o.vout === 1)!.slpAmount)
+                                .reduce((p: BigNumber, c:BigNumber) => p.plus(c), this._prunedMintQuantity);
+        let mintStatus = mints.flatMap(o => o.outputs).filter(o => o.status === BatonUtxoStatus.BATON_UNSPENT).length > 0 ?
+                            TokenBatonStatus.ALIVE :
+                            TokenBatonStatus.DEAD_ENDED;
+
+        return {
+            raw: flattened, 
+            mintQuantity,
+            utxoCount: flattened.utxos.length,
+            addressCount: flattened.addresses.length, 
+            sendCount: this.SendCount,
+            mintCount: this.MintCount,
+            mintStatus
+        }
+    }
+
+    private incrementGraphCount(txnType: SlpTransactionType) {
+        if (txnType === SlpTransactionType.SEND) {
+            this._graphSendCount++;
+        } else if (txnType === SlpTransactionType.MINT) {
+            this._graphMintCount++;
+        }
+    }
+
+    public set(txid: string, graphTxn: GraphTxn) {
+        if (!this.has(txid)) {
+            this.incrementGraphCount(graphTxn.details.transactionType);
+        }
+        return super.set(txid, graphTxn);
+    }
+
+    private decrementGraphCount(txnType: SlpTransactionType) {
+        if (txnType === SlpTransactionType.SEND) {
+            this._graphSendCount--;
+        } else if (txnType === SlpTransactionType.MINT) {
+            this._graphMintCount--;
+        }
+    }
+
+    public delete(txid: string) {
+        if (this.has(txid)) {
+            let deleted = super.delete(txid);
+            if (deleted) {
+                let t = this.get(txid)?.details.transactionType!;
+                this.decrementGraphCount(t);
+            }
+        }
+        return false;
     }
 
     public dirtyItems() {
@@ -35,11 +143,17 @@ export class GraphMap extends Map<string, GraphTxn> {
 
     // TODO: Prune validator txns
     public prune(txid: string, pruneHeight: number) {
-        if (this.has(txid) && txid !== this.rootId) {
+        if (this.has(txid) && txid !== this._rootId) {
             let gt = this.get(txid)!;
             if (!gt.prevPruneHeight || pruneHeight >= gt.prevPruneHeight) {
                 this.pruned.set(txid, gt);
                 console.log(`[INFO] Pruned ${txid} with prune height of ${pruneHeight} : ${this.delete(txid)}`);
+                if (gt.details.transactionType === SlpTransactionType.SEND) {
+                    this._prunedSendCount++;
+                } else if (gt.details.transactionType === SlpTransactionType.MINT) {
+                    this._prunedMintCount++;
+                    this._prunedMintQuantity.plus(gt.outputs.find(o => o.vout === 1)!.slpAmount);
+                }
                 return true;
             } else if (pruneHeight < gt.prevPruneHeight) {
                 console.log(`[INFO] Pruning deferred until ${gt.prevPruneHeight}`);
@@ -52,18 +166,19 @@ export class GraphMap extends Map<string, GraphTxn> {
         const txids = Array.from(this.pruned.keys());
         this.pruned.forEach((i, txid) => {
             RpcClient.transactionCache.delete(txid);
-            delete this.graph._slpValidator.cachedRawTransactions[txid];
-            delete this.graph._slpValidator.cachedValidations[txid];
+            delete this._parentContainer._slpValidator.cachedRawTransactions[txid];
+            delete this._parentContainer._slpValidator.cachedValidations[txid];
         });
 
         this.pruned.clear();
         return txids;
     }
 
-    public static toDbo(tg: SlpTokenGraph, recentBlocks: {hash: string, height: number}[]): [GraphTxnDbo[], TokenDBObject] {
+    public static toDbo(graph: GraphMap, recentBlocks: {hash: string, height: number}[]): [GraphTxnDbo[], TokenDBObject] {
+        let tg = graph._parentContainer;
         let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(tg._tokenDetails, tg._tokenDetails.decimals);
         let itemsToUpdate: GraphTxnDbo[] = [];
-        tg._graphTxns.forEach((g, txid) => {
+        graph.forEach((g, txid) => {
             let pruneHeight = null;
 
             // Here we determine if a graph object should be marked as aged and spent,
@@ -112,36 +227,39 @@ export class GraphMap extends Map<string, GraphTxn> {
 
         
         // Do the pruning here
-        itemsToUpdate.forEach(dbo => { if (dbo.graphTxn.pruneHeight) tg._graphTxns.prune(dbo.graphTxn.txid, dbo.graphTxn.pruneHeight)});
-
+        itemsToUpdate.forEach(dbo => { if (dbo.graphTxn.pruneHeight) graph.prune(dbo.graphTxn.txid, dbo.graphTxn.pruneHeight)});
         // canBePruned means it can still be pruned later (caused by totally spent transactions which are unaged)
-        let canBePruned = Array.from(tg._graphTxns.values())
+        let canBePruned = Array.from(graph.values())
                                 .flatMap(i => i.outputs)
                                 .filter(i => 
                                     [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(i.status)
-                                ).length < tg._graphTxns.size;
-
+                                ).length < graph.size;
         tg._isGraphTotallyPruned = !canBePruned;
-
-        tg._graphTxns.flushPrunedItems();
-
-        let tokenDbo = GraphMap.tokenDetailstoDbo(tg);
+        graph.flushPrunedItems();
+        let tokenDbo = GraphMap.tokenDetailstoDbo(graph);
         return [ itemsToUpdate, tokenDbo ];
     }
 
-    public static tokenDetailstoDbo(graph: SlpTokenGraph): TokenDBObject {
-        let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(graph._tokenDetails, graph._tokenDetails.decimals);
+    public static tokenDetailstoDbo(graph: GraphMap): TokenDBObject {
+        let tg = graph._parentContainer;
+        let tokenDetails = SlpTokenGraph.MapTokenDetailsToDbo(tg._tokenDetails, tg._tokenDetails.decimals);
 
         let result: TokenDBObject = {
             schema_version: Config.db.token_schema_version,
-            isGraphPruned: graph._isGraphTotallyPruned,
-            lastUpdatedBlock: graph._lastUpdatedBlock,
+            isGraphPruned: tg._isGraphTotallyPruned,
+            lastUpdatedBlock: tg._lastUpdatedBlock,
             tokenDetails: tokenDetails,
-            mintBatonUtxo: graph._mintBatonUtxo,
-            tokenStats: GraphMap.mapTokenStatstoDbo(graph),
+            mintBatonUtxo: tg._mintBatonUtxo,
+            tokenStats: GraphMap.mapTokenStatstoDbo(tg),
+            pruningState: {
+                sendCount: graph._prunedSendCount,
+                mintCount: graph._prunedMintCount,
+                mintQuantity: Decimal128.fromString(graph._prunedMintQuantity.toFixed())
+            }
+            //commitments: graph._commitments
         }
-        if(graph._nftParentId) {
-            result.nftParentId = graph._nftParentId;
+        if(tg._nftParentId) {
+            result.nftParentId = tg._nftParentId;
         }
         return result;
     }
@@ -177,4 +295,20 @@ export class GraphMap extends Map<string, GraphTxn> {
             minting_baton_status: stats.minting_baton_status
         }
     }
+
+    public static mapGraphTxnFromDbo(dbo: GraphTxnDbo, decimals: number, network: string): GraphTxn {
+        dbo.graphTxn.outputs.map(o => {
+            o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**decimals)
+        });
+        dbo.graphTxn.inputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**decimals))
+        let gt: GraphTxn = {
+            isDirty: false,
+            details: SlpTokenGraph.MapDbTokenDetailsFromDbo(dbo.graphTxn.details, decimals),
+            outputs: dbo.graphTxn.outputs as any as GraphTxnOutput[],
+            inputs: dbo.graphTxn.inputs as any as GraphTxnInput[],
+            blockHash: dbo.graphTxn.blockHash, 
+            prevPruneHeight: dbo.graphTxn.pruneHeight
+        }
+        return gt;
+    };
 }

@@ -80,7 +80,7 @@ export class Db {
         })
     }
 
-    async graphItemsUpsert(graph: SlpTokenGraph, currentBlock?: { hash: string; height: number }) {
+    async graphItemsUpsert(graph: GraphMap, currentBlock?: { hash: string; height: number }) {
         await this.checkClientStatus();
         let recentBlocks: { hash: string; height: number }[] = [];
         if (currentBlock) {
@@ -88,13 +88,13 @@ export class Db {
         }
         let [ itemsToUpdate, tokenDbo ] = GraphMap.toDbo(graph, recentBlocks);
         for (const g of itemsToUpdate) {
-            let res = await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": graph._tokenDetails.tokenIdHex, "graphTxn.txid": g.graphTxn.txid }, g, { upsert: true });
+            let res = await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": g.tokenDetails.tokenIdHex, "graphTxn.txid": g.graphTxn.txid }, g, { upsert: true });
             if (res.modifiedCount) {
                 console.log(`[DEBUG] graphItemsUpsert - modified: ${g.graphTxn.txid}`);
             } else if (res.upsertedCount) {
                 console.log(`[DEBUG] graphItemsUpsert - inserted: ${g.graphTxn.txid}`);
             } else {
-                throw Error(`Graph record was not updated: ${g.graphTxn.txid} (token: ${graph._tokenDetails.tokenIdHex})`);
+                throw Error(`Graph record was not updated: ${g.graphTxn.txid} (token: ${g.tokenDetails.tokenIdHex})`);
             }
         }
 
