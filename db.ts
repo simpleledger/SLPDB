@@ -77,12 +77,14 @@ export class Db {
         .catch(function(err) {
             console.log('[ERROR] token collection reset ERR ', err);
             throw err;
-        })
+        });
     }
 
     async graphItemsUpsert(graph: GraphMap, recentBlocks?: { hash: string; height: number }[]) {
-        await this.checkClientStatus();
+        await this.checkClientStatus();        
+        console.time("ToDBO");
         let { itemsToUpdate, tokenDbo, itemsToDelete } = GraphMap.toDbos(graph, recentBlocks);
+        console.timeEnd("ToDBO");
         for (const i of itemsToUpdate) {
             let res = await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": i.tokenDetails.tokenIdHex, "graphTxn.txid": i.graphTxn.txid }, i, { upsert: true });
             if (res.modifiedCount) {
@@ -93,13 +95,12 @@ export class Db {
                 throw Error(`Graph record was not updated: ${i.graphTxn.txid} (token: ${i.tokenDetails.tokenIdHex})`);
             }
         }
-
         await this.tokenInsertReplace(tokenDbo);
 
         for (const txid of itemsToDelete) {
-            let res1 = await this.db.collection("graphs").deleteMany({ "grpahTxn.txid": txid });
-            let res2 = await this.db.collection("confirmed").deleteMany({ "tx.h": txid });
-            let res3 = await this.db.collection("unconfirmed").deleteMany({ "tx.h": txid });
+            await this.db.collection("graphs").deleteMany({ "grpahTxn.txid": txid });
+            await this.db.collection("confirmed").deleteMany({ "tx.h": txid });
+            await this.db.collection("unconfirmed").deleteMany({ "tx.h": txid });
         }
     }
 

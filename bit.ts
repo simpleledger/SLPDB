@@ -330,7 +330,7 @@ export class Bit {
                 let slp = await self.setSlpProp(deserialized, txid, blockTime, t, blockIndex, blockSeenTokenIds);
 
                 if (!self.slpMempool.has(txid) && syncComplete) {
-                    console.log("SLP transaction not in mempool:", txid);
+                    console.log("[WARN] SLP transaction not in mempool:", txid);
                     await self.handleMempoolTransaction(txid, serialized);
                     let syncResult = await Bit.sync(self, 'mempool', txid);
                     self._slpGraphManager.onTransactionHash!(syncResult!);
@@ -678,6 +678,9 @@ export class Bit {
                     try {
                         await self.db.unconfirmedInsert(content);
                         console.log("[INFO] SLP mempool transaction added: ", zmqHash);
+                        let pool = new Map<txid, txhex>();
+                        pool.set(zmqHash, txn.toString());
+                        result.filteredContent.set(SyncFilterTypes.SLP, pool);
                     } catch (e) {
                         if (e.code == 11000) {
                             console.log(`[WARN] Mempool item already exists: ${zmqHash}`);
@@ -687,10 +690,6 @@ export class Bit {
                             throw e;
                         }
                     }
-
-                    let pool = new Map<txid, txhex>();
-                    pool.set(zmqHash, txn.toString());
-                    result.filteredContent.set(SyncFilterTypes.SLP, pool)
                 } else {
                     console.log("[INFO] Skipping non-SLP transaction:", zmqHash);
                 }

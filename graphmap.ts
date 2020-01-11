@@ -16,13 +16,14 @@ export class GraphMap extends Map<string, GraphTxn> {
     private _prunedMintCount = 0;
     private _graphMintCount = 0;
     private _prunedMintQuantity = new BigNumber(0);
+    private _graphMintQuantity = new BigNumber(0);
+    // private _prunedValidBurnQuantity = new BigNumber(0);
+    // private _graphValidBurnQuantity = new BigNumber(0);
 
     constructor(graph: SlpTokenGraph) {
         super();
         this._rootId = graph._tokenIdHex;
         this._container = graph;
-        this._graphSendCount = 0;
-        this._graphMintCount = 0;
     }
 
     get SendCount() {
@@ -30,90 +31,50 @@ export class GraphMap extends Map<string, GraphTxn> {
     }
 
     get MintCount() {
-        return this._prunedMintCount + this._graphMintCount
+        return this._prunedMintCount + this._graphMintCount;
+    }
+
+    get TotalSupplyMinted() {
+        return this._prunedMintQuantity.plus(this._graphMintQuantity).plus(this._container._tokenDetails.genesisOrMintQuantity!);
     }
 
     get TotalTransactionCount() {
         return this.SendCount + this.MintCount;
     }
 
-    public ComputeUtxosAndAddresses() {
-        let txns = Array.from(this.values());
-        let outputs = txns.flatMap(txn => txn.outputs);
-        let utxos = outputs.filter(o => o.status === TokenUtxoStatus.UNSPENT);
-        let flags: { [key:string]: boolean } = {};
-        let addresses = utxos.filter(txo => {
-            if (flags[txo.address]) {
-                return false;
-            }
-            flags[txo.address] = true;
-            return true;
-        }).map(o => o.address);
-
-        return {
-            txns,
-            outputs,
-            utxos,
-            addresses
-        };
-    }
-
-    public ComputeStatistics(): GraphStats {
-        let flattened = this.ComputeUtxosAndAddresses();
-        let txns = flattened.txns;
-        let mints = txns.filter(txn => txn.details.transactionType === SlpTransactionType.MINT);
-        let mintQuantity = mints.map(txn => txn.outputs
-                                .find(o => o.vout === 1)!.slpAmount)
-                                .reduce((p: BigNumber, c:BigNumber) => p.plus(c), this._prunedMintQuantity);
-        let mintStatus = mints.flatMap(o => o.outputs)
-                              .filter(o => o.status === BatonUtxoStatus.BATON_UNSPENT)
-                              .length > 0 ? TokenBatonStatus.ALIVE : TokenBatonStatus.DEAD_ENDED;
-        let canBePruned = flattened.outputs
-                                        .filter(o => [ 
-                                            TokenUtxoStatus.UNSPENT, 
-                                            BatonUtxoStatus.BATON_UNSPENT 
-                                        ].includes(o.status)).length < this.size;
-        return {
-            raw: flattened, 
-            mintQuantity,
-            utxoCount: flattened.utxos.length,
-            addressCount: flattened.addresses.length, 
-            sendCount: this.SendCount,
-            mintCount: this.MintCount,
-            mintStatus,
-            canBePruned
-        }
-    }
-
-    private _incrementGraphCount(txnType: SlpTransactionType) {
+    private _incrementGraphCount(graphTxn: GraphTxn) {
+        let txnType = graphTxn.details.transactionType;
         if (txnType === SlpTransactionType.SEND) {
             this._graphSendCount++;
         } else if (txnType === SlpTransactionType.MINT) {
             this._graphMintCount++;
+            this._graphMintQuantity.plus(graphTxn.details.genesisOrMintQuantity!);
         }
     }
 
     public set(txid: string, graphTxn: GraphTxn) {
         if (!this.has(txid)) {
-            this._incrementGraphCount(graphTxn.details.transactionType);
+            this._incrementGraphCount(graphTxn);
         }
         return super.set(txid, graphTxn);
     }
 
-    private _decrementGraphCount(txnType: SlpTransactionType) {
+    private _decrementGraphCount(graphTxn: GraphTxn) {
+        let txnType = graphTxn.details.transactionType;
         if (txnType === SlpTransactionType.SEND) {
             this._graphSendCount--;
         } else if (txnType === SlpTransactionType.MINT) {
             this._graphMintCount--;
+            this._graphMintQuantity.minus(graphTxn.details.genesisOrMintQuantity!);
         }
     }
 
     public delete(txid: string) {
         if (this.has(txid)) {
+            let graphTxn = this.get(txid);
             let deleted = super.delete(txid);
             if (deleted) {
-                let t = this.get(txid)?.details.transactionType!;
-                this._decrementGraphCount(t);
+                this._decrementGraphCount(graphTxn!);
             }
         }
         return false;
@@ -142,7 +103,6 @@ export class GraphMap extends Map<string, GraphTxn> {
         return super.get(txid);
     }
 
-    // TODO: Prune validator txns
     public prune(txid: string, pruneHeight: number) {
         if (this.has(txid) && txid !== this._rootId) {
             let gt = this.get(txid)!;
@@ -250,7 +210,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         let tg = graph._container;
         let tokenDetails = GraphMap._mapTokenDetailsToDbo(tg._tokenDetails, tg._tokenDetails.decimals);
 
-        let stats = graph.ComputeStatistics();
+        //let stats = graph.ComputeStatistics();
 
         let result: TokenDbo = {
             schema_version: Config.db.token_schema_version,
@@ -258,23 +218,22 @@ export class GraphMap extends Map<string, GraphTxn> {
             tokenDetails: tokenDetails,
             mintBatonUtxo: tg._mintBatonUtxo,
             tokenStats: {
-                block_created: 0,                   //tg.block_created,
-                block_last_active_send: 0,          //tg.block_last_active_send,
-                block_last_active_mint: 0,          //tg.block_last_active_mint,
-                qty_valid_txns_since_genesis: stats.sendCount,
-                qty_valid_token_utxos: stats.utxoCount,
-                qty_valid_token_addresses: stats.addressCount,
-                qty_token_minted: Decimal128.fromString(stats.mintQuantity.dividedBy(10**tg._tokenDetails.decimals).toFixed()),
-                qty_token_burned: Decimal128.fromString("0"),               //stats.qty_token_burned.dividedBy(10**graph._tokenDetails.decimals).toFixed()),
-                qty_token_circulating_supply: Decimal128.fromString("0"),   //stats..dividedBy(10**tg._tokenDetails.decimals).toFixed()),
-                qty_satoshis_locked_up: 0,                                  //stats.qty_satoshis_locked_up,
-                minting_baton_status: stats.mintStatus
+                block_created: tg._blockCreated,       //tg.block_created,
+                block_last_active_send: null,          //tg.block_last_active_send,
+                block_last_active_mint: null,          //tg.block_last_active_mint,
+                qty_valid_txns_since_genesis: graph.SendCount,
+                qty_valid_token_utxos: null,           //stats.utxoCount,
+                qty_valid_token_addresses: null,       //stats.addressCount,
+                qty_token_minted: Decimal128.fromString(graph.TotalSupplyMinted.dividedBy(10**tg._tokenDetails.decimals).toFixed()),
+                qty_token_burned: null,                //Decimal128.fromString(//stats.qty_token_burned.dividedBy(10**graph._tokenDetails.decimals).toFixed()),
+                qty_token_circulating_supply: null,    //Decimal128.fromString(stats..dividedBy(10**tg._tokenDetails.decimals).toFixed()),
+                qty_satoshis_locked_up: null,                        //stats.qty_satoshis_locked_up,
+                minting_baton_status: TokenBatonStatus.UNKNOWN       //stats.mintStatus
             },
             pruningState: {
                 sendCount: graph._prunedSendCount,
                 mintCount: graph._prunedMintCount,
-                mintQuantity: Decimal128.fromString(graph._prunedMintQuantity.toFixed()),
-                canBePruned: stats.canBePruned
+                mintQuantity: Decimal128.fromString(graph._prunedMintQuantity.toFixed())
             }
         }
         if (tg._nftParentId) {
@@ -343,6 +302,55 @@ export class GraphMap extends Map<string, GraphTxn> {
         }
         return null;
     }
+
+    // NOTE: this code block is too inefficient to be running in SLPDB
+    // public ComputeUtxosAndAddresses() {
+    //     let txns = Array.from(this.values());
+    //     let outputs = txns.flatMap(txn => txn.outputs);
+    //     let utxos = outputs.filter(o => o.status === TokenUtxoStatus.UNSPENT);
+    //     let flags: { [key:string]: boolean } = {};
+    //     let addresses = utxos.filter(txo => {
+    //         if (flags[txo.address]) {
+    //             return false;
+    //         }
+    //         flags[txo.address] = true;
+    //         return true;
+    //     }).map(o => o.address);
+
+    //     return {
+    //         txns,
+    //         outputs,
+    //         utxos,
+    //         addresses
+    //     };
+    // }
+
+    // NOTE: this code block is too inefficient to be running in SLPDB
+    // private ComputeStatistics(): GraphStats {
+    //     let flattened = this.ComputeUtxosAndAddresses();
+    //     let txns = flattened.txns;
+    //     let mints = txns.filter(txn => txn.details.transactionType === SlpTransactionType.MINT);
+    //     let mintQuantity = mints.map(txn => txn.outputs
+    //                             .find(o => o.vout === 1)!.slpAmount)
+    //                             .reduce((p: BigNumber, c:BigNumber) => p.plus(c), this._prunedMintQuantity);
+    //     let mintStatus = mints.flatMap(o => o.outputs)
+    //                           .filter(o => o.status === BatonUtxoStatus.BATON_UNSPENT)
+    //                           .length > 0 ? TokenBatonStatus.ALIVE : TokenBatonStatus.DEAD_ENDED;
+    //     let canBePruned = flattened.outputs
+    //                                     .filter(o => [ 
+    //                                         TokenUtxoStatus.UNSPENT, 
+    //                                         BatonUtxoStatus.BATON_UNSPENT 
+    //                                     ].includes(o.status)).length < this.size;
+    //     return {
+    //         raw: flattened, 
+    //         mintQuantity,
+    //         utxoCount: flattened.utxos.length,
+    //         addressCount: flattened.addresses.length, 
+    //         mintStatus,
+    //         canBePruned
+    //     }
+    // }
+
 }
 
 interface GraphStats {
@@ -350,8 +358,6 @@ interface GraphStats {
     mintQuantity: BigNumber;
     utxoCount: number;
     addressCount: number;
-    sendCount: number;
-    mintCount: number;
     mintStatus: TokenBatonStatus;
     canBePruned: boolean;
 }
