@@ -1,7 +1,7 @@
 import { SlpTokenGraph } from "./slptokengraph";
-import { TokenDBObject, UtxoDbo, AddressBalancesDbo, GraphTxnDbo } from "./interfaces";
-import { SlpTransactionType, Slp, SlpTransactionDetails, Primatives } from "slpjs";
-import { SyncCompletionInfo, SyncFilterTypes, txid, txhex, SyncType, Bit } from "./bit";
+import { TokenDBObject, GraphTxnDbo } from "./interfaces";
+import { SlpTransactionType, Slp, SlpTransactionDetails } from "slpjs";
+import { Bit } from "./bit";
 import { Query } from "./query";
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
@@ -13,18 +13,17 @@ import * as zmq from 'zeromq';
 import { Info } from "./info";
 import * as pQueue from 'p-queue';
 
-const Block = require('bcash/lib/primitives/block');
-const BufferReader = require('bufio/lib/reader');
-
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 import { RpcClient } from './rpc';
-import { CacheSet, CacheMap } from "./cache";
+import { CacheSet } from "./cache";
 import { SlpdbStatus } from "./status";
 import { TokenFilter } from "./filters";
-import { GraphMap } from "./graphmap";
 
 const bitcoin = new BITBOX();
+
+type txhex = string;
+type txid = string;
 
 export class SlpGraphManager {
     slp = new Slp(bitcoin);
@@ -33,7 +32,6 @@ export class SlpGraphManager {
     zmqPubSocket?: zmq.Socket;
     _zmqMempoolPubSetList = new CacheSet<string>(1000);
     _TnaQueue?: pQueue<pQueue.DefaultAddOptions>;
-    //_startupQueue = new pQueue<pQueue.DefaultAddOptions>({ concurrency: 4, autoStart: true })
     _updatesQueue = new pQueue<pQueue.DefaultAddOptions>({ concurrency: 1, autoStart: false });
     _bestBlockHeight: number;
     _network: string;
@@ -74,7 +72,7 @@ export class SlpGraphManager {
         return this._tokens.get(tokenIdHex)!;
     }
 
-    async onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
+    async onTransactionHash(syncResult: Map<txid, txhex>): Promise<void> {
         let self = this;
         await this._updatesQueue.add(async function() {
             await self._onTransactionHash(syncResult);
@@ -89,10 +87,9 @@ export class SlpGraphManager {
         })
     }
 
-    async _onTransactionHash(syncResult: SyncCompletionInfo): Promise<void> {
-        if (syncResult && syncResult.filteredContent.size > 0) {
-            let txns = Array.from(syncResult.filteredContent.get(SyncFilterTypes.SLP)!);
-            for (let [txid, txnHex] of txns) {
+    async _onTransactionHash(syncResult: Map<txid, txhex>): Promise<void> {
+        if (syncResult && syncResult.size > 0) {
+            for (let [txid, txnHex] of syncResult) {
                 console.log("[INFO] Processing graph collection updates for:", txid);
                 let tokenDetails = this.parseTokenTransactionDetails(txnHex);
                 let tokenId = tokenDetails ? tokenDetails.tokenIdHex : null;

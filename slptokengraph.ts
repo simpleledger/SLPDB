@@ -403,7 +403,7 @@ export class SlpTokenGraph {
                     address: address,
                     vout: 1,
                     bchSatoshis: txn.outputs.length > 1 ? txn.outputs[1].satoshis : 0, 
-                    slpAmount: <any>graphTxn.details.genesisOrMintQuantity!,
+                    slpAmount: graphTxn.details.genesisOrMintQuantity! as BigNumber,
                     spendTxid: null,                    //spendDetails.txid,
                     status: TokenUtxoStatus.UNSPENT,    //spendDetails.status,
                     invalidReason: null                 //spendDetails.invalidReason

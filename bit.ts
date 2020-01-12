@@ -28,15 +28,6 @@ export enum SyncType {
     "Mempool", "Block"
 }
 
-export enum SyncFilterTypes {
-    "BCH", "SLP"
-}
-
-export interface SyncCompletionInfo {
-    syncType: SyncType;
-    filteredContent: Map<SyncFilterTypes, Map<txid, txhex>>;
-}
-
 export type CrawlResult = CacheMap<txid, CrawlTxnInfo>;
 
 export interface CrawlTxnInfo {
@@ -44,8 +35,9 @@ export interface CrawlTxnInfo {
     txHex: string;
     tokenId: string;
 }
-export type txhex = string;
-export type txid = string;
+
+type txhex = string;
+type txid = string;
 
 const tna = new TNA();
 
@@ -567,11 +559,10 @@ export class Bit {
         }
     }
 
-    static async sync(self: Bit, type: string, zmqHash?: string, txhex?: string): Promise<SyncCompletionInfo|null> {
+    static async sync(self: Bit, type: string, zmqHash?: string, txhex?: string): Promise<Map<txid, txhex>|null> {
         self._isSyncing = true;
-        let result: SyncCompletionInfo;
+        let result = new Map<txid, txhex>();
         if (type === 'block') {
-            result = { syncType: SyncType.Block, filteredContent: new Map<SyncFilterTypes, Map<txid, txhex>>() }
             let lastCheckpoint = zmqHash ? <ChainSyncCheckpoint>await Info.getBlockCheckpoint() : <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
             
             lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
@@ -648,7 +639,6 @@ export class Bit {
                 return null;
             }
         } else if (type === 'mempool') {
-            result = { syncType: SyncType.Mempool, filteredContent: new Map<SyncFilterTypes, Map<txid, txhex>>() }
             if (zmqHash) {
                 let txn: bitcore.Transaction|null = await self.getSlpMempoolTransaction(zmqHash);
                 if (!txn && !self.slpTxnNotificationIgnoreList.has(zmqHash)) {
@@ -667,21 +657,19 @@ export class Bit {
 
                     try {
                         await self.db.unconfirmedInsert(content);
-                        console.log("[INFO] SLP mempool transaction added: ", zmqHash);
-                        let pool = new Map<txid, txhex>();
-                        pool.set(zmqHash, txn.toString());
-                        result.filteredContent.set(SyncFilterTypes.SLP, pool);
+                        console.log(`[INFO] SLP mempool transaction added: ${zmqHash}`);
+                        result.set(zmqHash, txn.toString());
                     } catch (e) {
                         if (e.code == 11000) {
                             console.log(`[WARN] Mempool item already exists: ${zmqHash}`);
                             //await self.db.mempoolreplace(content);
                         } else {
-                            console.log('[ERROR] Mempool sync ERR:', e, content);
+                            console.log(`[ERROR] Mempool sync ERR: ${e} ${content}`);
                             throw e;
                         }
                     }
                 } else {
-                    console.log("[INFO] Skipping non-SLP transaction:", zmqHash);
+                    console.log(`[INFO] Skipping non-SLP transaction: ${zmqHash}`);
                 }
                 self._isSyncing = false;
                 return result;
