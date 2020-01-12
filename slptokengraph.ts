@@ -281,12 +281,12 @@ export class SlpTokenGraph {
         let txn: bitcore.Transaction = new bitcore.Transaction(await this._slpValidator.retrieveRawTransaction(txid));
 
         if (!isValid) {
-            console.log("[WARN] updateTokenGraphFrom: Not valid token transaction:", txid);
+            console.log("[WARN] addGraphTransaction: Not valid token transaction:", txid);
             return false;
         }
 
         if (!txnSlpDetails) {
-            console.log("[WARN] updateTokenGraphFrom: No token details for:", txid);
+            console.log("[WARN] addGraphTransaction: No token details for:", txid);
             return false;
         }
 
@@ -319,7 +319,7 @@ export class SlpTokenGraph {
                     let ptxn = this._graphTxns.get(previd)!;
                     ptxn.isDirty = true;
                     // update the parent's output items
-                    console.log("[INFO] updateTokenGraphFrom: update the status of the input txns' outputs");
+                    console.log("[INFO] addGraphTransaction: update the status of the input txns' outputs");
                     if (!visited.has(previd)) {
                         visited.add(previd);
                         //await this.updateTokenGraphAt({ txid: previd, isParentInfo: {  }, processUpToBlock });

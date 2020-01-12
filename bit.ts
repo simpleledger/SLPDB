@@ -121,15 +121,6 @@ export class Bit {
             await sleep(2000);
         }
     }
-    
-    async requestheight(): Promise<number> {
-        try {
-            return await RpcClient.getBlockCount();
-        } catch(err) {
-            console.log('Check your RPC connection. Could not get height from full node rpc call.')
-            throw err;
-        }
-    }
 
     async getSlpMempoolTransaction(txid: string): Promise<bitcore.Transaction|null> {
         if (this.slpMempool.has(txid)) {
@@ -149,9 +140,6 @@ export class Bit {
             try {
                 let txhex = <string>await RpcClient.getRawTransaction(txid);
                 txnBuf = Buffer.from(txhex, 'hex');
-                if (this.slpTransactionFilter(txnBuf)) {
-                    RpcClient.loadTxnIntoCache(txid, txnBuf);
-                }
             } catch(err) {
                 console.log(`[ERROR] Could not find tranasaction ${txid} in handleMempoolTransaction`);
                 return { isSlp: false, added: false }
@@ -202,6 +190,7 @@ export class Bit {
         }
 
         if (this.slpTransactionFilter(txnBuf)) {
+            RpcClient.loadTxnIntoCache(txid, txnBuf);
             this.slpMempool.set(txid, txnBuf.toString("hex"));
             let inputTxos = Primatives.Transaction.parseFromBuffer(txnBuf).inputs;
             for (let txo of inputTxos) {
@@ -587,9 +576,15 @@ export class Bit {
             
             lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
 
-            let currentHeight: number = await self.requestheight();
-
+            let currentHeight: number = await RpcClient.getBlockCount();
             let startHeight = lastCheckpoint.height;
+            if (zmqHash) {
+                let zmqHeight = (await RpcClient.getBlockInfo({ hash: zmqHash })).height;
+                if (zmqHeight > startHeight+1) {
+                    throw Error('zmqHeight cannot not be larger than the last checkpoint height.');
+                }
+                startHeight = zmqHeight
+            }
             
             for (let index: number = startHeight; index <= currentHeight; index++) {
                 if (self._exit) {
@@ -602,12 +597,7 @@ export class Bit {
                 console.timeEnd('[PERF] RPC END ' + index);
                 console.time('[PERF] DB Insert ' + index);
 
-                let blockHash: Buffer;
-                if (!zmqHash) {
-                    blockHash = (await RpcClient.getBlockHash(index, true)) as Buffer;
-                } else {
-                    blockHash = Buffer.from(zmqHash, 'hex');
-                }
+                let blockHash = (await RpcClient.getBlockHash(index, true)) as Buffer;
         
                 if (crawledTxns && crawledTxns.size > 0) {
                     let array = Array.from(crawledTxns.values()).map(c => c.tnaTxn);
@@ -641,7 +631,7 @@ export class Bit {
                 }
                 await Info.updateBlockCheckpoint(index, blockHash.toString('hex'));
                 console.timeEnd('[PERF] DB Insert ' + index);
-                currentHeight = await self.requestheight();
+                currentHeight = await RpcClient.getBlockCount();
             }
 
             // clear mempool and synchronize
@@ -739,8 +729,9 @@ export class Bit {
 
         // Next, we should ensure our previous block hash stored in leveldb 
         // matches the current tip's previous hash, otherwise we need to rollback again
-        let prevBlockHash = (<BlockHeaderResult>await RpcClient.getBlockInfo({ hash: actualHash })).previousblockhash;
-        let prevBlockHeight = lastCheckpoint.height - 1;
+        let blockInfo: BlockHeaderResult = await RpcClient.getBlockInfo({ hash: actualHash });
+        let prevBlockHash = blockInfo.previousblockhash;
+        let prevBlockHeight = blockInfo.height - 1;
 
         console.log(`[INFO] Checking previous actual block hash: ${prevBlockHash} for ${prevBlockHeight}`);
         let storedPrevCheckpointHash = await Info.getCheckpointHash(prevBlockHeight);
@@ -751,8 +742,10 @@ export class Bit {
             while (storedPrevCheckpointHash !== prevBlockHash && prevBlockHeight > from) {
                 rollbackCount++;
                 hadReorg = true;
-                storedPrevCheckpointHash = await Info.getCheckpointHash(--prevBlockHeight);
-                prevBlockHash = (<BlockHeaderResult>await RpcClient.getBlockInfo({ hash: prevBlockHash })).previousblockhash;
+                let blockInfo = <BlockHeaderResult>await RpcClient.getBlockInfo({ hash: prevBlockHash });
+                prevBlockHash = blockInfo.previousblockhash;
+                prevBlockHeight = blockInfo.height - 1;
+                storedPrevCheckpointHash = await Info.getCheckpointHash(prevBlockHeight);
                 console.log(`[WARN] Rolling back to stored previous height ${prevBlockHeight}`);
                 console.log(`[WARN] Rollback - actual previous hash ${prevBlockHash}`);
                 console.log(`[WARN] Rollback - stored previous hash ${storedPrevCheckpointHash}`);
