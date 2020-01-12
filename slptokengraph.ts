@@ -100,9 +100,11 @@ export class SlpTokenGraph {
 
         if (this._graphUpdateQueue.pending || this._graphUpdateQueue.size) {
             console.log(`[INFO] Waiting on ${this._graphUpdateQueue.size} queue items.`);
-            await this._graphUpdateQueue.onIdle();
-            this._graphUpdateQueue.pause();
-            console.log(`[INFO] Graph update queue is idle and cleared with ${this._graphUpdateQueue.size} items and ${this._graphUpdateQueue.pending} pending.`);
+            if (!this._graphUpdateQueue.isPaused) {
+                await this._graphUpdateQueue.onIdle();
+                this._graphUpdateQueue.pause();
+                console.log(`[INFO] Graph update queue is idle and cleared with ${this._graphUpdateQueue.size} items and ${this._graphUpdateQueue.pending} pending.`);
+            }
         }
 
         let dirtyCount = this._graphTxns.dirtyItems().length;
