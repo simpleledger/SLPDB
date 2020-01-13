@@ -346,7 +346,7 @@ export class SlpTokenGraph {
             prevPruneHeight: null
         };
 
-        console.log(`[INFO] Unprunned txn count: ${this._graphTxns.size} (token: ${this._tokenIdHex})`);
+        console.log(`[INFO] Unpruned txn count: ${this._graphTxns.size} (token: ${this._tokenIdHex})`);
 
         // Update parent items (their output statuses) and add contributing SLP inputs
         if (txid !== this._tokenIdHex) {
