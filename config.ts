@@ -43,14 +43,6 @@ export class Config {
 				keys: [ 'tokenDetails.tokenIdHex', 'graphTxn.txid', 'graphTxn.outputs.spendTxid'],
 				fulltext: [ ]
 			},
-			addresses: {
-				keys: [ 'tokenDetails.tokenIdHex', 'address'],
-				fulltext: [ ]
-			},
-			utxos: {
-				keys: [ 'tokenDetails.tokenIdHex', 'utxo'],
-				fulltext: [ ]
-			},
 			confirmed: {
 				keys: [
 					'tx.h', 'blk.i', 'blk.t', 'blk.h',
