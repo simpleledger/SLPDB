@@ -105,7 +105,7 @@ export class SlpTokenGraph {
                 }
                 o.spendTxid = burnedInTxid;
                 o.invalidReason = "Spent in non-SLP transaction";
-                gt.isDirty = true;
+                this._graphTxns.SetDirty(txid);
                 return true;
             }
         }
@@ -158,7 +158,7 @@ export class SlpTokenGraph {
             }
         }
 
-        let dirtyCount = this._graphTxns.dirtyItems().length;
+        let dirtyCount = this._graphTxns.DirtyCount;
         console.log(`[INFO] On stop there are ${dirtyCount} dirty items.`);
         if (dirtyCount > 0) {
             this.commitToDb();
@@ -324,7 +324,7 @@ export class SlpTokenGraph {
             let gt = this._graphTxns.get(txid)!;
             if (!gt.blockHash && blockHash) {
                 gt.blockHash = blockHash;
-                gt.isDirty = true;
+                this._graphTxns.SetDirty(txid);
             }
             return true;
         }
@@ -343,7 +343,6 @@ export class SlpTokenGraph {
             outputs: [],
             inputs: [],
             blockHash: blockHash ? blockHash : null,
-            isDirty: true,
             prevPruneHeight: null
         };
 
@@ -359,7 +358,7 @@ export class SlpTokenGraph {
 
                 if (this._graphTxns.has(previd)) {
                     let ptxn = this._graphTxns.get(previd)!;
-                    ptxn.isDirty = true;
+                    this._graphTxns.SetDirty(previd);
                     // update the parent's output items
                     console.log("[INFO] addGraphTransaction: update the status of the input txns' outputs");
                     if (!visited.has(previd)) {
@@ -401,7 +400,7 @@ export class SlpTokenGraph {
                             address: o.address,
                             bchSatoshis: o.bchSatoshis
                         });
-                        graphTxn.isDirty = true;
+                        this._graphTxns.SetDirty(previd);
                     }
                 }
             }

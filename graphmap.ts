@@ -11,6 +11,7 @@ const globalUtxoSet = slpUtxos();
 
 export class GraphMap extends Map<string, GraphTxn> {
     private pruned = new Map<string, GraphTxn>();
+    private dirtyItems = new Set<string>();
     private doubleSpent = new Set<string>();
     private _rootId: string;
     private _container: SlpTokenGraph;
@@ -27,6 +28,10 @@ export class GraphMap extends Map<string, GraphTxn> {
         super();
         this._rootId = graph._tokenIdHex;
         this._container = graph;
+    }
+
+    get DirtyCount() {
+        return this.dirtyItems.size;
     }
 
     get SendCount() {
@@ -56,10 +61,15 @@ export class GraphMap extends Map<string, GraphTxn> {
     }
 
     public set(txid: string, graphTxn: GraphTxn) {
+        this.SetDirty(txid);
         if (!this.has(txid)) {
             this._incrementGraphCount(graphTxn);
         }
         return super.set(txid, graphTxn);
+    }
+
+    public SetDirty(txid: string) {
+        this.dirtyItems.add(txid);
     }
 
     private _decrementGraphCount(graphTxn: GraphTxn) {
@@ -86,10 +96,6 @@ export class GraphMap extends Map<string, GraphTxn> {
     public deleteDoubleSpend(txid: string) {
         this.doubleSpent.add(txid);
         return this.delete(txid);
-    }
-
-    public dirtyItems() {
-        return Array.from(this.values()).filter(i => i.isDirty);
     }
 
     public has(txid: string, includePrunedItems=false): boolean {
@@ -136,6 +142,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         });
         this.doubleSpent.clear();
         this.pruned.clear();
+        this.dirtyItems.clear();
         return txids;
     }
 
@@ -143,30 +150,28 @@ export class GraphMap extends Map<string, GraphTxn> {
         let tg = graph._container;
         let itemsToUpdate: GraphTxnDbo[] = [];
 
-        graph.forEach((g, txid) => {
-            if (g.isDirty) {
-                let dbo: GraphTxnDbo = {
-                    tokenDetails: { tokenIdHex: graph._container._tokenIdHex },
-                    graphTxn: {
-                        txid,
-                        details: GraphMap._mapTokenDetailsToDbo(g.details, tg._tokenDetails.decimals),
-                        outputs: GraphMap._txnOutputsToDbo(tg, g.outputs),
-                        inputs: g.inputs.map((i) => {
-                            return {
-                                address: i.address,
-                                txid: i.txid,
-                                vout: i.vout,
-                                bchSatoshis: i.bchSatoshis,
-                                slpAmount: Decimal128.fromString(i.slpAmount.dividedBy(10**tg._tokenDetails.decimals).toFixed())
-                            }
-                        }),
-                        blockHash: g.blockHash,
-                        pruneHeight: g.prevPruneHeight
-                    }
-                };
-                itemsToUpdate.push(dbo);
-                g.isDirty = false;
-            }
+        graph.dirtyItems.forEach(txid => {
+            let g = graph.get(txid)!;
+            let dbo: GraphTxnDbo = {
+                tokenDetails: { tokenIdHex: graph._container._tokenIdHex },
+                graphTxn: {
+                    txid,
+                    details: GraphMap._mapTokenDetailsToDbo(g.details, tg._tokenDetails.decimals),
+                    outputs: GraphMap._txnOutputsToDbo(tg, g.outputs),
+                    inputs: g.inputs.map((i) => {
+                        return {
+                            address: i.address,
+                            txid: i.txid,
+                            vout: i.vout,
+                            bchSatoshis: i.bchSatoshis,
+                            slpAmount: Decimal128.fromString(i.slpAmount.dividedBy(10**tg._tokenDetails.decimals).toFixed())
+                        }
+                    }),
+                    blockHash: g.blockHash,
+                    pruneHeight: g.prevPruneHeight
+                }
+            };
+            itemsToUpdate.push(dbo);
         });
 
         let itemsToDelete = Array.from(graph.doubleSpent);
@@ -252,7 +257,6 @@ export class GraphMap extends Map<string, GraphTxn> {
         });
         dbo.graphTxn.inputs.map(o => o.slpAmount = <any>new BigNumber(o.slpAmount.toString()).multipliedBy(10**decimals))
         let gt: GraphTxn = {
-            isDirty: false,
             details: SlpTokenGraph.MapDbTokenDetailsFromDbo(dbo.graphTxn.details, decimals),
             outputs: dbo.graphTxn.outputs as any as GraphTxnOutput[],
             inputs: dbo.graphTxn.inputs as any as GraphTxnInput[],

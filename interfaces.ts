@@ -5,7 +5,6 @@ import BigNumber from 'bignumber.js';
 export type cashAddr = string;
 
 export interface GraphTxn {
-    isDirty: boolean;  // TODO: this property should be replaced eventually by a managed set of dirty items
     details: SlpTransactionDetails;
     outputs: GraphTxnOutput[];
     inputs: GraphTxnInput[];
