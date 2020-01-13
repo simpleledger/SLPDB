@@ -1,5 +1,5 @@
 import { SlpTransactionDetails, SlpTransactionType, LocalValidator, 
-         Utils, Slp, SlpVersionType, Primatives  } from 'slpjs';
+         Utils, Slp, Primatives  } from 'slpjs';
 import BigNumber from 'bignumber.js';
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
@@ -21,6 +21,8 @@ const slp = new Slp(bitbox);
 
 import { slpUtxos } from './utxos';
 const globalUtxoSet = slpUtxos();
+
+import { pruneStack } from './prunestack';
 
 export class SlpTokenGraph {
 
@@ -110,9 +112,27 @@ export class SlpTokenGraph {
         return false;
     }
 
-    public async commitToDb(recentBlocks?: { hash: string; height: number; }[]) {
-        // NOTE: leaving out "recentBlocks" will only disable pruning for that particular commit to db
-        await this._db.graphItemsUpsert(this._graphTxns, recentBlocks);
+    public considerTxidsForPruning(txids: string[], pruneHeight: number) {
+        for (let txid of txids) {
+            let gt = this._graphTxns.get(txid);
+            if (gt) {
+                let canBePruned = gt.outputs.filter(o => [ 
+                                        BatonUtxoStatus.BATON_UNSPENT, 
+                                        TokenUtxoStatus.UNSPENT
+                                    ].includes(o.status)).length === 0;
+                if (canBePruned) {
+                    if (!gt.prevPruneHeight || pruneHeight >= gt.prevPruneHeight) {
+                        gt.prevPruneHeight = pruneHeight;
+                        // no need to set isDirty, will get picked up by pruning stack
+                    }
+                }
+            }
+        }
+        // commitToDb() should be called block crawl(), so no need to call here
+    }
+
+    public async commitToDb() {
+        await this._db.graphItemsUpsert(this._graphTxns);
         this._updateComplete = true;
     }
 
@@ -361,6 +381,12 @@ export class SlpTokenGraph {
                                 o.status = spendInfo.status;
                                 o.invalidReason = spendInfo.invalidReason;
                             }
+                        }
+                        if (processUpToBlock && gtos.filter(o => [ TokenUtxoStatus.UNSPENT, 
+                                                                    BatonUtxoStatus.BATON_UNSPENT ].includes(o.status)).length === 0) 
+                        {
+                            let pruningStack = pruneStack();
+                            pruningStack.addGraphTxidToPruningStack(processUpToBlock, this._tokenIdHex, previd);
                         }
                     }
 

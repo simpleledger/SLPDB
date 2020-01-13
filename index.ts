@@ -11,6 +11,7 @@ import { SlpGraphManager } from './slpgraphmanager';
 import { TokenFilterRule, TokenFilter } from './filters';
 import { BlockchainInfoResult } from 'bitcoin-com-rest';
 import { Query } from './query';
+import { pruneStack } from './prunestack';
 
 new RpcClient({ useGrpc: Boolean(Config.grpc.url) });
 
@@ -85,6 +86,7 @@ const daemon = {
         let currentHeight = await RpcClient.getBlockCount();
         tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
         bit._slpGraphManager = tokenManager;
+        let pruningStack = pruneStack(tokenManager._tokens);
 
         console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
         console.time('[PERF] Initial Block Sync');

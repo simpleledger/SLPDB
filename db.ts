@@ -80,10 +80,10 @@ export class Db {
         });
     }
 
-    async graphItemsUpsert(graph: GraphMap, recentBlocks?: { hash: string; height: number }[]) {
+    async graphItemsUpsert(graph: GraphMap) {
         await this.checkClientStatus();        
         console.time("ToDBO");
-        let { itemsToUpdate, tokenDbo, itemsToDelete } = GraphMap.toDbos(graph, recentBlocks);
+        let { itemsToUpdate, tokenDbo, itemsToDelete } = GraphMap.toDbos(graph);
         console.timeEnd("ToDBO");
         for (const i of itemsToUpdate) {
             let res = await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": i.tokenDetails.tokenIdHex, "graphTxn.txid": i.graphTxn.txid }, i, { upsert: true });

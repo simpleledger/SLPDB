@@ -19,6 +19,8 @@ import { SlpTokenGraph } from './slptokengraph';
 import { slpUtxos } from './utxos';
 const globalUtxoSet = slpUtxos();
 
+import { pruneStack } from './prunestack';
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const filterBuf = Buffer.from("6a04534c5000", "hex");
 const Block = require('bcash/lib/primitives/block');
@@ -589,6 +591,14 @@ export class Bit {
                     self._isSyncing = false;
                     return null;
                 }
+
+                // handle next item in the pruning stack
+                let pruningStack = pruneStack();
+                let tokenIdsPruned = pruningStack.newBlock(index);
+                for (let tokenId of tokenIdsPruned) {
+                    self._tokenIdsModified.add(tokenId);
+                }
+
                 console.time('[PERF] RPC END ' + index);
                 let syncComplete = zmqHash ? true : false;
                 let [crawledTxns, spentOutpoints] = (await self.crawl(index, syncComplete)) as [CrawlResult, [string,Uint8Array][]];
@@ -632,10 +642,9 @@ export class Bit {
                 }
                 console.timeEnd(`burnSearch-${index}`);
 
-                let recentBlocks = await Info.getRecentBlocks({ hash: blockHash.toString("hex"), height: index });
                 for (let tokenId of self._tokenIdsModified) {
                     let graph = (await self._slpGraphManager.getTokenGraph({ tokenIdHex: tokenId }))!;
-                    await graph.commitToDb(recentBlocks);
+                    await graph.commitToDb();
                 }
                 self._tokenIdsModified.clear();
 

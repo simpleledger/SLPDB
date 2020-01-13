@@ -106,12 +106,13 @@ export class GraphMap extends Map<string, GraphTxn> {
         return super.get(txid);
     }
 
-    public prune(txid: string, pruneHeight: number) {
+    private prune(txid: string, pruneHeight: number) {
         if (this.has(txid) && txid !== this._rootId) {
             let gt = this.get(txid)!;
             if (!gt.prevPruneHeight || pruneHeight >= gt.prevPruneHeight) {
                 this.pruned.set(txid, gt);
-                console.log(`[INFO] Pruned ${txid} with prune height of ${pruneHeight} : ${this.delete(txid)}`);
+                this.delete(txid);
+                console.log(`[INFO] Pruned ${txid} with prune height of ${pruneHeight}`);
                 if (gt.details.transactionType === SlpTransactionType.SEND) {
                     this._prunedSendCount++;
                 } else if (gt.details.transactionType === SlpTransactionType.MINT) {
@@ -138,31 +139,11 @@ export class GraphMap extends Map<string, GraphTxn> {
         return txids;
     }
 
-    public static toDbos(graph: GraphMap, recentBlocks?: {hash: string, height: number}[]): { itemsToUpdate: GraphTxnDbo[], tokenDbo: TokenDbo, itemsToDelete: string[] } {
+    public static toDbos(graph: GraphMap): { itemsToUpdate: GraphTxnDbo[], tokenDbo: TokenDbo, itemsToDelete: string[] } {
         let tg = graph._container;
         let itemsToUpdate: GraphTxnDbo[] = [];
+
         graph.forEach((g, txid) => {
-            let pruneHeight = null;
-
-            // Here we determine if a graph object should be marked as aged and spent,
-            // this will prevent future loading of the object.  
-            // We also unload the object from memory if pruning is true.
-            const BLOCK_AGE_CUTOFF = 10;
-            let isAgedAndSpent =
-                g.blockHash &&
-                recentBlocks && recentBlocks.length > BLOCK_AGE_CUTOFF-1 &&
-                !recentBlocks.map(i => i.hash).includes(g.blockHash.toString("hex")) &&
-                !(g.outputs.filter(i => [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(i.status)).length > 0);
-
-            if (isAgedAndSpent) {
-                pruneHeight = recentBlocks![BLOCK_AGE_CUTOFF-1].height;
-                if (!g.prevPruneHeight || pruneHeight >= g.prevPruneHeight) {
-                    g.isDirty = true;
-                } else if (g.prevPruneHeight) {
-                    pruneHeight = g.prevPruneHeight;
-                }
-            }
-
             if (g.isDirty) {
                 let dbo: GraphTxnDbo = {
                     tokenDetails: { tokenIdHex: graph._container._tokenIdHex },
@@ -180,7 +161,7 @@ export class GraphMap extends Map<string, GraphTxn> {
                             }
                         }),
                         blockHash: g.blockHash,
-                        pruneHeight: pruneHeight ? pruneHeight : null
+                        pruneHeight: g.prevPruneHeight
                     }
                 };
                 itemsToUpdate.push(dbo);
