@@ -1,5 +1,5 @@
 import { SlpTokenGraph } from "./slptokengraph";
-import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenUtxoStatus, BatonUtxoStatus, TokenDBObject as TokenDbo, TokenStatsDbo, TokenBatonStatus, GraphTxnInput, GraphTxnOutput, GraphTxn, SlpTransactionDetailsDbo } from "./interfaces";
+import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenUtxoStatus, BatonUtxoStatus, TokenDBObject as TokenDbo, TokenBatonStatus, GraphTxnInput, GraphTxnOutput, GraphTxn, SlpTransactionDetailsDbo } from "./interfaces";
 import { Decimal128 } from "mongodb";
 import { Config } from "./config";
 import { RpcClient } from "./rpc";
@@ -7,8 +7,8 @@ import { SlpTransactionType, SlpTransactionDetails } from "slpjs";
 import BigNumber from "bignumber.js";
 
 export class GraphMap extends Map<string, GraphTxn> {
-    public pruned = new Map<string, GraphTxn>();
-    public doubleSpent = new Set<string>();
+    private pruned = new Map<string, GraphTxn>();
+    private doubleSpent = new Set<string>();
     private _rootId: string;
     private _container: SlpTokenGraph;
     private _prunedSendCount = 0;

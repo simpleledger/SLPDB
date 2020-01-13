@@ -5,8 +5,7 @@ import BigNumber from 'bignumber.js';
 export type cashAddr = string;
 
 export interface GraphTxn {
-    isDirty: boolean;
-    //isComplete?: boolean;
+    isDirty: boolean;  // TODO: this property should be replaced eventually by a managed set of dirty items
     details: SlpTransactionDetails;
     outputs: GraphTxnOutput[];
     inputs: GraphTxnInput[];
@@ -45,13 +44,6 @@ export interface TokenStatsDbo {
     qty_satoshis_locked_up: number|null;
     minting_baton_status: TokenBatonStatus;
 }
-
-// export interface Commitments {
-//     utxosSha256: Buffer;
-//     utxosChecksum: Buffer;
-//     slpAddrBalanceTotal: Decimal128;
-//     bchAddrBalanceTotal: number;
-// }
 
 export interface TokenDBObject {
     schema_version: number;
