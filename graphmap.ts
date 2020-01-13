@@ -6,6 +6,9 @@ import { RpcClient } from "./rpc";
 import { SlpTransactionType, SlpTransactionDetails } from "slpjs";
 import BigNumber from "bignumber.js";
 
+import { slpUtxos } from './utxos';
+const globalUtxoSet = slpUtxos();
+
 export class GraphMap extends Map<string, GraphTxn> {
     private pruned = new Map<string, GraphTxn>();
     private doubleSpent = new Set<string>();
@@ -198,6 +201,11 @@ export class GraphMap extends Map<string, GraphTxn> {
     public fromDbos(dag: GraphTxnDbo[], prunedSendCount: number, prunedMintCount: number, prunedMintQuantity: BigNumber) {
         dag.forEach((item, idx) => {
             let gt = GraphMap.mapGraphTxnFromDbo(item, this._container._tokenDetails.decimals);
+            gt.outputs.forEach(o => {
+                if ([TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(o.status)) {
+                    globalUtxoSet.set(`${item.graphTxn.txid}:${o.vout}`, Buffer.from(this._rootId, "hex"));
+                }
+            });
             this.set(item.graphTxn.txid, gt);
         });
 

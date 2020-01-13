@@ -11,14 +11,14 @@ import { SlpGraphManager } from './slpgraphmanager';
 import { TokenFilterRule, TokenFilter } from './filters';
 import { BlockchainInfoResult } from 'bitcoin-com-rest';
 import { Query } from './query';
-const sp = require("synchronized-promise");
 
 new RpcClient({ useGrpc: Boolean(Config.grpc.url) });
 
+// init promise based resources
+const sp = require("synchronized-promise");
 let getBlockchainInfoSync: () => BlockchainInfoResult = sp(RpcClient.getBlockchainInfo);
 let setNetworkSync: (network: string) => void = sp(Info.setNetwork);
 let queryInitSync: () => void = sp(Query.init);
-
 let chain = getBlockchainInfoSync().chain;
 let network = chain === 'test' || chain  === 'regtest' ? 'testnet' : 'mainnet';
 setNetworkSync(network);

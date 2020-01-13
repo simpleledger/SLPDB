@@ -19,9 +19,13 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const bitbox = new BITBOX();
 const slp = new Slp(bitbox);
 
+import { slpUtxos } from './utxos';
+const globalUtxoSet = slpUtxos();
+
 export class SlpTokenGraph {
 
     _tokenIdHex: string;
+    _tokenIdBuf: Buffer; // NOTE: will need to consider future interaction with lazy loading/garbage collection 
     _lastUpdatedBlock!: number;
     _tokenDetails: SlpTransactionDetails;
     _blockCreated: number|null;
@@ -56,6 +60,7 @@ export class SlpTokenGraph {
     constructor(tokenDetails: SlpTransactionDetails, db: Db, manager: SlpGraphManager, network: string, blockCreated: number|null) {
         this._tokenDetails = tokenDetails;
         this._tokenIdHex = tokenDetails.tokenIdHex;
+        this._tokenIdBuf = Buffer.from(this._tokenIdHex, "hex");
         this._graphTxns = new GraphMap(this);
         this._db = db;
         this._manager = manager;
@@ -77,6 +82,31 @@ export class SlpTokenGraph {
             }
         }
         return false
+    }
+
+    markOutputAsBurnedNonSlp(txo: string, burnedInTxid: string) {
+        let txid = txo.split(":")[0];
+        let vout = Number.parseInt(txo.split(":")[1]);
+        let gt = this._graphTxns.get(txid);
+        if (gt) {
+            let o = gt.outputs.find(o => o.vout === vout);
+            if (o) {
+                let batonVout;
+                if ([SlpTransactionType.GENESIS, SlpTransactionType.MINT].includes(gt.details.transactionType)) {
+                    batonVout = gt.details.batonVout;
+                }
+                if (batonVout === vout) {
+                    o.status = BatonUtxoStatus.BATON_SPENT_NON_SLP;
+                } else {
+                    o.status = TokenUtxoStatus.SPENT_NON_SLP;
+                }
+                o.spendTxid = burnedInTxid;
+                o.invalidReason = "Spent in non-SLP transaction";
+                gt.isDirty = true;
+                return true;
+            }
+        }
+        return false;
     }
 
     public async commitToDb(recentBlocks?: { hash: string; height: number; }[]) {
@@ -167,33 +197,39 @@ export class SlpTokenGraph {
                 spendTxnInfo = { txid: res.txid!, block: res.block };
             }
         }
-        if (spendTxnInfo) {
-            let validation = await this.validateTxid(spendTxnInfo.txid!);
-            try {
-                if (processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
-                    return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, invalidReason: null };
-                }
-                if (!validation) {
-                    console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex);
-                }
-                if (validation.validity && validation.details!.transactionType === SlpTransactionType.MINT) {
-                    return { status: BatonUtxoStatus.BATON_SPENT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: null };
-                } else if (validation.validity) {
-                    this._mintBatonUtxo = '';
-                    return { status: BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: "Baton was spent in a non-mint SLP transaction." };
-                }
-                this._mintBatonUtxo = '';
-                return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: spendTxnInfo!.txid, invalidReason: null };
-            } catch(_) {
-                this._mintBatonUtxo = '';
-                if (vout < txnOutputLength!) {
-                    return { status: BatonUtxoStatus.BATON_SPENT_INVALID_SLP, txid: null, invalidReason: validation.invalidReason };
-                }
-                return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
-            }
+        if (!spendTxnInfo) {
+            throw Error(`Unable to locate spend details for output ${txid}:${vout}.`);
         }
-        //this._mintBatonUtxo = txid + ":" + vout;
-        return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, invalidReason: null };
+        let validation = await this.validateTxid(spendTxnInfo.txid!);
+        try {
+            if (processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
+                globalUtxoSet.set(`${txid}:${vout}`, this._tokenIdBuf.slice());
+                return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, invalidReason: null };
+            }
+            if (!validation) {
+                console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex);
+            }
+            if (validation.validity && validation.details!.transactionType === SlpTransactionType.MINT) {
+                globalUtxoSet.delete(`${txid}:${vout}`);
+                return { status: BatonUtxoStatus.BATON_SPENT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: null };
+            } else if (validation.validity) {
+                this._mintBatonUtxo = '';
+                globalUtxoSet.delete(`${txid}:${vout}`);
+                return { status: BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: "Baton was spent in a non-mint SLP transaction." };
+            } else {
+                throw Error("Unknown mint baton utxo status");
+            }
+            // this._mintBatonUtxo = '';
+            // _tokenUtxos.delete(`${txid}:${vout}`);
+            // return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: spendTxnInfo!.txid, invalidReason: null };
+        } catch(_) {
+            globalUtxoSet.delete(`${txid}:${vout}`);
+            this._mintBatonUtxo = '';
+            if (vout < txnOutputLength!) {
+                return { status: BatonUtxoStatus.BATON_SPENT_INVALID_SLP, txid: null, invalidReason: validation.invalidReason };
+            }
+            return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
+        }
     }
 
     private async getSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number|null; processUpTo?: number; }): Promise<SpendDetails> {
@@ -218,32 +254,36 @@ export class SlpTokenGraph {
                 spendTxnInfo = { txid: res.txid!, block: res.block };
             }
         }
-        if (spendTxnInfo) {
-            let validation = await this.validateTxid(spendTxnInfo.txid!);
-            try {
-                if (processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
-                    return { status: TokenUtxoStatus.UNSPENT, txid: null, invalidReason: null };
-                }
-                if (!validation) {
-                    console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex);
-                }
-                if (validation.validity && validation.details!.transactionType === SlpTransactionType.SEND) {
-                    return { status: TokenUtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, invalidReason: null };
-                } else if (validation.validity) {
-                    this._tokenUtxos.delete(txid + ":" + vout);
-                    return { status: TokenUtxoStatus.SPENT_NOT_IN_SEND, txid: spendTxnInfo!.txid, invalidReason: null };
-                }
-                this._tokenUtxos.delete(txid + ":" + vout);
-                return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo!.txid, invalidReason: validation.invalidReason };
-            } catch(_) {
-                this._tokenUtxos.delete(txid + ":" + vout);
-                if (vout < txnOutputLength!) {
-                    return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: null, invalidReason: validation.invalidReason };
-                }
-                return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
-            }
+        if (!spendTxnInfo) {
+            throw Error(`Unable to locate spend details for output ${txid}:${vout}.`);
         }
-        return { status: TokenUtxoStatus.UNSPENT, txid: null, invalidReason: null };
+        let validation = await this.validateTxid(spendTxnInfo.txid!);
+        try {
+            if (processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
+                globalUtxoSet.set(`${txid}:${vout}`, this._tokenIdBuf.slice());
+                return { status: TokenUtxoStatus.UNSPENT, txid: null, invalidReason: null };
+            }
+            if (!validation) {
+                console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex);
+            }
+            if (validation.validity && validation.details!.transactionType === SlpTransactionType.SEND) {
+                globalUtxoSet.delete(`${txid}:${vout}`);
+                return { status: TokenUtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, invalidReason: null };
+            } else if (validation.validity) {
+                globalUtxoSet.delete(`${txid}:${vout}`);
+                return { status: TokenUtxoStatus.SPENT_NOT_IN_SEND, txid: spendTxnInfo!.txid, invalidReason: null };
+            } else {
+                throw Error("Unknown utxo status");
+            }
+            // _tokenUtxos.delete(`${txid}:${vout}`);
+            // return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo!.txid, invalidReason: validation.invalidReason };
+        } catch(_) {
+            globalUtxoSet.delete(`${txid}:${vout}`);
+            if (vout < txnOutputLength!) {
+                return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: null, invalidReason: validation.invalidReason };
+            }
+            return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
+        }
     }
 
     public async queueAddGraphTransaction({ txid, processUpToBlock }: { txid: string, processUpToBlock?: number; }): Promise<void> {
@@ -399,6 +439,7 @@ export class SlpTokenGraph {
             if (graphTxn.details.genesisOrMintQuantity!.isGreaterThanOrEqualTo(0)) {
                 //let spendDetails = await this.getSpendDetails({ txid, vout: 1, txnOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
                 let address = this.getAddressStringFromTxnOutput(txn, 1);
+                globalUtxoSet.set(`${txid}:${1}`, this._tokenIdBuf.slice());
                 graphTxn.outputs.push({
                     address: address,
                     vout: 1,
@@ -411,6 +452,7 @@ export class SlpTokenGraph {
                 if(txnSlpDetails.batonVout) {
                     //let mintSpendDetails = await this.getMintBatonSpendDetails({ txid, vout: txnSlpDetails.batonVout, txnOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
                     let address = this.getAddressStringFromTxnOutput(txn, 1);
+                    globalUtxoSet.set(`${txid}:${txnSlpDetails.batonVout}`, this._tokenIdBuf.slice());
                     graphTxn.outputs.push({
                         address: address,
                         vout: txnSlpDetails.batonVout,
@@ -430,6 +472,7 @@ export class SlpTokenGraph {
                     if (slp_vout > 0) {
                         //let spendDetails = await this.getSpendDetails({ txid, vout: slp_vout, txnOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
                         let address = this.getAddressStringFromTxnOutput(txn, slp_vout);
+                        globalUtxoSet.set(`${txid}:${slp_vout}`, this._tokenIdBuf.slice());
                         graphTxn.outputs.push({
                             address: address,
                             vout: slp_vout,

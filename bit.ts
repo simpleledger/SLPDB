@@ -3,7 +3,6 @@ import { TNA, TNATxn } from './tna';
 import { Config } from './config';
 import { Db } from './db';
 
-import pLimit = require('p-limit');
 import * as pQueue from 'p-queue';
 import * as zmq from 'zeromq';
 import { BlockHeaderResult } from 'bitcoin-com-rest';
@@ -16,6 +15,9 @@ import { SlpGraphManager, SlpTransactionDetailsTnaDbo } from './slpgraphmanager'
 import { Notifications } from './notifications';
 import { SlpdbStatus } from './status';
 import { SlpTokenGraph } from './slptokengraph';
+
+import { slpUtxos } from './utxos';
+const globalUtxoSet = slpUtxos();
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const filterBuf = Buffer.from("6a04534c5000", "hex");
@@ -258,7 +260,7 @@ export class Bit {
         }
     }
 
-    async crawl(blockIndex: number, syncComplete?: boolean): Promise<CrawlResult|null> {
+    async crawl(blockIndex: number, syncComplete?: boolean): Promise<[CrawlResult, [string,Uint8Array][]]|null> {
         const result = new CacheMap<txid, CrawlTxnInfo>(-1);
         let blockContent: BlockHeaderResult;
         try {
@@ -276,8 +278,13 @@ export class Bit {
 
             console.time(`Toposort-${blockIndex}`);
             const blockTxCache = new Map<string, { deserialized: bitcore.Transaction, serialized: Buffer}>();
+            const spentOutpoints: [string,Uint8Array][] = [];
             block.txs.forEach((t: any, i: number) => {
                 const serialized: Buffer = t.toRaw();
+                const hash = t.hash().reverse();
+                for (let input of t.inputs) {
+                    spentOutpoints.push([input.prevout.hash.reverse().toString("hex")+":"+input.prevout.index, hash]);
+                }
                 if (this.slpTransactionFilter(serialized)) {
                     // @ts-ignore
                     const deserialized: bitcore.Transaction = new bitcore.Transaction(serialized);
@@ -338,7 +345,7 @@ export class Bit {
             }
 
             console.log(`[INFO] Block ${blockIndex} processed : ${block.txs.length} BCH tx | ${stack.length} SLP tx`);
-            return result;
+            return [ result, spentOutpoints ];
     
         } else {
             return null;
@@ -584,7 +591,7 @@ export class Bit {
                 }
                 console.time('[PERF] RPC END ' + index);
                 let syncComplete = zmqHash ? true : false;
-                let crawledTxns = <CrawlResult>(await self.crawl(index, syncComplete));
+                let [crawledTxns, spentOutpoints] = (await self.crawl(index, syncComplete)) as [CrawlResult, [string,Uint8Array][]];
                 console.timeEnd('[PERF] RPC END ' + index);
                 console.time('[PERF] DB Insert ' + index);
 
@@ -609,7 +616,22 @@ export class Bit {
                         }
                     }
                 }
-                
+
+                // search for SLP burns that happenedd in non-SLP transactions
+                console.time(`burnSearch-${index}`);
+                for (let [txo, spentIn] of spentOutpoints) {
+                    if (globalUtxoSet.has(txo)) {
+                        let tokenIdHex = globalUtxoSet.get(txo)!.toString("hex");
+                        let graph = (await self._slpGraphManager.getTokenGraph({ tokenIdHex }))!;
+                        let updated = graph.markOutputAsBurnedNonSlp(txo, Buffer.from(spentIn).toString("hex"));
+                        if (updated) {
+                            self._tokenIdsModified.add(tokenIdHex);
+                        }
+                        globalUtxoSet.delete(txo);
+                    }
+                }
+                console.timeEnd(`burnSearch-${index}`);
+
                 let recentBlocks = await Info.getRecentBlocks({ hash: blockHash.toString("hex"), height: index });
                 for (let tokenId of self._tokenIdsModified) {
                     let graph = (await self._slpGraphManager.getTokenGraph({ tokenIdHex: tokenId }))!;
