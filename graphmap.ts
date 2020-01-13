@@ -225,6 +225,7 @@ export class GraphMap extends Map<string, GraphTxn> {
             lastUpdatedBlock: tg._lastUpdatedBlock,
             tokenDetails: tokenDetails,
             mintBatonUtxo: tg._mintBatonUtxo,
+            mintBatonStatus: tg._mintBatonStatus,
             tokenStats: {
                 block_created: tg._blockCreated,       //tg.block_created,
                 block_last_active_send: null,          //tg.block_last_active_send,
@@ -233,10 +234,9 @@ export class GraphMap extends Map<string, GraphTxn> {
                 qty_valid_token_utxos: null,           //stats.utxoCount,
                 qty_valid_token_addresses: null,       //stats.addressCount,
                 qty_token_minted: Decimal128.fromString(graph.TotalSupplyMinted.dividedBy(10**tg._tokenDetails.decimals).toFixed()),
-                qty_token_burned: null,                //Decimal128.fromString(//stats.qty_token_burned.dividedBy(10**graph._tokenDetails.decimals).toFixed()),
+                qty_token_burned: null,                //Decimal128.fromString(graph.BurnQuantity.dividedBy(10**graph._tokenDetails.decimals).toFixed()),
                 qty_token_circulating_supply: null,    //Decimal128.fromString(stats..dividedBy(10**tg._tokenDetails.decimals).toFixed()),
-                qty_satoshis_locked_up: null,                        //stats.qty_satoshis_locked_up,
-                minting_baton_status: TokenBatonStatus.UNKNOWN       //stats.mintStatus
+                qty_satoshis_locked_up: null,          //stats.qty_satoshis_locked_up,
             },
             pruningState: {
                 sendCount: graph._prunedSendCount,

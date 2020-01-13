@@ -157,7 +157,7 @@ describe("1-Token-Type-1", () => {
         // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE);
+        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("GENESIS: stores in graphs collection (before block)", async () => {
@@ -268,7 +268,7 @@ describe("1-Token-Type-1", () => {
         // assert.equal(t!.tokenStats!.qty_token_burned.toString() === "0", true);
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE);
+        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("GENESIS: updates graphs collection (after block)", async () => {
@@ -438,7 +438,7 @@ describe("1-Token-Type-1", () => {
         // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0"); // TODO
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());  // TODO
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());  // TODO
-        assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE); // TODO
+        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE); // TODO
     });
 
     step("SEND: produces ZMQ output at block", async () => {
@@ -502,7 +502,7 @@ describe("1-Token-Type-1", () => {
         // assert.equal(t!.tokenStats!.qty_token_burned.toString() === "0", true);
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE);
+        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("SEND: updates graphs collection (after block)", async () => {

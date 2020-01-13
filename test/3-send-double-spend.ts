@@ -252,7 +252,7 @@ describe("3-Double-Spend-Send", () => {
         // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE);
+        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("DS-S: Generate block on node 2 and reconnect the two nodes", async () => {
@@ -324,7 +324,7 @@ describe("3-Double-Spend-Send", () => {
         // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE);
+        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("DS-S: produces ZMQ output for the block", async () => {
@@ -399,7 +399,7 @@ describe("3-Double-Spend-Send", () => {
         // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE);
+        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("DS-S: stores double spend txid2 in utxos", async () => {

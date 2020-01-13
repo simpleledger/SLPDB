@@ -180,7 +180,7 @@ describe("5-Reorg-Removes-Data", () => {
         // assert.equal(t!.tokenStats!.qty_token_burned.toString() === "0", true);
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE);
+        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("BR-1: Invalidate initial block and generate block to cause SLPDB reorg detection", async () => {

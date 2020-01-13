@@ -276,7 +276,7 @@ describe("9-Burn-with-valid-txn-slow", () => {
         // assert.equal(t!.tokenStats!.qty_token_burned.toString() === TOKEN_BURN_QTY.toFixed(), true);
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), (TOKEN_GENESIS_QTY-TOKEN_BURN_QTY).toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE);
+        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("Cleanup after tests", async () => {

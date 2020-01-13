@@ -42,7 +42,6 @@ export interface TokenStatsDbo {
     qty_token_burned: Decimal128|null;
     qty_token_circulating_supply: Decimal128|null;
     qty_satoshis_locked_up: number|null;
-    minting_baton_status: TokenBatonStatus;
 }
 
 export interface TokenDBObject {
@@ -51,6 +50,7 @@ export interface TokenDBObject {
     tokenStats: TokenStatsDbo;
     pruningState: TokenPruneStateDbo;
     mintBatonUtxo: string;
+    mintBatonStatus: TokenBatonStatus;
     lastUpdatedBlock: number;
     nftParentId?: string;
 }

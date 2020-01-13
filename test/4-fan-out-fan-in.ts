@@ -325,7 +325,7 @@ describe("4-Fan-out-Fan-in", () => {
             // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
             // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
             // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
-            assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE);
+            assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
             assert.equal(t!.tokenStats.qty_valid_txns_since_genesis, inputTxnCount+1);
         }
     });
@@ -448,7 +448,7 @@ describe("4-Fan-out-Fan-in", () => {
         // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(t!.tokenStats!.minting_baton_status, TokenBatonStatus.ALIVE);
+        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("FOFI-1: Check that fan-in transaction is in graphs (after block)", async () => {

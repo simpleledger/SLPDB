@@ -29,9 +29,8 @@ export class SlpTokenGraph {
     _lastUpdatedBlock!: number;
     _tokenDetails: SlpTransactionDetails;
     _blockCreated: number|null;
-    _tokenUtxos = new Set<string>();
     _mintBatonUtxo = "";
-    _nftParentId?: string;
+    _mintBatonStatus = TokenBatonStatus.UNKNOWN;
     private _graphTxns: GraphMap;
     _slpValidator = new LocalValidator(bitbox, async (txids) => {
         if (this._manager._bit.doubleSpendCache.has(txids[0])) {
@@ -97,6 +96,8 @@ export class SlpTokenGraph {
                 }
                 if (batonVout === vout) {
                     o.status = BatonUtxoStatus.BATON_SPENT_NON_SLP;
+                    this._mintBatonUtxo = "";
+                    this._mintBatonStatus = TokenBatonStatus.DEAD_BURNED;
                 } else {
                     o.status = TokenUtxoStatus.SPENT_NON_SLP;
                 }
@@ -176,7 +177,7 @@ export class SlpTokenGraph {
         return this._graphTxns.size > 0;
     }
 
-    private async getMintBatonSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number|null; processUpTo?: number }): Promise<MintSpendDetails> {
+    private async getMintBatonSpentOutputDetails({ txid, vout, txnOutputLength }: { txid: string; vout: number; txnOutputLength: number|null; }): Promise<MintSpendDetails> {
         let spendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
         if (this._startupTxoSendCache) {
             spendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
@@ -202,10 +203,6 @@ export class SlpTokenGraph {
         }
         let validation = await this.validateTxid(spendTxnInfo.txid!);
         try {
-            if (processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
-                globalUtxoSet.set(`${txid}:${vout}`, this._tokenIdBuf.slice());
-                return { status: BatonUtxoStatus.BATON_UNSPENT, txid: null, invalidReason: null };
-            }
             if (!validation) {
                 console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex);
             }
@@ -214,25 +211,25 @@ export class SlpTokenGraph {
                 return { status: BatonUtxoStatus.BATON_SPENT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: null };
             } else if (validation.validity) {
                 this._mintBatonUtxo = '';
+                this._mintBatonStatus = TokenBatonStatus.DEAD_BURNED;
                 globalUtxoSet.delete(`${txid}:${vout}`);
                 return { status: BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: "Baton was spent in a non-mint SLP transaction." };
             } else {
                 throw Error("Unknown mint baton utxo status");
             }
-            // this._mintBatonUtxo = '';
-            // _tokenUtxos.delete(`${txid}:${vout}`);
-            // return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: spendTxnInfo!.txid, invalidReason: null };
         } catch(_) {
-            globalUtxoSet.delete(`${txid}:${vout}`);
             this._mintBatonUtxo = '';
+            this._mintBatonStatus = TokenBatonStatus.DEAD_BURNED;
+            globalUtxoSet.delete(`${txid}:${vout}`);
             if (vout < txnOutputLength!) {
                 return { status: BatonUtxoStatus.BATON_SPENT_INVALID_SLP, txid: null, invalidReason: validation.invalidReason };
             }
+            this._mintBatonStatus = TokenBatonStatus.DEAD_BURNED;
             return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
         }
     }
 
-    private async getSpendDetails({ txid, vout, txnOutputLength, processUpTo }: { txid: string; vout: number; txnOutputLength: number|null; processUpTo?: number; }): Promise<SpendDetails> {
+    private async getSpentOutputDetails({ txid, vout, txnOutputLength }: { txid: string; vout: number; txnOutputLength: number|null; }): Promise<SpendDetails> {
         let spendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
         if (this._startupTxoSendCache) {
             spendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
@@ -259,10 +256,6 @@ export class SlpTokenGraph {
         }
         let validation = await this.validateTxid(spendTxnInfo.txid!);
         try {
-            if (processUpTo && (!spendTxnInfo.block || spendTxnInfo.block > processUpTo)) {
-                globalUtxoSet.set(`${txid}:${vout}`, this._tokenIdBuf.slice());
-                return { status: TokenUtxoStatus.UNSPENT, txid: null, invalidReason: null };
-            }
             if (!validation) {
                 console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex);
             }
@@ -275,8 +268,6 @@ export class SlpTokenGraph {
             } else {
                 throw Error("Unknown utxo status");
             }
-            // _tokenUtxos.delete(`${txid}:${vout}`);
-            // return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo!.txid, invalidReason: validation.invalidReason };
         } catch(_) {
             globalUtxoSet.delete(`${txid}:${vout}`);
             if (vout < txnOutputLength!) {
@@ -322,11 +313,6 @@ export class SlpTokenGraph {
         let txnSlpDetails = this._slpValidator.cachedValidations[txid].details;
         let txn: bitcore.Transaction = new bitcore.Transaction(await this._slpValidator.retrieveRawTransaction(txid));
 
-        if (!isValid) {
-            console.log("[WARN] addGraphTransaction: Not valid token transaction:", txid);
-            return false;
-        }
-
         if (!txnSlpDetails) {
             console.log("[WARN] addGraphTransaction: No token details for:", txid);
             return false;
@@ -346,16 +332,10 @@ export class SlpTokenGraph {
         // Update parent items (their output statuses) and add contributing SLP inputs
         if (txid !== this._tokenIdHex) {
             let visited = new Set<string>();
+
+            // update parent input details
             for (let i of txn.inputs) {
                 let previd = i.prevTxId.toString('hex');
-
-                let valid;
-                if (!this._slpValidator.cachedValidations[previd]) {
-                    console.log(`Skipping assumed invalid SLP input: ${previd}:${i.outputIndex} in txn: ${txid}`);
-                    continue;
-                }
-
-                valid = this._slpValidator.cachedValidations[previd].validity;
 
                 if (this._graphTxns.has(previd)) {
                     let ptxn = this._graphTxns.get(previd)!;
@@ -371,9 +351,9 @@ export class SlpTokenGraph {
                             let spendInfo: SpendDetails|MintSpendDetails;
                             if ([SlpTransactionType.GENESIS, SlpTransactionType.MINT].includes(ptxn!.details.transactionType) &&
                                 ptxn.details.batonVout === vout) {
-                                    spendInfo = await this.getMintBatonSpendDetails({ txid: previd, vout, txnOutputLength: null, processUpTo: processUpToBlock });
+                                    spendInfo = await this.getMintBatonSpentOutputDetails({ txid: previd, vout, txnOutputLength: null });
                             } else {
-                                spendInfo = await this.getSpendDetails({ txid: previd, vout, txnOutputLength: null, processUpTo: processUpToBlock });
+                                spendInfo = await this.getSpentOutputDetails({ txid: previd, vout, txnOutputLength: null });
                             }
                             let o = gtos.find(o => o.vout === vout);
                             if (o) {
@@ -397,47 +377,68 @@ export class SlpTokenGraph {
                         });
                         graphTxn.isDirty = true;
                     }
-                } else if (valid) {
-                    //
-                    // NOTE: This branch should only happen in one of the following situations:
-                    //          1) a new graph txn is spending non-SLP inputs from a pruned txn, OR
-                    //          2) a valid NFT1 child is spending a non-SLP output from a valid NFT1 parent
-                    //
-                    // NOTE: A graph in SLPDB is an individual dag with 1 Genesis, whereas in slp-validate the validator for an NFT Child dag
-                    //       will also cache validity data for the NFT group dag.  This is why #2 in the list above occurs.
-                    //
-                    if (!visited.has(previd)) {
-                        visited.add(previd);
-                        let res = await this._db.graphTxnFetch(previd);
-                        if (!res) {
-                            // NOTE: Since situation #2 (with the NFT1 parent) may not yet have this specific graph item commited to db, so let's 
-                            //       parse the txn details and check token type !== NFT1_PARENT before we throw.
-                            let prevTxHex = await RpcClient.getRawTransaction(previd);
-                            let prevTx = new bitcore.Transaction(prevTxHex);
-                            let prevTxSlpMessage = slp.parseSlpOutputScript(prevTx.outputs[0]._scriptBuffer);
-                            if (this._tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child &&
-                                prevTxSlpMessage.versionType === SlpVersionType.TokenVersionType1_NFT_Parent) {
-                                continue;
-                            }
-                            throw Error(`Graph txid ${previd} was not found, this should never happen.`);
-                        } else {
-                            let gt = GraphMap.mapGraphTxnFromDbo(res, this._tokenDetails.decimals);
-                            let unspentCount = gt.outputs.filter(o => [TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(o.status)).length
-                            if (gt.details.tokenIdHex === this._tokenIdHex &&
-                                unspentCount > 0) {
-                                throw Error(`Graph txid ${previd} was loaded from db with unspent outputs, this should never happen.`);
-                            }
-                            continue;
-                        }
-                    }
                 }
             }
+
+            // visited.clear();
+
+            // // check all inputs
+            // for (let i of txn.inputs) {
+            //     let previd = i.prevTxId.toString('hex');
+            //     let valid;
+            //     if (!this._slpValidator.cachedValidations[previd]) {
+            //         console.log(`Skipping assumed invalid SLP input: ${previd}:${i.outputIndex} in txn: ${txid}`);
+            //         continue;
+            //     }
+
+            //     valid = this._slpValidator.cachedValidations[previd].validity;
+
+            //     if (!this._graphTxns.has(previd) && valid) {
+            //         //
+            //         // NOTE: This branch should only happen in one of the following situations:
+            //         //          1) a new graph txn is spending non-SLP inputs from a pruned txn, OR
+            //         //          2) a valid NFT1 child is spending a non-SLP output from a valid NFT1 parent
+            //         //
+            //         // NOTE: A graph in SLPDB is an individual dag with 1 Genesis, whereas in slp-validate the validator for an NFT Child dag
+            //         //       will also cache validity data for the NFT group dag.  This is why #2 in the list above occurs.
+            //         //
+            //         if (!visited.has(previd)) {
+            //             visited.add(previd);
+            //             let res = await this._db.graphTxnFetch(previd);
+            //             if (!res) {
+            //                 // NOTE: Since situation #2 (with the NFT1 parent) may not yet have this specific graph item commited to db, so let's 
+            //                 //       parse the txn details and check token type !== NFT1_PARENT before we throw.
+            //                 let prevTxHex = await RpcClient.getRawTransaction(previd);
+            //                 let prevTx = new bitcore.Transaction(prevTxHex);
+            //                 let prevTxSlpMessage = slp.parseSlpOutputScript(prevTx.outputs[0]._scriptBuffer);
+            //                 if (this._tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child &&
+            //                     prevTxSlpMessage.versionType === SlpVersionType.TokenVersionType1_NFT_Parent) {
+            //                     continue;
+            //                 }
+            //                 throw Error(`Graph txid ${previd} was not found, this should never happen.`);
+            //             } else {
+            //                 let gt = GraphMap.mapGraphTxnFromDbo(res, this._tokenDetails.decimals);
+            //                 let unspentCount = gt.outputs.filter(o => [TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(o.status)).length
+            //                 if (gt.details.tokenIdHex === this._tokenIdHex &&
+            //                     unspentCount > 0) {
+            //                     throw Error(`Graph txid ${previd} was loaded from db with unspent outputs, this should never happen.`);
+            //                 }
+            //                 continue;
+            //             }
+            //         }
+            //     }
+            // }
+        }
+
+        if (!isValid) {
+            console.log("[WARN] addGraphTransaction: Not valid token transaction:", txid);
+            this.mempoolCommitToDb({});
+            return false;
         }
 
         // Create or update SLP graph outputs for each valid SLP output
         if (graphTxn.details.transactionType === SlpTransactionType.GENESIS || graphTxn.details.transactionType === SlpTransactionType.MINT) {
             if (graphTxn.details.genesisOrMintQuantity!.isGreaterThanOrEqualTo(0)) {
-                //let spendDetails = await this.getSpendDetails({ txid, vout: 1, txnOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
                 let address = this.getAddressStringFromTxnOutput(txn, 1);
                 globalUtxoSet.set(`${txid}:${1}`, this._tokenIdBuf.slice());
                 graphTxn.outputs.push({
@@ -445,12 +446,13 @@ export class SlpTokenGraph {
                     vout: 1,
                     bchSatoshis: txn.outputs.length > 1 ? txn.outputs[1].satoshis : 0, 
                     slpAmount: graphTxn.details.genesisOrMintQuantity! as BigNumber,
-                    spendTxid: null,                    //spendDetails.txid,
-                    status: TokenUtxoStatus.UNSPENT,    //spendDetails.status,
-                    invalidReason: null                 //spendDetails.invalidReason
+                    spendTxid: null,
+                    status: TokenUtxoStatus.UNSPENT,
+                    invalidReason: null
                 });
-                if(txnSlpDetails.batonVout) {
-                    //let mintSpendDetails = await this.getMintBatonSpendDetails({ txid, vout: txnSlpDetails.batonVout, txnOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
+                if (txnSlpDetails.batonVout) {
+                    this._mintBatonStatus = TokenBatonStatus.ALIVE;
+                    this._mintBatonUtxo = `${txid}:${txnSlpDetails.batonVout}`;
                     let address = this.getAddressStringFromTxnOutput(txn, 1);
                     globalUtxoSet.set(`${txid}:${txnSlpDetails.batonVout}`, this._tokenIdBuf.slice());
                     graphTxn.outputs.push({
@@ -458,19 +460,21 @@ export class SlpTokenGraph {
                         vout: txnSlpDetails.batonVout,
                         bchSatoshis: txnSlpDetails.batonVout < txn.outputs.length ? txn.outputs[txnSlpDetails.batonVout].satoshis : 0, 
                         slpAmount: new BigNumber(0),
-                        spendTxid: null,                        //mintSpendDetails.txid,
-                        status: BatonUtxoStatus.BATON_UNSPENT,  //mintSpendDetails.status,
-                        invalidReason: null                     //mintSpendDetails.invalidReason
+                        spendTxid: null,
+                        status: BatonUtxoStatus.BATON_UNSPENT,
+                        invalidReason: null
                     });
+                } else if (txnSlpDetails.batonVout === null) {
+                    this._mintBatonUtxo = "";
+                    this._mintBatonStatus = TokenBatonStatus.DEAD_ENDED;
                 }
             }
         }
         else if(graphTxn.details.sendOutputs!.length > 0) {
             let slp_vout = 0;
             for (let output of graphTxn.details.sendOutputs!) {
-                if(output.isGreaterThanOrEqualTo(0)) {
+                if (output.isGreaterThanOrEqualTo(0)) {
                     if (slp_vout > 0) {
-                        //let spendDetails = await this.getSpendDetails({ txid, vout: slp_vout, txnOutputLength: txn.outputs.length, processUpTo: processUpToBlock });
                         let address = this.getAddressStringFromTxnOutput(txn, slp_vout);
                         globalUtxoSet.set(`${txid}:${slp_vout}`, this._tokenIdBuf.slice());
                         graphTxn.outputs.push({
@@ -537,38 +541,42 @@ export class SlpTokenGraph {
         return address;
     }
 
-    async getTotalMintQuantity(): Promise<BigNumber> {
-        let qty = this._tokenDetails.genesisOrMintQuantity;
-        if(!qty)
-            throw Error("Cannot have Genesis without quantity.");
-        this._graphTxns.forEach(t => {
-            if(t.details.transactionType === SlpTransactionType.MINT)
-                qty = qty!.plus(t.details.genesisOrMintQuantity!)
-        })
-        return qty;
-    }
+    // async getTotalMintQuantity(): Promise<BigNumber> {
+    //     let qty = this._tokenDetails.genesisOrMintQuantity;
+    //     if(!qty)
+    //         throw Error("Cannot have Genesis without quantity.");
+    //     this._graphTxns.forEach(t => {
+    //         if(t.details.transactionType === SlpTransactionType.MINT)
+    //             qty = qty!.plus(t.details.genesisOrMintQuantity!)
+    //     })
+    //     return qty;
+    // }
 
-    async getBatonStatus(): Promise<TokenBatonStatus> {
-        if(!this._tokenDetails.containsBaton)
-            return TokenBatonStatus.NEVER_CREATED;
-        else if(this._tokenDetails.containsBaton === true) {
-            if(this._mintBatonUtxo.includes(this._tokenDetails.tokenIdHex + ":" + this._tokenDetails.batonVout))
-                return TokenBatonStatus.ALIVE;
-            let mintTxids = Array.from(this._graphTxns).filter(o => o[1].details.transactionType === SlpTransactionType.MINT).map(o => o[0]);
-            let mints = mintTxids.map(i => this._slpValidator.cachedValidations[i])
-            if(mints) {
-                for(let i = 0; i < mints!.length; i++) {
-                    let valid = mints[i].validity;
-                    let vout = mints[i].details!.batonVout;
-                    if(valid && vout && this._mintBatonUtxo.includes(mintTxids[i] + ":" + vout))
-                        return TokenBatonStatus.ALIVE;
-                    if(valid && !vout)
-                        return TokenBatonStatus.DEAD_ENDED;
-                }
-            }
-        }
-        return TokenBatonStatus.DEAD_BURNED;
-    }
+    // async getBatonStatus(): Promise<TokenBatonStatus> {
+    //     if (!this._tokenDetails.containsBaton) {
+    //         return TokenBatonStatus.NEVER_CREATED;
+    //     }
+    //     else if (this._tokenDetails.containsBaton === true) {
+    //         if (this._mintBatonUtxo.includes(this._tokenDetails.tokenIdHex + ":" + this._tokenDetails.batonVout)) {
+    //             return TokenBatonStatus.ALIVE;
+    //         }
+    //         let mintTxids = Array.from(this._graphTxns).filter(o => o[1].details.transactionType === SlpTransactionType.MINT).map(o => o[0]);
+    //         let mints = mintTxids.map(i => this._slpValidator.cachedValidations[i])
+    //         if (mints) {
+    //             for (let i = 0; i < mints!.length; i++) {
+    //                 let valid = mints[i].validity;
+    //                 let vout = mints[i].details!.batonVout;
+    //                 if (valid && vout && this._mintBatonUtxo.includes(mintTxids[i] + ":" + vout)) {
+    //                     return TokenBatonStatus.ALIVE;
+    //                 }
+    //                 if (valid && !vout) {
+    //                     return TokenBatonStatus.DEAD_ENDED;
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     return TokenBatonStatus.DEAD_BURNED;
+    // }
 
     // async searchForNonSlpBurnTransactions(): Promise<void> {
     //     for (let txo of this._tokenUtxos) {
@@ -692,7 +700,7 @@ export class SlpTokenGraph {
     //     }
     // }
 
-    private async mempoolCommitToDb({ zmqTxid }: { zmqTxid: string }): Promise<void> {
+    private async mempoolCommitToDb({ zmqTxid }: { zmqTxid?: string }): Promise<void> {
         if (zmqTxid) {
             this._graphUpdateQueueNewTxids.add(zmqTxid);
         }
@@ -767,6 +775,7 @@ export class SlpTokenGraph {
         
         // add minting baton
         tg._mintBatonUtxo = token.mintBatonUtxo;
+        tg._mintBatonStatus = token.mintBatonStatus;
 
         // add nft parent id
         if(token.nftParentId) {
