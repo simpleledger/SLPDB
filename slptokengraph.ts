@@ -33,6 +33,7 @@ export class SlpTokenGraph {
     _blockCreated: number|null;
     _mintBatonUtxo = "";
     _mintBatonStatus = TokenBatonStatus.UNKNOWN;
+    _nftParentId?: string;      // TODO!
     private _graphTxns: GraphMap;
     _slpValidator = new LocalValidator(bitbox, async (txids) => {
         if (this._manager._bit.doubleSpendCache.has(txids[0])) {
