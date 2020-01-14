@@ -1,5 +1,5 @@
 import { SlpTransactionDetails, SlpTransactionType, LocalValidator, 
-         Utils, Slp, Primatives  } from 'slpjs';
+         Utils, Slp, Primatives, SlpVersionType } from 'slpjs';
 import BigNumber from 'bignumber.js';
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
@@ -172,17 +172,19 @@ export class SlpTokenGraph {
         console.log(`[INFO] Stopped token graph ${this._tokenIdHex}`);
     }
 
-    private async setNftParentId() {
-        let txnhex = (await this._slpValidator.getRawTransactions([this._tokenDetails.tokenIdHex]))[0];
-        let tx = Primatives.Transaction.parseFromBuffer(Buffer.from(txnhex, 'hex'));
-        let nftBurnTxnHex = (await this._slpValidator.getRawTransactions([tx.inputs[0].previousTxHash]))[0];
-        let nftBurnTxn = Primatives.Transaction.parseFromBuffer(Buffer.from(nftBurnTxnHex, 'hex'));
-        let nftBurnSlp = slp.parseSlpOutputScript(Buffer.from(nftBurnTxn.outputs[0].scriptPubKey));
-        if (nftBurnSlp.transactionType === SlpTransactionType.GENESIS) {
-            this._nftParentId = tx.inputs[0].previousTxHash;
-        }
-        else {
-            this._nftParentId = nftBurnSlp.tokenIdHex;
+    public async setNftParentId() {
+        if (this._tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
+            let txnhex = await RpcClient.getRawTransaction(this._tokenIdHex);
+            let tx = Primatives.Transaction.parseFromBuffer(Buffer.from(txnhex, 'hex'));
+            let nftBurnTxnHex = await RpcClient.getRawTransaction(tx.inputs[0].previousTxHash);
+            let nftBurnTxn = Primatives.Transaction.parseFromBuffer(Buffer.from(nftBurnTxnHex, 'hex'));
+            let nftBurnSlp = slp.parseSlpOutputScript(Buffer.from(nftBurnTxn.outputs[0].scriptPubKey));
+            if (nftBurnSlp.transactionType === SlpTransactionType.GENESIS) {
+                this._nftParentId = tx.inputs[0].previousTxHash;
+            }
+            else {
+                this._nftParentId = nftBurnSlp.tokenIdHex;
+            }
         }
     }
 
@@ -793,7 +795,13 @@ export class SlpTokenGraph {
         if (!token.tokenStats.block_created && token.tokenStats.block_created !== 0) {
             throw Error("Must have a block created for token");
         }
-        let tg = await manager.getTokenGraph({ tokenIdHex: token.tokenDetails.tokenIdHex, slpMsgDetailsGenesis: tokenDetails, forceValid: true, blockCreated: token.tokenStats?.block_created! });
+        let tg = await manager.getTokenGraph({ 
+            tokenIdHex: token.tokenDetails.tokenIdHex, 
+            slpMsgDetailsGenesis: tokenDetails, 
+            forceValid: true, 
+            blockCreated: token.tokenStats?.block_created!,
+            nft1ChildParentIdHex: token.nftParentId
+        });
         if (!tg) {
             throw Error("This should never happen");
         }

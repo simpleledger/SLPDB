@@ -1,6 +1,6 @@
 import { SlpTokenGraph } from "./slptokengraph";
 import { TokenDBObject, GraphTxnDbo } from "./interfaces";
-import { SlpTransactionType, Slp, SlpTransactionDetails } from "slpjs";
+import { SlpTransactionType, Slp, SlpTransactionDetails, SlpVersionType } from "slpjs";
 import { Bit } from "./bit";
 import { Query } from "./query";
 import { BITBOX } from 'bitbox-sdk';
@@ -51,7 +51,7 @@ export class SlpGraphManager {
         } 
     }
 
-    async getTokenGraph({ tokenIdHex, slpMsgDetailsGenesis, forceValid, blockCreated }: { tokenIdHex: string, slpMsgDetailsGenesis?: SlpTransactionDetails, forceValid?: boolean, blockCreated?: number }): Promise<SlpTokenGraph|null> {
+    async getTokenGraph({ tokenIdHex, slpMsgDetailsGenesis, forceValid, blockCreated, nft1ChildParentIdHex }: { tokenIdHex: string, slpMsgDetailsGenesis?: SlpTransactionDetails, forceValid?: boolean, blockCreated?: number, nft1ChildParentIdHex?: string }): Promise<SlpTokenGraph|null> {
         if (!this._tokens.has(tokenIdHex)) {
             if (!slpMsgDetailsGenesis) {
                 throw Error("Token details for a new token GENESIS must be provided.");
@@ -64,6 +64,12 @@ export class SlpGraphManager {
                 graph._isValid = true;
             } else if (!(await graph.IsValid())) {
                 return null;
+            }
+            if (nft1ChildParentIdHex) {
+                graph._nftParentId;
+            }
+            if (!graph._nftParentId && slpMsgDetailsGenesis.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
+                await graph.setNftParentId();
             }
             this._tokens.set(tokenIdHex, graph);
         } else if (slpMsgDetailsGenesis && blockCreated && slpMsgDetailsGenesis.transactionType !== SlpTransactionType.GENESIS) {

@@ -3,7 +3,7 @@ import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenUtxoStatus, Ba
 import { Decimal128 } from "mongodb";
 import { Config } from "./config";
 import { RpcClient } from "./rpc";
-import { SlpTransactionType, SlpTransactionDetails } from "slpjs";
+import { SlpTransactionType, SlpTransactionDetails, SlpVersionType } from "slpjs";
 import BigNumber from "bignumber.js";
 
 import { slpUtxos } from './utxos';
@@ -230,7 +230,10 @@ export class GraphMap extends Map<string, GraphTxn> {
                 mintQuantity: Decimal128.fromString(graph._prunedMintQuantity.toFixed())
             }
         }
-        if (tg._nftParentId) {
+        if (tg._tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
+            if (!tg._nftParentId) {
+                throw Error("Missing NFT1 parent token Id.");
+            }
             result.nftParentId = tg._nftParentId;
         }
         return result;
