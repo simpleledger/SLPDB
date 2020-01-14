@@ -124,7 +124,7 @@ export class SlpTokenGraph {
                 if (canBePruned) {
                     if (!gt.prevPruneHeight || pruneHeight >= gt.prevPruneHeight) {
                         gt.prevPruneHeight = pruneHeight;
-                        // no need to set isDirty, will get picked up by pruning stack
+                        this._graphTxns.SetDirty(txid);
                     }
                 }
             }
