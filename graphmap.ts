@@ -88,6 +88,7 @@ export class GraphMap extends Map<string, GraphTxn> {
             let deleted = super.delete(txid);
             if (deleted) {
                 this._decrementGraphCount(graphTxn!);
+                return true;
             }
         }
         return false;
