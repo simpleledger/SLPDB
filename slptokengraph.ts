@@ -481,7 +481,7 @@ export class SlpTokenGraph {
                 if (txnSlpDetails.batonVout) {
                     this._mintBatonStatus = TokenBatonStatus.ALIVE;
                     this._mintBatonUtxo = `${txid}:${txnSlpDetails.batonVout}`;
-                    let address = this.getAddressStringFromTxnOutput(txn, 1);
+                    let address = this.getAddressStringFromTxnOutput(txn, txnSlpDetails.batonVout);
                     globalUtxoSet.set(`${txid}:${txnSlpDetails.batonVout}`, this._tokenIdBuf.slice());
                     graphTxn.outputs.push({
                         address: address,
