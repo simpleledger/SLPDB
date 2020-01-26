@@ -60,6 +60,13 @@ export class GraphMap extends Map<string, GraphTxn> {
         }
     }
 
+    public setFromDb(txid: string, graphTxn: GraphTxn) {
+        if (!this.has(txid)) {
+            this._incrementGraphCount(graphTxn);
+        }
+        return super.set(txid, graphTxn);
+    }
+
     public set(txid: string, graphTxn: GraphTxn) {
         this.SetDirty(txid);
         if (!this.has(txid)) {
@@ -189,11 +196,9 @@ export class GraphMap extends Map<string, GraphTxn> {
         dag.forEach((item, idx) => {
             let gt = GraphMap.mapGraphTxnFromDbo(item, this._container._tokenDetails.decimals);
             gt.outputs.forEach(o => {
-                if ([TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(o.status)) {
-                    globalUtxoSet.set(`${item.graphTxn.txid}:${o.vout}`, Buffer.from(this._rootId, "hex"));
-                }
+                globalUtxoSet.set(`${item.graphTxn.txid}:${o.vout}`, Buffer.from(this._rootId, "hex"));
             });
-            this.set(item.graphTxn.txid, gt);
+            this.setFromDb(item.graphTxn.txid, gt);
         });
 
         this._prunedSendCount = prunedSendCount;

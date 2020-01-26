@@ -8,10 +8,10 @@ import { Config } from './config';
 import { SlpdbStatus } from './status';
 import { Info, ChainSyncCheckpoint } from './info';
 import { SlpGraphManager } from './slpgraphmanager';
-import { TokenFilterRule, TokenFilter } from './filters';
+import { TokenFilters } from './filters';
 import { BlockchainInfoResult } from 'bitcoin-com-rest';
 import { Query } from './query';
-import { pruneStack } from './prunestack';
+import { PruneStack } from './prunestack';
 
 new RpcClient({ useGrpc: Boolean(Config.grpc.url) });
 
@@ -30,6 +30,7 @@ let db = new Db({
     dbUrl: Config.db.url, 
     config: Config.db 
 });
+let filter = TokenFilters();
 let bit = new Bit(db);
 new SlpdbStatus(db, process.argv);
 
@@ -56,9 +57,6 @@ const daemon = {
         
         await SlpdbStatus.saveStatus();
 
-        // try to load tokens filter yaml
-        let filter = TokenFilter.loadFromFile();
-
         // check for confirmed collection schema update
         let schema = await Info.getConfirmedCollectionSchema();
         if(!schema || schema !== Config.db.confirmed_schema_version) {
@@ -84,9 +82,9 @@ const daemon = {
 
         console.log('[INFO] Starting to processing SLP Data.', new Date());
         let currentHeight = await RpcClient.getBlockCount();
-        tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
+        tokenManager = new SlpGraphManager(db, currentHeight, network, bit);
         bit._slpGraphManager = tokenManager;
-        let pruningStack = pruneStack(tokenManager._tokens);
+        let pruningStack = PruneStack(tokenManager._tokens);
 
         console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
         console.time('[PERF] Initial Block Sync');
@@ -150,10 +148,8 @@ const util = {
         await bit.processCurrentMempoolForSLP();
         console.timeEnd('[PERF] Initial Block Sync');
         console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
-        let filter = new TokenFilter();
-        filter.addRule(new TokenFilterRule({ name: "unknown", info: tokenId, type: 'include-single'}));
         let currentHeight = await RpcClient.getBlockCount();
-        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
+        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit);
         bit._slpGraphManager = tokenManager;
         bit.listenToZmq();
         //await tokenManager.updateAllTokenGraphs({ reprocessFrom: 0, loadFromDb: false });
@@ -165,14 +161,14 @@ const util = {
         let includeTokenIds = [
             "8aab2185354926d72c6a8f6bf7e403daaf1469c02e00a5ad5981b84ea776d980",
         ];
-        let filter = new TokenFilter();
-        includeTokenIds.forEach(i => {
-            filter.addRule(new TokenFilterRule({ name: "unknown", info: i, type: 'include-single'}));
-        });
+        // let filter = new TokenFilter();
+        // includeTokenIds.forEach(i => {
+        //     filter.addRule(new TokenFilterRule({ name: "unknown", info: i, type: 'include-single'}));
+        // });
         let network = (await RpcClient.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
         await Info.setNetwork(network);
         let currentHeight = await RpcClient.getBlockCount();
-        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit, filter);
+        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit); //, filter);
         //await tokenManager.updateAllTokenGraphs({ reprocessFrom: 0, reprocessTo: block_height });
         //await tokenManager._startupQueue.onIdle();
         let blockhash = (await RpcClient.getBlockHash(block_height+1)) as string;

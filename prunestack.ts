@@ -2,12 +2,12 @@ import { SlpTokenGraph } from "./slptokengraph";
 import { CacheMap } from "./cache";
 
 type TokenId = string;
-export type PruneStack = PruningStack;
-class PruningStack {
+export type PruneStack = _PruningStack;
+class _PruningStack {
     public static Instance(tokenGraphs?: Map<string, SlpTokenGraph>) {
-        return this._instance || (this._instance = new PruningStack(tokenGraphs));
+        return this._instance || (this._instance = new _PruningStack(tokenGraphs));
     }
-    private static _instance: PruningStack;
+    private static _instance: _PruningStack;
     private _stack = new CacheMap<number, Map<TokenId, {txids: string[]}>>(10);
     private _graphs?: Map<string, SlpTokenGraph>;
     private constructor(tokenGraphs?: Map<string, SlpTokenGraph>) {
@@ -56,4 +56,4 @@ class PruningStack {
 }
 
 // accessor to a singleton stack for pruning
-export const pruneStack = PruningStack.Instance;
+export const PruneStack = _PruningStack.Instance;

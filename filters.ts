@@ -1,7 +1,7 @@
 import * as yaml from 'js-yaml';
 import * as fs from 'fs';
 
-export class TokenFilterRule {
+class _TokenFilterRule {
     name: string;
     type: string;
     info: string;
@@ -33,14 +33,28 @@ export class TokenFilterRule {
     }
 }
 
-export class TokenFilter {
-    _rules = new Map<string, TokenFilterRule>();
+class _TokenFilter {
+    public static Instance() {
+        return this._instance || (this._instance = new _TokenFilter());
+    }
+    private static _instance: _TokenFilter;
+    _rules = new Map<string, _TokenFilterRule>();
     _hasIncludeSingle = false;
     _hasExcludeSingle = false;
 
-    constructor() { }
+    constructor() {
+        try {
+            let o = yaml.safeLoad(fs.readFileSync('filters.yml', 'utf-8'));
+            o.tokens.forEach((f: _TokenFilterRule) => {
+                this.addRule(new _TokenFilterRule({ info: f.info, name: f.name, type: f.type }));
+                console.log("[INFO] Loaded token filter:", f.name);
+            });
+        } catch(e) {
+            console.log("[INFO] No token filters loaded.");
+        }
+    }
 
-    addRule(rule: TokenFilterRule) {
+    addRule(rule: _TokenFilterRule) {
         if(this._rules.has(rule.info))
             return;
         if(rule.type === 'include-single') {
@@ -76,21 +90,7 @@ export class TokenFilter {
             return true;
         }
     }
-
-    static loadFromFile(): TokenFilter {
-
-        let filter: TokenFilter = new TokenFilter();
-
-        try {
-            let o = yaml.safeLoad(fs.readFileSync('filters.yml', 'utf-8'));
-            o.tokens.forEach((f: TokenFilterRule) => {
-                filter.addRule(new TokenFilterRule({ info: f.info, name: f.name, type: f.type }));
-                console.log("[INFO] Loaded token filter:", f.name);
-            });
-        } catch(e) {
-            console.log("[INFO] No token filters loaded.");
-        }
-
-        return filter;
-    }
 }
+
+// accessor to a singleton stack for filters
+export const TokenFilters = _TokenFilter.Instance;

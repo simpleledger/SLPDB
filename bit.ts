@@ -19,7 +19,8 @@ import { SlpTokenGraph } from './slptokengraph';
 import { slpUtxos } from './utxos';
 const globalUtxoSet = slpUtxos();
 
-import { pruneStack } from './prunestack';
+import { PruneStack } from './prunestack';
+import { TokenFilters } from './filters';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const filterBuf = Buffer.from("6a04534c5000", "hex");
@@ -83,13 +84,33 @@ export class Bit {
         }
     }
 
-    slpTransactionFilter(txn: string|Buffer): boolean {
+    applySlpTxnFilter(txn: string|Buffer): { txn: bitcore.Transaction, slpMsg: SlpTransactionDetails } | null {
+        let isSlp = false;
         if (typeof txn !== "string") {
-            return (txn as Buffer).includes(filterBuf);
+            isSlp = (txn as Buffer).includes(filterBuf);
+            txn = txn.toString("hex");
         } else if (txn.includes('6a04534c5000')) {
-            return true;
+            isSlp = true;
         }
-        return false;
+        if (!isSlp) {
+            return null;
+        }
+        const deserialized: bitcore.Transaction = new bitcore.Transaction(txn);
+        let slpMsg: SlpTransactionDetails;
+        try {        
+            slpMsg = this._slpGraphManager.slp.parseSlpOutputScript(deserialized.outputs[0]._scriptBuffer);
+        } catch(_) {
+            return null;
+        }
+        if (slpMsg.transactionType === "GENESIS") {
+            slpMsg.tokenIdHex = deserialized.hash;
+        }
+        let filter = TokenFilters();
+        if (slpMsg.tokenIdHex && !filter.passesAllFilterRules(slpMsg.tokenIdHex)) {
+            console.log("[INFO] SLP txn filtered and ignored:", deserialized.hash);
+            return null;
+        }
+        return { txn: deserialized, slpMsg };
     }
 
     private async waitForFullNodeSync() {
@@ -184,8 +205,8 @@ export class Bit {
                 }
             }
         }
-
-        if (this.slpTransactionFilter(txnBuf)) {
+        let res = this.applySlpTxnFilter(txnBuf)
+        if (res) {
             RpcClient.loadTxnIntoCache(txid, txnBuf);
             this.slpMempool.set(txid, txnBuf.toString("hex"));
             let inputTxos = Primatives.Transaction.parseFromBuffer(txnBuf).inputs;
@@ -228,9 +249,10 @@ export class Bit {
         const mempoolSlpTxs = new Map<string, { deserialized: bitcore.Transaction, serialized: Buffer}>();
         for (let txid of currentBchMempoolList) {
             const serialized: Buffer = Buffer.from(await RpcClient.getRawTransaction(txid), "hex");
-            if (this.slpTransactionFilter(serialized)) {
+            let res = this.applySlpTxnFilter(serialized);
+            if (res) {
                 // @ts-ignore
-                const deserialized: bitcore.Transaction = new bitcore.Transaction(serialized);
+                let deserialized = res.txn;
                 const txid = deserialized.hash;
                 mempoolSlpTxs.set(txid, {deserialized, serialized});
                 RpcClient.transactionCache.set(txid, serialized);
@@ -287,9 +309,10 @@ export class Bit {
                 for (let input of t.inputs) {
                     spentOutpoints.push([input.prevout.hash.reverse().toString("hex")+":"+input.prevout.index, hash]);
                 }
-                if (this.slpTransactionFilter(serialized)) {
+                let res = this.applySlpTxnFilter(serialized);
+                if (res) {
                     // @ts-ignore
-                    const deserialized: bitcore.Transaction = new bitcore.Transaction(serialized);
+                    const deserialized = res.txn;
                     const txid = deserialized.hash;
                     blockTxCache.set(txid, {deserialized, serialized});
                     RpcClient.transactionCache.set(txid, serialized);
@@ -317,7 +340,7 @@ export class Bit {
                 const deserialized = blockTxCache.get(txid)!.deserialized;
 
                 let t: TNATxn = tna.fromTx(deserialized, { network: self.network });
-                let slp = await self.setSlpProp(deserialized, txid, blockTime, t, blockIndex, blockSeenTokenIds);
+                let slp = await self.setSlpProp(deserialized, blockTime, t, blockIndex, blockSeenTokenIds);
 
                 if (!self.slpMempool.has(txid) && syncComplete) {
                     console.log("[WARN] SLP transaction not in mempool:", txid);
@@ -354,18 +377,17 @@ export class Bit {
         }
     }
 
-    private async setSlpProp(txn: bitcore.Transaction, txid: string, blockTime: number|null, t: TNATxn, blockIndex: number|null, blockSeenTokenIds: Set<string>|null) {
+    private async setSlpProp(txn: bitcore.Transaction, blockTime: number|null, t: TNATxn, blockIndex: number|null, blockSeenTokenIds: Set<string>|null) {
         let slpMsg: SlpTransactionDetails | undefined, slpTokenGraph: SlpTokenGraph | undefined | null, validation: Validation, detail: SlpTransactionDetailsTnaDbo | null = null, invalidReason: string | null = null, valid = false;
         try {
             slpMsg = this._slpGraphManager.slp.parseSlpOutputScript(txn.outputs[0]._scriptBuffer);
-        }
-        catch (err) {
+        } catch (err) {
             invalidReason = err.message;
         }
         if (slpMsg) {
             try {
                 if (slpMsg.transactionType === SlpTransactionType.GENESIS) {
-                    slpMsg.tokenIdHex = txid;
+                    slpMsg.tokenIdHex = txn.hash;
                     slpTokenGraph = await this._slpGraphManager.getTokenGraph({tokenIdHex: slpMsg.tokenIdHex, slpMsgDetailsGenesis: slpMsg, blockCreated: blockIndex!});
                 } else {
                     slpTokenGraph = await this._slpGraphManager.getTokenGraph({tokenIdHex: slpMsg.tokenIdHex});
@@ -392,7 +414,7 @@ export class Bit {
                         slpTokenGraph._tokenDetails.timestamp = d.slice(0,3).join('-') + ' ' + d.slice(3).join(':');
                     }
                 }
-                validation = await slpTokenGraph.validateTxid(txid);
+                validation = await slpTokenGraph.validateTxid(txn.hash);
                 valid = valid || validation.validity!;
                 invalidReason = validation.invalidReason;
                 let addresses: (string | null)[] = [];
@@ -593,7 +615,7 @@ export class Bit {
                 }
 
                 // handle next item in the pruning stack
-                let pruningStack = pruneStack();
+                let pruningStack = PruneStack();
                 let tokenIdsPruned = pruningStack.newBlock(index);
                 for (let tokenId of tokenIdsPruned) {
                     self._tokenIdsModified.add(tokenId);
@@ -633,7 +655,7 @@ export class Bit {
                     if (globalUtxoSet.has(txo)) {
                         let tokenIdHex = globalUtxoSet.get(txo)!.toString("hex");
                         let graph = (await self._slpGraphManager.getTokenGraph({ tokenIdHex }))!;
-                        let updated = graph.markOutputAsBurnedNonSlp(txo, Buffer.from(spentIn).toString("hex"));
+                        let updated = graph.markOutputAsBurnedNonSlp(txo, Buffer.from(spentIn).toString("hex"), index);
                         if (updated) {
                             self._tokenIdsModified.add(tokenIdHex);
                         }
@@ -676,15 +698,16 @@ export class Bit {
                     if (!txhex) {
                         throw Error("Must provide 'txhex' if txid is not in the SLP mempool");
                     }
-                    if (self.slpTransactionFilter(txhex)) {
-                        txn = new bitcore.Transaction(txhex);
+                    let res = self.applySlpTxnFilter(txhex);
+                    if (res) {
+                        txn = res.txn;
                     }
                 }
 
                 if (txn) {
                     let content: TNATxn = tna.fromTx(txn, { network: self.network });
 
-                    await self.setSlpProp(txn, txn.id, null, content, null, null);
+                    await self.setSlpProp(txn, null, content, null, null);
 
                     try {
                         await self.db.unconfirmedInsert(content);

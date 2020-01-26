@@ -22,7 +22,7 @@ const slp = new Slp(bitbox);
 import { slpUtxos } from './utxos';
 const globalUtxoSet = slpUtxos();
 
-import { pruneStack } from './prunestack';
+import { PruneStack } from './prunestack';
 
 export class SlpTokenGraph {
 
@@ -86,7 +86,7 @@ export class SlpTokenGraph {
         return false
     }
 
-    markOutputAsBurnedNonSlp(txo: string, burnedInTxid: string) {
+    markOutputAsBurnedNonSlp(txo: string, burnedInTxid: string, blockIndex: number) {
         let txid = txo.split(":")[0];
         let vout = Number.parseInt(txo.split(":")[1]);
         let gt = this._graphTxns.get(txid);
@@ -107,6 +107,10 @@ export class SlpTokenGraph {
                 o.spendTxid = burnedInTxid;
                 o.invalidReason = "Spent in non-SLP transaction";
                 this._graphTxns.SetDirty(txid);
+                if (gt.outputs.filter(o => [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(o.status)).length === 0) {
+                    let pruningStack = PruneStack()
+                    pruningStack.addGraphTxidToPruningStack(blockIndex, this._tokenIdHex, txid);
+                }
                 return true;
             }
         }
@@ -387,7 +391,7 @@ export class SlpTokenGraph {
                         if (processUpToBlock && gtos.filter(o => [ TokenUtxoStatus.UNSPENT, 
                                                                     BatonUtxoStatus.BATON_UNSPENT ].includes(o.status)).length === 0) 
                         {
-                            let pruningStack = pruneStack();
+                            let pruningStack = PruneStack();
                             pruningStack.addGraphTxidToPruningStack(processUpToBlock, this._tokenIdHex, previd);
                         }
                     }
