@@ -617,8 +617,10 @@ export class Bit {
                 // handle next item in the pruning stack
                 let pruningStack = PruneStack();
                 let tokenIdsPruned = pruningStack.newBlock(index);
-                for (let tokenId of tokenIdsPruned) {
-                    self._tokenIdsModified.add(tokenId);
+                if (tokenIdsPruned) {
+                    for (let tokenId of tokenIdsPruned) {
+                        self._tokenIdsModified.add(tokenId);
+                    }
                 }
 
                 console.time('[PERF] RPC END ' + index);

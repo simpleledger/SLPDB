@@ -24,13 +24,18 @@ class _PruningStack {
     }
 
     // This should be at start of block crawl().
-    public newBlock(blockIndex: number): IterableIterator<TokenId> {
-        let blocks = Array.from(this._stack.keys());
-        let nextBlock = blocks[0];
-        let pruneMap = this._stack.get(nextBlock)!;
+    public newBlock(blockIndex: number): IterableIterator<TokenId>|null {
+        let nextBlock = Array.from(this._stack.keys())[0];
+        let pruneMap = this._stack.get(nextBlock);
+        if (!pruneMap) {
+            console.log(`[WARN] No pruneMap for ${nextBlock}.`);
+            console.log(`[WARN] PruneStack Keys: ${Array.from(this._stack.keys())} before adding ${blockIndex}`);
+            this._stack.set(blockIndex, new Map());
+            return null;
+        }
         console.log(`[INFO] Prune stack at ${blockIndex}, about to pop ${nextBlock}.`);
-        this._stack.set(blockIndex, new Map());
         this._considerPruningMap(pruneMap, blockIndex);
+        this._stack.set(blockIndex, new Map());
         return pruneMap.keys();
     }
 
