@@ -1,9 +1,9 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2019-12-21
+**Last Updated:** 2020-01-28
 
-**Current SLPDB Version:** 0.16.0
+**Current SLPDB Version:** 1.0.0-beta
 
 * 1. [What is SLPDB?](#WhatisSLPDB)
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)
@@ -18,7 +18,6 @@
 	* 4.6. [Updating SLPDB](#UpdatingSLPDB)
     * 4.7. [Filtering for Specific Token ID](#Filtering)
     * 4.8. [Pruning](#Pruning)
-    * 4.9. [Lazy Loading](#LazyLoading)
 * 5. [Token Stats](#TokenStats)
 	* 5.1. [Supply Stats](#SupplyStats)
 	* 5.2. [Summarized Usage Stats](#SummarizedUsageStats)
@@ -156,12 +155,6 @@ Modify the `example-filters.yml` file to suit your needs and then rename it as `
 ### 4.8. <a name='Pruning'></a>Pruning
 
 Pruning removes totally spent and aged transactions from the global transaction cache, the token graph, and the validator cache.  Pruning occurs after a transaction has been totally spent and is aged more than 10 blocks.  At this time there is no custom configuration available for pruning.
-
-### 4.9. <a name='LazyLoading'></a>Lazy Loading
-
-Lazy loading allows faster startup times for SLPDB by only loading the tokens which have been recently active.  Lazy loading is enabled by default and will load any token which has had an active send in the past 12960 blocks (~3 months).  Lazy loading can be configured with a custom cutoff point by setting the `lazy_loading` environment variable equal to the number of blocks to look back from the current best block height.  For example, using `lazy_loading=1000` would only cause tokens which have been active in the past 1000 blocks to load on startup, any other token will load into memory the next time it becomes active on the blockchain.  Lazy loading will only become active after `Info.setLastBlockSeen` has been set for the the particular token ID.  This means that lazy loading can only be enabled by resyncing the db from scratch, which is the purpose for updating the token schema version to 74.
-
-NOTE: Lazy loading does not work when the `filters.yml` file is being utilized.
 
 ##  5. <a name='TokenStats'></a>Token Stats
 
