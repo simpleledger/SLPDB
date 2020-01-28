@@ -58,6 +58,7 @@ export interface TokenPruneStateDbo {
     sendCount: number;
     mintCount: number;
     mintQuantity: Decimal128;
+    pruneHeight: number;
     //validBurnQuantity: Decimal128;
 }
 

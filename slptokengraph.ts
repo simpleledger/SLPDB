@@ -666,9 +666,7 @@ export class SlpTokenGraph {
         // Map _txnGraph
         tg!._graphTxns.fromDbos(
             dag, 
-            token.pruningState.sendCount,
-            token.pruningState.mintCount,
-            new BigNumber(token.pruningState.mintQuantity.toString())
+            token.pruningState
         );
 
         // Preload SlpValidator with cachedValidations

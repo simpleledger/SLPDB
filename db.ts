@@ -109,15 +109,15 @@ export class Db {
         return await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
-    async graphFetch(tokenIdHex: string, pruneCutoffHeight?: number): Promise<GraphTxnDbo[]> {
+    async graphFetch(tokenIdHex: string, lastPrunedHeight?: number): Promise<GraphTxnDbo[]> {
         await this.checkClientStatus();
-        if (pruneCutoffHeight) {
+        if (lastPrunedHeight) {
             return await this.db.collection('graphs').find({
-                "tokenDetails.tokenIdHex": tokenIdHex, 
-                "$or": [ { "graphTxn.pruneHeight": { "$gte": pruneCutoffHeight } }, { "graphTxn.pruneHeight": null }, { "graphTxn.txid": tokenIdHex }]
+                "tokenDetails.tokenIdHex": tokenIdHex,
+                "$or": [ { "graphTxn.pruneHeight": { "$gt": lastPrunedHeight } }, { "graphTxn.pruneHeight": null }, { "graphTxn.txid": tokenIdHex }]
             }).toArray();
         } else {
-            return await this.db.collection('graphs').find({ 
+            return await this.db.collection('graphs').find({
                 "tokenDetails.tokenIdHex": tokenIdHex
             }).toArray();
         }

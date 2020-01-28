@@ -1,5 +1,5 @@
 import { SlpTokenGraph } from "./slptokengraph";
-import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenUtxoStatus, BatonUtxoStatus, TokenDBObject as TokenDbo, TokenBatonStatus, GraphTxnInput, GraphTxnOutput, GraphTxn, SlpTransactionDetailsDbo } from "./interfaces";
+import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenDBObject as TokenDbo, GraphTxnInput, GraphTxnOutput, GraphTxn, SlpTransactionDetailsDbo, TokenPruneStateDbo } from "./interfaces";
 import { Decimal128 } from "mongodb";
 import { Config } from "./config";
 import { RpcClient } from "./rpc";
@@ -10,9 +10,10 @@ import { slpUtxos } from './utxos';
 const globalUtxoSet = slpUtxos();
 
 export class GraphMap extends Map<string, GraphTxn> {
-    private pruned = new Map<string, GraphTxn>();
-    private dirtyItems = new Set<string>();
-    private doubleSpent = new Set<string>();
+    private _pruned = new Map<string, GraphTxn>();
+    private _dirtyItems = new Set<string>();
+    private _doubleSpent = new Set<string>();
+    private _lastPruneHeight = 0;
     private _rootId: string;
     private _container: SlpTokenGraph;
     private _prunedSendCount = 0;
@@ -32,7 +33,7 @@ export class GraphMap extends Map<string, GraphTxn> {
     }
 
     get DirtyCount() {
-        return this.dirtyItems.size;
+        return this._dirtyItems.size;
     }
 
     get SendCount() {
@@ -77,7 +78,7 @@ export class GraphMap extends Map<string, GraphTxn> {
     }
 
     public SetDirty(txid: string) {
-        this.dirtyItems.add(txid);
+        this._dirtyItems.add(txid);
     }
 
     private _decrementGraphCount(graphTxn: GraphTxn) {
@@ -103,29 +104,30 @@ export class GraphMap extends Map<string, GraphTxn> {
     }
 
     public deleteDoubleSpend(txid: string) {
-        this.doubleSpent.add(txid);
+        this._doubleSpent.add(txid);
         return this.delete(txid);
     }
 
     public has(txid: string, includePrunedItems=false): boolean {
         if(includePrunedItems) {
-            return super.has(txid) || this.pruned.has(txid);
+            return super.has(txid) || this._pruned.has(txid);
         }
         return super.has(txid);
     }
 
     public get(txid: string, includePrunedItems=false): GraphTxn|undefined {
         if(includePrunedItems) {
-            return super.get(txid) || this.pruned.get(txid);
+            return super.get(txid) || this._pruned.get(txid);
         }
         return super.get(txid);
     }
 
     private prune(txid: string, pruneHeight: number) {
+        this._lastPruneHeight = pruneHeight;
         if (this.has(txid) && txid !== this._rootId) {
             let gt = this.get(txid)!;
             if (!gt.prevPruneHeight || pruneHeight >= gt.prevPruneHeight) {
-                this.pruned.set(txid, gt);
+                this._pruned.set(txid, gt);
                 this.delete(txid);
                 console.log(`[INFO] Pruned ${txid} with prune height of ${pruneHeight}`);
                 if (gt.details.transactionType === SlpTransactionType.SEND) {
@@ -143,15 +145,15 @@ export class GraphMap extends Map<string, GraphTxn> {
     }
 
     private _flush() {
-        const txids = Array.from(this.pruned.keys());
-        this.pruned.forEach((i, txid) => {
+        const txids = Array.from(this._pruned.keys());
+        this._pruned.forEach((i, txid) => {
             RpcClient.transactionCache.delete(txid);
             delete this._container._slpValidator.cachedRawTransactions[txid];
             delete this._container._slpValidator.cachedValidations[txid];
         });
-        this.doubleSpent.clear();
-        this.pruned.clear();
-        this.dirtyItems.clear();
+        this._doubleSpent.clear();
+        this._pruned.clear();
+        this._dirtyItems.clear();
         return txids;
     }
 
@@ -159,7 +161,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         let tg = graph._container;
         let itemsToUpdate: GraphTxnDbo[] = [];
 
-        graph.dirtyItems.forEach(txid => {
+        graph._dirtyItems.forEach(txid => {
             let g = graph.get(txid)!;
             let dbo: GraphTxnDbo = {
                 tokenDetails: { tokenIdHex: graph._container._tokenIdHex },
@@ -183,7 +185,7 @@ export class GraphMap extends Map<string, GraphTxn> {
             itemsToUpdate.push(dbo);
         });
 
-        let itemsToDelete = Array.from(graph.doubleSpent);
+        let itemsToDelete = Array.from(graph._doubleSpent);
         
         // Do the pruning here
         itemsToUpdate.forEach(dbo => { if (dbo.graphTxn.pruneHeight) graph.prune(dbo.graphTxn.txid, dbo.graphTxn.pruneHeight)});
@@ -193,7 +195,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         return { itemsToUpdate, tokenDbo, itemsToDelete };
     }
 
-    public fromDbos(dag: GraphTxnDbo[], prunedSendCount: number, prunedMintCount: number, prunedMintQuantity: BigNumber) {
+    public fromDbos(dag: GraphTxnDbo[], pruneState: TokenPruneStateDbo) {
         dag.forEach((item, idx) => {
             let gt = GraphMap.mapGraphTxnFromDbo(item, this._container._tokenDetails.decimals);
             gt.outputs.forEach(o => {
@@ -201,10 +203,10 @@ export class GraphMap extends Map<string, GraphTxn> {
             });
             this.setFromDb(item.graphTxn.txid, gt);
         });
-
-        this._prunedSendCount = prunedSendCount;
-        this._prunedMintCount = prunedMintCount;
-        this._prunedMintQuantity = prunedMintQuantity;
+        this._lastPruneHeight = pruneState.pruneHeight;
+        this._prunedSendCount = pruneState.sendCount;
+        this._prunedMintCount = pruneState.mintCount;
+        this._prunedMintQuantity = new BigNumber(pruneState.mintQuantity.toString())
     }
 
     private static _mapTokenToDbo(graph: GraphMap): TokenDbo {
@@ -232,6 +234,7 @@ export class GraphMap extends Map<string, GraphTxn> {
                 qty_satoshis_locked_up: null,          //stats.qty_satoshis_locked_up,
             },
             pruningState: {
+                pruneHeight: graph._lastPruneHeight,
                 sendCount: graph._prunedSendCount,
                 mintCount: graph._prunedMintCount,
                 mintQuantity: Decimal128.fromString(graph._prunedMintQuantity.toFixed())

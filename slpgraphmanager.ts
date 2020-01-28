@@ -258,24 +258,25 @@ export class SlpGraphManager {
 
     async initAllTokenGraphs() {
         let tokens = await this.db.tokenFetchAll();
-        let pruningCutoff = await (await Info.getBlockCheckpoint()).height - 10;
+        //let pruningCutoff = await (await Info.getBlockCheckpoint()).height - 10;
         if (tokens) {
             let count = 0;
             for (let token of tokens) {
-                await this.loadTokenFromDb(token, pruningCutoff);
+                let lastPrunedHeight = token.pruningState.pruneHeight;
+                await this.loadTokenFromDb(token, lastPrunedHeight);
                 console.log(`[INFO] ${++count} tokens loaded from db.`)
             }
         }
     }
 
-    async loadTokenFromDb(tokenDbo: TokenDBObject, pruneCutoffHeight?: number) {
+    async loadTokenFromDb(tokenDbo: TokenDBObject, lastPrunedHeight?: number) {
         let tokenId = tokenDbo.tokenDetails.tokenIdHex;
         console.log("########################################################################################################");
         console.log(`LOAD FROM DB: ${tokenId}`);
         console.log("########################################################################################################");
-        let unspentDag: GraphTxnDbo[] = await this.db.graphFetch(tokenId, pruneCutoffHeight);
+        let unspentDag: GraphTxnDbo[] = await this.db.graphFetch(tokenId, lastPrunedHeight);
         this._cacheGraphTxnCount += unspentDag.length;
-        console.log(`Total loaded: ${this._cacheGraphTxnCount}, using a pruning cutoff height of: ${pruneCutoffHeight} `);
+        console.log(`Total loaded: ${this._cacheGraphTxnCount}, using a pruning cutoff height of: ${lastPrunedHeight} `);
         return await SlpTokenGraph.initFromDbos(tokenDbo, unspentDag, this, this._network);
     }
 
