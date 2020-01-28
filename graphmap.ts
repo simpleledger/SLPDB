@@ -21,6 +21,7 @@ export class GraphMap extends Map<string, GraphTxn> {
     private _graphMintCount = 0;
     private _prunedMintQuantity = new BigNumber(0);
     private _graphMintQuantity = new BigNumber(0);
+    //private _invalidSlpBurnQuanity = new BigNumber(0);
     // private _prunedValidBurnQuantity = new BigNumber(0);
     // private _graphValidBurnQuantity = new BigNumber(0);
 
@@ -355,11 +356,11 @@ export class GraphMap extends Map<string, GraphTxn> {
 
 }
 
-interface GraphStats {
-    raw: any; 
-    mintQuantity: BigNumber;
-    utxoCount: number;
-    addressCount: number;
-    mintStatus: TokenBatonStatus;
-    canBePruned: boolean;
-}
+// interface GraphStats {
+//     raw: any; 
+//     mintQuantity: BigNumber;
+//     utxoCount: number;
+//     addressCount: number;
+//     mintStatus: TokenBatonStatus;
+//     canBePruned: boolean;
+// }
