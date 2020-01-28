@@ -1,7 +1,7 @@
 {
   "name": "slpdb",
-  "version": "0.16.0",
-  "description": "Token graph data layer for Simple Ledger Protocol",
+  "version": "1.0.0-beta",
+  "description": "A general purpose indexer and validity service for the Simple Ledger Protocol with real-time validation notifications.",
   "main": "index.js",
   "scripts": {
     "test": "tsc && mocha --timeout 1000000 --exit --require mocha-steps",
@@ -12,7 +12,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/simpleledger/slpdb.git"
+    "url": "git+https://github.com/simpleledger/SLPDB.git"
   },
   "keywords": [
     "SLP"
@@ -20,9 +20,9 @@
   "author": "SLP Developers",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/simpleledger/slpdb/issues"
+    "url": "https://github.com/simpleledger/SLPDB/issues"
   },
-  "homepage": "https://github.com/simpleledger/slpdb#readme",
+  "homepage": "https://github.com/simpleledger/SLPDB#readme",
   "dependencies": {
     "@types/dotenv": "^6.1.0",
     "@types/ip": "^1.1.0",

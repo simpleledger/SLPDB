@@ -34,7 +34,7 @@
 
 ##  1. <a name='WhatisSLPDB'></a>What is SLPDB?
 
-SLPDB is an indexer for all data related to the Simple Ledger Protocol.  SLPDB requires MongoDB and a Bitcoin Cash full node to fetch, listen for, and store SLP data.  The application allows other processes to subscribe to real-time SLP events via ZeroMQ.  Users can listen for all SLP tokens or a specified subset of tokens.  SLPDB is typically used in conjunction with SlpServe and SlpSocket projects to provide access to the data via traditional http and socket interfaces.
+SLPDB is an indexer service for storing all data related to the Simple Ledger Protocol with realtime transaction and block notifications.  Users can build block explorers (e.g., https://simpleledger.info), track token burn and mint history, track mint baton status, generate token holder lists at any block height, and easily determine state for script based smart contracts.  Web sites and services can easily create new routes for SLP data when using the SlpServe and SlpSocketServe http gateways.  By default SLPDB records all SLP tokens, or it can only look at a specified subset of tokens using the filters feature.  Filtering for your specific needs can drastically improve realtime notification speed, reduce initial db sync time, and reduce the db footprint.
 
 
 
@@ -241,11 +241,11 @@ Three categories of information are stored in MongoDB:
 
 ###  7.1. <a name='DBCollections'></a>DB Collections
 
-Six MongoDB collections used to store these three categories of data, they are as follows:
+Four MongoDB collections used to store these three categories of data, they are as follows:
 
  * `confirmed = c`  and `unconfirmed = u` 
 
-    * **Purpose**: These two collections include any Bitcoin Cash transaction containing the "SLP" Lokad ID.  The collection used depends on the transaction's confirmation status . Both valid and invalid SLP transactions are included.  Whenever new SLP transactions are added to the Bitcoin Cash network they are immediately added to one of these collections.
+    * **Purpose**: These two collections include any Bitcoin Cash transaction containing the "SLP" Lokad ID and passes all filters set in `filters.yml`.  The collection used depends on the transaction's confirmation status . Both valid and invalid SLP transactions are included.  Whenever new SLP transactions are added to the Bitcoin Cash network they are immediately added to one of these collections.
 
     * **Schema**:
 
@@ -318,50 +318,17 @@ Six MongoDB collections used to store these three categories of data, they are a
             qty_token_burned: Decimal128;
             qty_token_circulating_supply: Decimal128;
             qty_satoshis_locked_up: number;
-            minting_baton_status: TokenBatonStatus;
         }
+        "pruningState": TokenPruneStateDbo;
+        "mintBatonUtxo": string;
+        "mintBatonStatus": TokenBatonStatus;
         "lastUpdatedBlock": number;
         "schema_version": number;
+        "nftParentId?": string;
     }
 	```
 
-      
 
- * `utxos = x` 
-
-    * **Purpose**: This collection contains an item for each valid UTXO holding a token (does not include mint baton UTXOs).
-
-    * **Schema**:
-
-	```js
-    {
-        "tokenDetails": { 
-            tokenIdHex: string;
-        };
-        "utxo": string; // formatted as <txid>:<vout>
-    }
-	```
-
-      
-
- * `addresses = a` 
-
-    * **Purpose**: This collection contains an item for each addresses holding a valid token balance, for each token.
-
-    * **Schema**:
-
-	```js
-    {
-        "tokenDetails": { 
-            tokenIdHex: string 
-        };
-        "address": cashAddr;
-        "satoshis_balance": number;
-        "token_balance": Decimal128;
-    }
-	```
-
-      
 
  * `graphs = g` 
 
@@ -405,6 +372,14 @@ $ npm test
 ```
 
 ## 10. <a name='ChangeLog'></a>Change Log
+
+* 1.0.0
+    * Removed "utxos" and "addresses" collections, as this information can be queried from the "graphs" collection (TODO: update README examples)
+    * Added Topological sorting in block crawl to allow for token validation during block crawl
+    * Fixed issue where unconfirmed/confirmed transactions where initially writen to db without SLP property and then updated later after a subsequent validation step.
+    * Added graph pruning to actively reduce memory footprint
+    * Move mint baton status (mintBatonStatus) and txo out of statistics (mintBatonUtxo), these are now main property of the token document
+    * Update notification format for consistent value type, always returning string based numbers, no more Decimal128 in block notification
 
 * 0.15.6
     * Bug fixes and improvements in slpjs
