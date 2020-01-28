@@ -580,10 +580,10 @@ export class SlpTokenGraph {
         if (!this._graphUpdateQueueOnIdle) {
             this._updateComplete = false;
             this._graphUpdateQueueOnIdle = async (self: SlpTokenGraph) => {
-                self._graphUpdateQueue.pause();
                 if (self._graphUpdateQueue.size !== 0 || self._graphUpdateQueue.pending !== 0) {
                     await self._graphUpdateQueue.onIdle();
                 }
+                self._graphUpdateQueue.pause();
                 let txidToUpdate = Array.from(self._graphUpdateQueueNewTxids);
                 self._graphUpdateQueueNewTxids.clear();
                 self._graphUpdateQueueOnIdle = null;
