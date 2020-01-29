@@ -305,6 +305,12 @@ export class SlpGraphManager {
             }
             if (tna) {
                 console.log("[ZMQ-PUB] SLP mempool notification", txid);
+                try {
+                    tna.slp?.detail?.outputs?.forEach(o => {
+                        // @ts-ignore
+                        o.amount = o.amount?.toString();
+                    });
+                } catch(_) {}
                 this.zmqPubSocket.send(['mempool', JSON.stringify(tna)]);
                 SlpdbStatus.updateTimeOutgoingTxnZmq();
             } else {
