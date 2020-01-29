@@ -32,19 +32,25 @@
 * 9. [Unit Tests](#UnitTests)
 * 10. [Change Log](#ChangeLog)
 
+
+
 ##  1. <a name='WhatisSLPDB'></a>What is SLPDB?
 
-SLPDB is an indexer service for storing all data related to the Simple Ledger Protocol with realtime transaction and block notifications.  Users can build block explorers (e.g., https://simpleledger.info), track token burn and mint history, track mint baton status, generate token holder lists at any block height, and easily determine state for script based smart contracts.  Web sites and services can easily create new routes for SLP data when using the SlpServe and SlpSocketServe http gateways.  By default SLPDB records all SLP tokens, or it can only look at a specified subset of tokens using the filters feature.  Filtering for your specific needs can drastically improve realtime notification speed, reduce initial db sync time, and reduce the db footprint.
+SLPDB is an indexer service for storing all data related to the Simple Ledger Protocol with realtime transaction and block notifications.  Users can build block explorers (e.g., https://simpleledger.info), track token burn and mint history, track mint baton status, generate token holder lists at any block height, and easily determine state for script based smart contracts.  Web sites and services can easily create new routes for SLP data when using the [SlpServe](https://github.com/fountainhead-cash/slpserve) and [SlpSockServe](https://github.com/fountainhead-cash/slpsockserve) http gateways.  
+
+SLPDB records all SLP token data, but it can be easily configured to only look at a specified subset of tokens using the token filtering feature.  Filtering for your specific needs can drastically improve realtime notification speed, reduce initial db sync time, and reduce the db footprint.
+
+Live status of nodes running slpdb can be found at: https://status.slpdb.io.
 
 
 
 ##  2. <a name='DoyouneedtouinstalluSLPDB'></a>Do you need to <u>install</u> SLPDB?
 
-Most likely you do <u>not</u> need to install SLPDB.  Most users will be better off using someone else's publicly shared SLPDB instance like https://slpdb.fountainhead.cash or https://query.slpdb.io.  You only need to install SLPDB, SlpServe (a http gateway), and/or SlpSockServe (a socket notifications gateway) projects if any of the following is true:
+Most likely you do <u>not</u> need to install SLPDB.  Most users will be better off using someone else's publicly shared SLPDB instance like https://slpdb.fountainhead.cash or https://query.slpdb.io.  You only need to install SLPDB, SlpServe, and/or SlpSockServe if any of the following is true:
 
 - You cannot rely on a third-party for your SLP data.
 - The rate limits impposed by `slpdb.fountainhead.cash`, or `query.slpdb.io` are too restrictive for your needs.
-- Realtime SLP data event notifications available at `slpsocket.fountainhead.cash` does not meet your needs.
+- Realtime event notifications available at `slpsocket.fountainhead.cash` are not fast enough for your needs.
 
 NOTE: If you are going to operate your own SLPDB instance you should join the telegram group for help and updates: https://t.me/slpdb
 
