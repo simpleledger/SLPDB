@@ -74,6 +74,9 @@ export class SlpGraphManager {
             if (!graph._nftParentId && slpMsgDetailsGenesis.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
                 await graph.setNftParentId();
             }
+            if (blockCreated) {
+                graph._blockCreated = blockCreated;
+            }
             this._tokens.set(tokenIdHex, graph);
         } else if (slpMsgDetailsGenesis && blockCreated && slpMsgDetailsGenesis.transactionType !== SlpTransactionType.GENESIS) {
             this._tokens.get(tokenIdHex)!._blockCreated = blockCreated;
