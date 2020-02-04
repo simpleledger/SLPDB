@@ -68,7 +68,7 @@ export class Db {
 
     async tokenFetchAll(): Promise<TokenDBObject[]|null> {
         await this.checkClientStatus();
-        return await this.db.collection('tokens').find({ "tokenStats.block_created": { "$ne": null }}).toArray();
+        return await this.db.collection('tokens').find({}).toArray();
     }
 
     async tokenReset() {
