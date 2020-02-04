@@ -200,8 +200,8 @@ describe("2-Double-Spend-Genesis", () => {
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId1);
         assert.equal(t!.mintBatonUtxo, tokenId1 + ":2");
         assert.equal(t!.tokenStats!.block_created, null);
-        assert.equal(t!.tokenStats!.block_last_active_mint, null);
-        assert.equal(t!.tokenStats!.block_last_active_send, null);
+        // assert.equal(t!.tokenStats!.block_last_active_mint, null);
+        // assert.equal(t!.tokenStats!.block_last_active_send, null);
         // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
@@ -330,8 +330,8 @@ describe("2-Double-Spend-Genesis", () => {
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId2);
         assert.equal(t!.mintBatonUtxo, tokenId2 + ":2");
         assert.equal(t!.tokenStats!.block_created, lastBlockIndex);
-        assert.equal(t!.tokenStats!.block_last_active_mint, null);
-        assert.equal(t!.tokenStats!.block_last_active_send, null);
+        // assert.equal(t!.tokenStats!.block_last_active_mint, null);
+        // assert.equal(t!.tokenStats!.block_last_active_send, null);
         // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());

@@ -247,8 +247,8 @@ describe("3-Double-Spend-Send", () => {
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(t!.mintBatonUtxo, tokenId + ":2");
         assert.equal(t!.tokenStats!.block_created, lastBlockIndex);
-        assert.equal(t!.tokenStats!.block_last_active_mint, null);
-        assert.equal(t!.tokenStats!.block_last_active_send, null);
+        // assert.equal(t!.tokenStats!.block_last_active_mint, null);
+        // assert.equal(t!.tokenStats!.block_last_active_send, null);
         // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
@@ -312,15 +312,15 @@ describe("3-Double-Spend-Send", () => {
 
     step("DS-S: stores double spend txid2 in tokens (immediately after txn ZMQ)", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-        while(!t || t!.tokenStats!.block_last_active_send === null) { // || t!.tokenStats!.qty_token_burned.toString() !== "0") {
+        while(!t) { // || t!.tokenStats!.block_last_active_send === null) { // || t!.tokenStats!.qty_token_burned.toString() !== "0") {
             t = await db.tokenFetch(tokenId);
             await sleep(50);
         }
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(t!.mintBatonUtxo, tokenId + ":2");
         assert.equal(t!.tokenStats!.block_created, lastBlockIndex-1);
-        assert.equal(t!.tokenStats!.block_last_active_mint, null);
-        assert.equal(t!.tokenStats!.block_last_active_send, lastBlockIndex);
+        // assert.equal(t!.tokenStats!.block_last_active_mint, null);
+        // assert.equal(t!.tokenStats!.block_last_active_send, lastBlockIndex);
         // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
@@ -394,8 +394,8 @@ describe("3-Double-Spend-Send", () => {
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(t!.mintBatonUtxo, tokenId + ":2");
         assert.equal(t!.tokenStats!.block_created, lastBlockIndex-1);
-        assert.equal(t!.tokenStats!.block_last_active_mint, null);
-        assert.equal(t!.tokenStats!.block_last_active_send, lastBlockIndex);
+        // assert.equal(t!.tokenStats!.block_last_active_mint, null);
+        // assert.equal(t!.tokenStats!.block_last_active_send, lastBlockIndex);
         // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());

@@ -315,11 +315,7 @@ Four MongoDB collections used to store these three categories of data, they are 
         };
         "tokenStats": {
             block_created: number|null;
-            block_last_active_send: number|null;
-            block_last_active_mint: number|null;
             qty_valid_txns_since_genesis: number;
-            qty_valid_token_utxos: number;
-            qty_valid_token_addresses: number;
             qty_token_minted: Decimal128;
             qty_token_burned: Decimal128;
             qty_token_circulating_supply: Decimal128;
@@ -386,6 +382,8 @@ $ npm test
     * Added graph pruning to actively reduce memory footprint
     * Move mint baton status (mintBatonStatus) and txo out of statistics (mintBatonUtxo), these are now main property of the token document
     * Update notification format for consistent value type, always returning string based numbers, no more Decimal128 in block notification
+    * Removed token stats properties: block_last_active_send, block_last_active_mint, qty_valid_token_utxos, qty_valid_token_addresses
+    * Removed UTXO status enums: SPENT_INVALID_SLP, BATON_SPENT_INVALID_SLP
 
 * 0.15.6
     * Bug fixes and improvements in slpjs

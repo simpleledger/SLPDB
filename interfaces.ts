@@ -32,11 +32,11 @@ export interface GraphTxnInput {
 
 export interface TokenStatsDbo {
     block_created: number|null;
-    block_last_active_send: number|null;
-    block_last_active_mint: number|null;
+    // block_last_active_send: number|null;
+    // block_last_active_mint: number|null;
     qty_valid_txns_since_genesis: number|null;
-    qty_valid_token_utxos: number|null;
-    qty_valid_token_addresses: number|null;
+    // qty_valid_token_utxos: number|null;
+    // qty_valid_token_addresses: number|null;
     qty_token_minted: Decimal128;
     qty_token_burned: Decimal128|null;
     qty_token_circulating_supply: Decimal128|null;
@@ -59,7 +59,8 @@ export interface TokenPruneStateDbo {
     mintCount: number;
     mintQuantity: Decimal128;
     pruneHeight: number;
-    //validBurnQuantity: Decimal128;
+    invalidBurnQuantity: Decimal128;
+    validBurnQuantity: Decimal128;
 }
 
 export interface GraphTxnDbo {
@@ -141,7 +142,7 @@ export enum TokenUtxoStatus {
     "SPENT_WRONG_TOKEN" = "SPENT_WRONG_TOKEN",
     "SPENT_NOT_IN_SEND" = "SPENT_NOT_IN_SEND",
     "SPENT_NON_SLP" = "SPENT_NON_SLP",
-    "SPENT_INVALID_SLP" = "SPENT_INVALID_SLP",
+    //"SPENT_INVALID_SLP" = "SPENT_INVALID_SLP",
     "MISSING_BCH_VOUT" = "MISSING_BCH_VOUT",
     "EXCESS_INPUT_BURNED" = "EXCESS_INPUT_BURNED",
     //"UNKNOWN_UNTIL_BLOCK_SYNC" = "UNKNOWN_UNTIL_BLOCK_SYNC"  // may resolve to anything
@@ -152,7 +153,7 @@ export enum BatonUtxoStatus {
     "BATON_SPENT_IN_MINT" = "BATON_SPENT_IN_MINT",
     "BATON_SPENT_NOT_IN_MINT" = "BATON_SPENT_NOT_IN_MINT", 
     "BATON_SPENT_NON_SLP" = "BATON_SPENT_NON_SLP",
-    "BATON_SPENT_INVALID_SLP" = "BATON_SPENT_INVALID_SLP",
+    //"BATON_SPENT_INVALID_SLP" = "BATON_SPENT_INVALID_SLP",
     "BATON_MISSING_BCH_VOUT" = "BATON_MISSING_BCH_VOUT"
 }
 

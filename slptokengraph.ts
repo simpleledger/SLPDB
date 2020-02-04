@@ -249,7 +249,7 @@ export class SlpTokenGraph {
             this._mintBatonStatus = TokenBatonStatus.DEAD_BURNED;
             globalUtxoSet.delete(`${txid}:${vout}`);
             if (vout < txnOutputLength!) {
-                return { status: BatonUtxoStatus.BATON_SPENT_INVALID_SLP, txid: null, invalidReason: validation.invalidReason };
+                return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: null, invalidReason: validation.invalidReason };
             }
             this._mintBatonStatus = TokenBatonStatus.DEAD_BURNED;
             return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
@@ -298,7 +298,7 @@ export class SlpTokenGraph {
         } catch(_) {
             globalUtxoSet.delete(`${txid}:${vout}`);
             if (vout < txnOutputLength!) {
-                return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: null, invalidReason: validation.invalidReason };
+                return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, invalidReason: validation.invalidReason };
             }
             return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
         }
