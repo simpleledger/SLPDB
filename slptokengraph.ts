@@ -640,7 +640,8 @@ export class SlpTokenGraph {
         if (!token.tokenStats.block_created && token.tokenStats.block_created !== 0) {
             throw Error("Must have a block created for token");
         }
-        let tg = await manager.getTokenGraph({ 
+        let tg = await manager.getTokenGraph({
+            txid: token.tokenDetails.tokenIdHex,
             tokenIdHex: token.tokenDetails.tokenIdHex, 
             slpMsgDetailsGenesis: tokenDetails, 
             forceValid: true, 

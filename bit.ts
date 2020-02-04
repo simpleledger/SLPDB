@@ -388,9 +388,9 @@ export class Bit {
             try {
                 if (slpMsg.transactionType === SlpTransactionType.GENESIS) {
                     slpMsg.tokenIdHex = txn.hash;
-                    slpTokenGraph = await this._slpGraphManager.getTokenGraph({tokenIdHex: slpMsg.tokenIdHex, slpMsgDetailsGenesis: slpMsg, blockCreated: blockIndex!});
+                    slpTokenGraph = await this._slpGraphManager.getTokenGraph({txid: txn.hash, tokenIdHex: slpMsg.tokenIdHex, slpMsgDetailsGenesis: slpMsg, blockCreated: blockIndex!});
                 } else {
-                    slpTokenGraph = await this._slpGraphManager.getTokenGraph({tokenIdHex: slpMsg.tokenIdHex});
+                    slpTokenGraph = await this._slpGraphManager.getTokenGraph({txid: txn.hash, tokenIdHex: slpMsg.tokenIdHex});
                 }
                 if (!slpTokenGraph) {
                     throw Error("Invalid token graph.");
@@ -643,7 +643,7 @@ export class Bit {
                     for (let [txid, v] of crawledTxns) {
                         if (v.tnaTxn.slp?.valid) {
                             self._tokenIdsModified.add(v.tokenId);
-                            let graph = await self._slpGraphManager.getTokenGraph({ tokenIdHex: v.tokenId });
+                            let graph = await self._slpGraphManager.getTokenGraph({ txid, tokenIdHex: v.tokenId });
                             if (graph) {
                                 await graph!.addGraphTransaction({ txid, processUpToBlock: index, blockHash });
                             }
@@ -656,7 +656,7 @@ export class Bit {
                 for (let [txo, spentIn] of spentOutpoints) {
                     if (globalUtxoSet.has(txo)) {
                         let tokenIdHex = globalUtxoSet.get(txo)!.toString("hex");
-                        let graph = (await self._slpGraphManager.getTokenGraph({ tokenIdHex }))!;
+                        let graph = (await self._slpGraphManager.getTokenGraph({ txid: tokenIdHex, tokenIdHex }))!;
                         let updated = graph.markOutputAsBurnedNonSlp(txo, Buffer.from(spentIn).toString("hex"), index);
                         if (updated) {
                             self._tokenIdsModified.add(tokenIdHex);
@@ -667,7 +667,7 @@ export class Bit {
                 console.timeEnd(`burnSearch-${index}`);
 
                 for (let tokenId of self._tokenIdsModified) {
-                    let graph = (await self._slpGraphManager.getTokenGraph({ tokenIdHex: tokenId }))!;
+                    let graph = (await self._slpGraphManager.getTokenGraph({ txid: tokenId, tokenIdHex: tokenId }))!;
                     await graph.commitToDb();
                 }
                 self._tokenIdsModified.clear();

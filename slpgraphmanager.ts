@@ -50,17 +50,17 @@ export class SlpGraphManager {
         } 
     }
 
-    async getTokenGraph({ tokenIdHex, slpMsgDetailsGenesis, forceValid, blockCreated, nft1ChildParentIdHex }: { tokenIdHex: string, slpMsgDetailsGenesis?: SlpTransactionDetails, forceValid?: boolean, blockCreated?: number, nft1ChildParentIdHex?: string }): Promise<SlpTokenGraph|null> {
+    async getTokenGraph({ tokenIdHex, slpMsgDetailsGenesis, forceValid, blockCreated, nft1ChildParentIdHex, txid }: { tokenIdHex: string, slpMsgDetailsGenesis?: SlpTransactionDetails, forceValid?: boolean, blockCreated?: number, nft1ChildParentIdHex?: string, txid: string }): Promise<SlpTokenGraph|null> {
         let filter = TokenFilters();
         if (!filter.passesAllFilterRules(tokenIdHex)) {
             throw Error("Token is filtered and will not be processed, even though it's graph may be loaded.")
         }
         if (!this._tokens.has(tokenIdHex)) {
             if (!slpMsgDetailsGenesis) {
-                throw Error("Token details for a new token GENESIS must be provided.");
+                throw Error(`Token details for a new token GENESIS must be provided (Id: ${tokenIdHex}, txid: ${txid}).`);
             }
             if (slpMsgDetailsGenesis.transactionType !== SlpTransactionType.GENESIS) {
-                throw Error("Token details for a new token GENESIS must be provided.");
+                throw Error(`Missing token details for a non-GENESIS transaction (Id: ${tokenIdHex}, txid: ${txid}).`);
             }
             let graph = new SlpTokenGraph(slpMsgDetailsGenesis, this.db, this, this._network, blockCreated!);
             if (forceValid) {
@@ -104,12 +104,18 @@ export class SlpGraphManager {
                 let tokenId = tokenDetails ? tokenDetails.tokenIdHex : null;
 
                 // Based on Txn output OP_RETURN data, update graph for the tokenId 
-                if (tokenId) {                
+                if (tokenId) {
                     let graph: SlpTokenGraph|null;
                     if (tokenDetails?.transactionType === SlpTransactionType.GENESIS) {
-                        graph = await this.getTokenGraph({ tokenIdHex: tokenId, slpMsgDetailsGenesis: tokenDetails });
+                        graph = await this.getTokenGraph({ txid, tokenIdHex: tokenId, slpMsgDetailsGenesis: tokenDetails });
                     } else {
-                        graph = await this.getTokenGraph({ tokenIdHex: tokenId });
+                        try {
+                            graph = await this.getTokenGraph({ txid, tokenIdHex: tokenId });
+                        } catch (err) {
+                            console.log(`[ERROR] Could not get graph for ${txid} at _onTransactionHash`);
+                            console.log(err);
+                            return;
+                        }
                     }
                     
                     if (graph) {
@@ -174,7 +180,7 @@ export class SlpGraphManager {
                 }
                 let tokenId = tokenDetails ? tokenDetails.tokenIdHex : null;
                 if (tokenId) {
-                    let token = await this.getTokenGraph({ tokenIdHex: tokenId });
+                    let token = await this.getTokenGraph({ txid: block.txns[i]!.txid, tokenIdHex: tokenId });
                     if (token) {
                         await token.addGraphTransaction({ txid: block.txns[i]!.txid });
                     }
