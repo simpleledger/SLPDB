@@ -37,7 +37,7 @@ new SlpdbStatus(db, process.argv);
 let tokenManager: SlpGraphManager;
 
 const daemon = {
-    run: async ({ startHeight, loadFromDb=true }: { startHeight?: number, loadFromDb?: boolean} ) => {
+    run: async ({ startHeight }: { startHeight?: number } ) => {
         // persist updated SLPDB status every 10 minutes
         await SlpdbStatus.loadPreviousAttributes();
         setInterval(async function() {
