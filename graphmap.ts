@@ -70,7 +70,7 @@ export class GraphMap extends Map<string, GraphTxn> {
             this._graphSendCount++;
         } else if (txnType === SlpTransactionType.MINT) {
             this._graphMintCount++;
-            this._graphMintQuantity.plus(graphTxn.details.genesisOrMintQuantity!);
+            this._graphMintQuantity = this._graphMintQuantity.plus(graphTxn.details.genesisOrMintQuantity!);
         }
     }
 
@@ -99,7 +99,7 @@ export class GraphMap extends Map<string, GraphTxn> {
             this._graphSendCount--;
         } else if (txnType === SlpTransactionType.MINT) {
             this._graphMintCount--;
-            this._graphMintQuantity.minus(graphTxn.details.genesisOrMintQuantity!);
+            this._graphMintQuantity = this._graphMintQuantity.minus(graphTxn.details.genesisOrMintQuantity!);
         }
     }
 
@@ -146,19 +146,19 @@ export class GraphMap extends Map<string, GraphTxn> {
                     this._prunedSendCount++;
                 } else if (gt.details.transactionType === SlpTransactionType.MINT) {
                     this._prunedMintCount++;
-                    this._prunedMintQuantity.plus(gt.outputs.find(o => o.vout === 1)!.slpAmount);
+                    this._prunedMintQuantity = this._prunedMintQuantity.plus(gt.outputs.find(o => o.vout === 1)!.slpAmount);
                 }
                 gt.outputs.filter(o => o.status === TokenUtxoStatus.SPENT_NON_SLP).forEach(o => {
-                    this._graphInvalidBurnQuantity.minus(o.slpAmount);
-                    this._prunedInvalidBurnQuantity.plus(o.slpAmount);
+                    this._graphInvalidBurnQuantity = this._graphInvalidBurnQuantity.minus(o.slpAmount);
+                    this._prunedInvalidBurnQuantity = this._prunedInvalidBurnQuantity.plus(o.slpAmount);
                 });
                 gt.outputs.filter(o => [ TokenUtxoStatus.EXCESS_INPUT_BURNED, 
                                             TokenUtxoStatus.MISSING_BCH_VOUT,
                                             TokenUtxoStatus.SPENT_NOT_IN_SEND,
                                             TokenUtxoStatus.SPENT_WRONG_TOKEN ]
                                     .includes(o.status as TokenUtxoStatus)).forEach(o => {
-                    this._graphValidBurnQuantity.minus(o.slpAmount);
-                    this._prunedValidBurnQuantity.plus(o.slpAmount);
+                    this._graphValidBurnQuantity = this._graphValidBurnQuantity.minus(o.slpAmount);
+                    this._prunedValidBurnQuantity = this._prunedValidBurnQuantity.plus(o.slpAmount);
                 });
                 return true;
             } else if (pruneHeight < gt.prevPruneHeight) {
@@ -210,16 +210,22 @@ export class GraphMap extends Map<string, GraphTxn> {
 
             // increment invalid burn quantity
             g.outputs.filter(o => o.status === TokenUtxoStatus.SPENT_NON_SLP).forEach(o => {
-                graph._graphInvalidBurnQuantity.plus(o.slpAmount);
+                if (!o.isBurnCounted) {
+                    graph._graphInvalidBurnQuantity = graph._graphInvalidBurnQuantity.plus(o.slpAmount);
+                    o.isBurnCounted = true;
+                }
             });
 
             // increment valid burn quanity
             g.outputs.filter(o => [ TokenUtxoStatus.EXCESS_INPUT_BURNED, 
                                     TokenUtxoStatus.MISSING_BCH_VOUT,
                                     TokenUtxoStatus.SPENT_NOT_IN_SEND,
-                                    TokenUtxoStatus.SPENT_WRONG_TOKEN]
+                                    TokenUtxoStatus.SPENT_WRONG_TOKEN ]
                                     .includes(o.status as TokenUtxoStatus)).forEach(o => {
-                graph._graphValidBurnQuantity.plus(o.slpAmount);
+                if (!o.isBurnCounted) {
+                    graph._graphValidBurnQuantity = graph._graphValidBurnQuantity.plus(o.slpAmount);
+                    o.isBurnCounted = true;
+                }
             });
         });
 
@@ -238,13 +244,15 @@ export class GraphMap extends Map<string, GraphTxn> {
             gt.outputs.forEach(o => {
                 globalUtxoSet.set(`${item.graphTxn.txid}:${o.vout}`, Buffer.from(this._rootId, "hex"));
                 if (o.status === TokenUtxoStatus.SPENT_NON_SLP) {
-                    this._graphInvalidBurnQuantity.plus(o.slpAmount);
+                    this._graphInvalidBurnQuantity = this._graphInvalidBurnQuantity.plus(o.slpAmount);
+                    o.isBurnCounted = true;
                 }
                 if ([ TokenUtxoStatus.EXCESS_INPUT_BURNED,
                       TokenUtxoStatus.MISSING_BCH_VOUT,
                       TokenUtxoStatus.SPENT_NOT_IN_SEND,
                       TokenUtxoStatus.SPENT_WRONG_TOKEN ].includes(o.status as TokenUtxoStatus)) {
-                    this._graphValidBurnQuantity.plus(o.slpAmount);
+                    this._graphValidBurnQuantity = this._graphValidBurnQuantity.plus(o.slpAmount);
+                    o.isBurnCounted = true;
                 }
             });
             this.setFromDb(item.graphTxn.txid, gt);
