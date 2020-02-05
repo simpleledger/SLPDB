@@ -133,7 +133,6 @@ export class SlpTokenGraph {
                 }
             }
         }
-        // commitToDb() should be called block crawl(), so no need to call here
     }
 
     public async commitToDb() {

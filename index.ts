@@ -96,7 +96,17 @@ const daemon = {
 
         // load token validation caches
         console.log("Init all tokens");
-        await tokenManager.initAllTokenGraphs();
+        try {
+            await tokenManager.initAllTokenGraphs();
+        } catch (err) {
+            if (err.message === "DB schema does not match the current version.") {
+                await db.drop();
+                await Info.checkpointReset();
+                throw Error("DB schema does not match the current version, so MongoDb and LevelDb have been reset, please resart SLPDB.")
+            } else {
+                throw err;
+            }
+        }
         console.log("Init all tokens Complete");
 
         // sync with full node's block height

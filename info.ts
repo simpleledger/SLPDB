@@ -3,7 +3,6 @@ var kv = level('./_leveldb');
 import * as crypto from 'crypto';
 
 import { Config } from './config';
-import { RpcClient } from './rpc';
 
 /**
 * Return the last synchronized checkpoint

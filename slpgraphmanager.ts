@@ -240,6 +240,9 @@ export class SlpGraphManager {
         if (tokens) {
             let count = 0;
             for (let token of tokens) {
+                if (token.schema_version !== Config.db.token_schema_version) {
+                    throw Error("DB schema does not match the current version.");
+                }
                 let lastPrunedHeight = token.pruningState.pruneHeight;
                 await this.loadTokenFromDb(token, lastPrunedHeight);
                 console.log(`[INFO] ${++count} tokens loaded from db.`)

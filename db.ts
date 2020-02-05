@@ -3,8 +3,6 @@ import { DbConfig } from './config';
 import { TNATxn } from './tna';
 import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from "./interfaces";
 import { GraphMap } from './graphmap';
-import { SlpTokenGraph } from './slptokengraph';
-import { Info } from './info';
 
 export class Db {
     db!: MongoDb;
@@ -29,6 +27,10 @@ export class Db {
             return true;
         }
         return false;
+    }
+
+    async drop() {
+        await this.db.dropDatabase();
     }
 
     async exit() {
