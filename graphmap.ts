@@ -1,5 +1,7 @@
 import { SlpTokenGraph } from "./slptokengraph";
-import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenDBObject as TokenDbo, GraphTxnInput, GraphTxnOutput, GraphTxn, SlpTransactionDetailsDbo, TokenPruneStateDbo, TokenUtxoStatus } from "./interfaces";
+import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenDBObject, 
+            GraphTxnInput, GraphTxnOutput, GraphTxn, SlpTransactionDetailsDbo, 
+            TokenPruneStateDbo, TokenUtxoStatus } from "./interfaces";
 import { Decimal128 } from "mongodb";
 import { Config } from "./config";
 import { RpcClient } from "./rpc";
@@ -181,7 +183,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         return txids;
     }
 
-    public static toDbos(graph: GraphMap): { itemsToUpdate: GraphTxnDbo[], tokenDbo: TokenDbo, itemsToDelete: string[] } {
+    public static toDbos(graph: GraphMap): { itemsToUpdate: GraphTxnDbo[], tokenDbo: TokenDBObject, itemsToDelete: string[] } {
         let tg = graph._container;
         let itemsToUpdate: GraphTxnDbo[] = [];
 
@@ -234,6 +236,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         // Do the pruning here
         itemsToUpdate.forEach(dbo => { if (dbo.graphTxn.pruneHeight) graph.prune(dbo.graphTxn.txid, dbo.graphTxn.pruneHeight)});
         graph._flush();
+
         let tokenDbo = GraphMap._mapTokenToDbo(graph);
         return { itemsToUpdate, tokenDbo, itemsToDelete };
     }
@@ -265,7 +268,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         this._prunedValidBurnQuantity = new BigNumber(pruneState.invalidBurnQuantity.toString());
     }
 
-    private static _mapTokenToDbo(graph: GraphMap): TokenDbo {
+    private static _mapTokenToDbo(graph: GraphMap): TokenDBObject {
         let tg = graph._container;
         let tokenDetails = GraphMap._mapTokenDetailsToDbo(tg._tokenDetails, tg._tokenDetails.decimals);
 
@@ -273,7 +276,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         let burn = graph.TotalBurnAmount.dividedBy(10**tg._tokenDetails.decimals);
         let circ = mint.minus(burn);
 
-        let result: TokenDbo = {
+        let result: TokenDBObject = {
             schema_version: Config.db.token_schema_version,
             lastUpdatedBlock: tg._lastUpdatedBlock,
             tokenDetails: tokenDetails,

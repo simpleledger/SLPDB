@@ -39,8 +39,6 @@ export class SlpGraphManager {
     _bit: Bit;
     _exit = false;
     _cacheGraphTxnCount = 0;
-    // _isMaintenanceRunning = false;
-    // _graphMaintenanceTimeout: NodeJS.Timeout;
 
     get TnaSynced(): boolean {
         if(this._TnaQueue) {
@@ -168,8 +166,6 @@ export class SlpGraphManager {
                 }
             }
 
-            // TODO: NEED TO LOOP THROUGH ALL BLOCK TRANSACTIONS TO UPDATE BLOCK HASH
-            let blockTxids = new Set<string>([...block.txns.map(i => i.txid)]);
             for (let i = 0; i < block.txns.length; i++) {
                 let tokenDetails;
                 try {
@@ -196,9 +192,6 @@ export class SlpGraphManager {
 
         }
 
-        // DO NOT AWAIT: Search for any burned transactions 
-        //this.searchBlockForBurnedSlpTxos(hash);   // NOTE: We need to make sure this is also done on initial block sync.
-
         SlpdbStatus.updateSlpProcessedBlockHeight(this._bestBlockHeight);
     }
 
@@ -210,27 +203,7 @@ export class SlpGraphManager {
         this._bit = bit;
         let self = this;
         this._startupTokenCount = 0
-        // this._startupQueue.on('active', () => {
-        //     console.log(`[INFO] Loading new token.  Loaded: ${self._startupTokenCount++}.  Total: ${this._tokens.size}.  Queue Size: ${this._startupQueue.size}.  Queue Pending: ${this._startupQueue.pending}`);
-        // })
-
-        //this._graphMaintenanceTimeout = setTimeout(async () => await this.runGraphMaintenance(), 6000);
     }
-
-    // async runGraphMaintenance() {
-    //     if (!this._isMaintenanceRunning) {
-    //         this._isMaintenanceRunning = true;
-    //         for (let [tokenId, graph] of this._tokens) {
-    //             if (!graph._isGraphTotallyPruned) {
-    //                 let currentHeight = (await Info.getBlockCheckpoint()).height;
-    //                 // 
-    //             } else {
-    //                 // TODO: once lazy loading is complet, here we can unload the graph if has not been active in X days
-    //             }
-    //         }
-    //         this._isMaintenanceRunning = false;
-    //     }
-    // }
 
     static MapTokenDetailsToTnaDbo(details: SlpTransactionDetails, genesisDetails: SlpTransactionDetails, addresses: (string|null)[]): SlpTransactionDetailsTnaDbo {
         var outputs: any|null = null;
@@ -264,7 +237,6 @@ export class SlpGraphManager {
 
     async initAllTokenGraphs() {
         let tokens = await this.db.tokenFetchAll();
-        //let pruningCutoff = await (await Info.getBlockCheckpoint()).height - 10;
         if (tokens) {
             let count = 0;
             for (let token of tokens) {
