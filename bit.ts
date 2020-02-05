@@ -599,7 +599,7 @@ export class Bit {
             lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
 
             let currentHeight: number = await RpcClient.getBlockCount();
-            let startHeight = lastCheckpoint.height;
+            let startHeight = lastCheckpoint.height + 1;
             if (zmqHash) {
                 let zmqHeight = (await RpcClient.getBlockInfo({ hash: zmqHash })).height;
                 if (zmqHeight > startHeight+1) {
