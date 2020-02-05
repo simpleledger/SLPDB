@@ -151,6 +151,9 @@ export class GraphMap extends Map<string, GraphTxn> {
                     this._prunedMintQuantity = this._prunedMintQuantity.plus(gt.outputs.find(o => o.vout === 1)!.slpAmount);
                 }
                 gt.outputs.filter(o => o.status === TokenUtxoStatus.SPENT_NON_SLP).forEach(o => {
+                    if (!o.isBurnCounted) {
+                        throw Error("This should never happen");
+                    }
                     this._graphInvalidBurnQuantity = this._graphInvalidBurnQuantity.minus(o.slpAmount);
                     this._prunedInvalidBurnQuantity = this._prunedInvalidBurnQuantity.plus(o.slpAmount);
                 });
@@ -159,6 +162,9 @@ export class GraphMap extends Map<string, GraphTxn> {
                                             TokenUtxoStatus.SPENT_NOT_IN_SEND,
                                             TokenUtxoStatus.SPENT_WRONG_TOKEN ]
                                     .includes(o.status as TokenUtxoStatus)).forEach(o => {
+                    if (!o.isBurnCounted) {
+                        throw Error("This should never happen");
+                    }
                     this._graphValidBurnQuantity = this._graphValidBurnQuantity.minus(o.slpAmount);
                     this._prunedValidBurnQuantity = this._prunedValidBurnQuantity.plus(o.slpAmount);
                 });
