@@ -637,15 +637,15 @@ export class SlpTokenGraph {
 
     static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
         let tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
-        if (!token.tokenStats.block_created && token.tokenStats.block_created !== 0) {
-            throw Error("Must have a block created for token");
-        }
+        // if (!token.tokenStats.block_created && token.tokenStats.block_created !== 0) {
+        //     throw Error("Must have a block created for token");
+        // }
         let tg = await manager.getTokenGraph({
             txid: token.tokenDetails.tokenIdHex,
             tokenIdHex: token.tokenDetails.tokenIdHex, 
             slpMsgDetailsGenesis: tokenDetails, 
             forceValid: true, 
-            blockCreated: token.tokenStats?.block_created!,
+            blockCreated: token.tokenStats.block_created!,
             nft1ChildParentIdHex: token.nftParentId
         });
         if (!tg) {
@@ -658,7 +658,7 @@ export class SlpTokenGraph {
         tg._mintBatonStatus = token.mintBatonStatus;
 
         // add nft parent id
-        if(token.nftParentId) {
+        if (token.nftParentId) {
             tg._nftParentId = token.nftParentId;
         }
 
@@ -666,7 +666,7 @@ export class SlpTokenGraph {
 
         // Map _txnGraph
         tg!._graphTxns.fromDbos(
-            dag, 
+            dag,
             token.pruningState
         );
 
