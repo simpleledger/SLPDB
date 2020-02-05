@@ -75,16 +75,11 @@ export class SlpdbStatus {
         await SlpdbStatus.saveStatus();
     }
 
-    static async changeStateToStartupBlockSync({ network, getSyncdCheckpoint }: { network: string, getSyncdCheckpoint: () => Promise<ChainSyncCheckpoint> }) {
+    static async changeStateToStartupBlockSync({ network, getSyncdCheckpoint, getSlpTokensCount }: { network: string, getSyncdCheckpoint: () => Promise<ChainSyncCheckpoint>, getSlpTokensCount: () => number }) {
         SlpdbStatus.network = network;
         SlpdbStatus.getSyncdCheckpoint = getSyncdCheckpoint;
-        SlpdbStatus.setState(SlpdbState.STARTUP_BLOCK_SYNC);
-        await SlpdbStatus.saveStatus();
-    }
-
-    static async changeStateToStartupSlpProcessing({ getSlpTokensCount }: { getSlpTokensCount: () => number }) {
-        SlpdbStatus.setState(SlpdbState.STARTUP_TOKEN_PROCESSING);
         SlpdbStatus.getSlpTokensCount = getSlpTokensCount;
+        SlpdbStatus.setState(SlpdbState.STARTUP_BLOCK_SYNC);
         await SlpdbStatus.saveStatus();
     }
 

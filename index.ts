@@ -89,7 +89,9 @@ const daemon = {
         console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
         console.time('[PERF] Initial Block Sync');
         await SlpdbStatus.changeStateToStartupBlockSync({ 
-            network, getSyncdCheckpoint: async () => await Info.getBlockCheckpoint()
+            network, 
+            getSyncdCheckpoint: async () => await Info.getBlockCheckpoint(),
+            getSlpTokensCount: () => { return tokenManager._tokens.size; }
         });
 
         // load token validation caches
