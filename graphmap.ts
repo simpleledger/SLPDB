@@ -271,7 +271,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         this._prunedMintCount = pruneState.mintCount;
         this._prunedMintQuantity = new BigNumber(pruneState.mintQuantity.toString());
         this._prunedInvalidBurnQuantity = new BigNumber(pruneState.invalidBurnQuantity.toString());
-        this._prunedValidBurnQuantity = new BigNumber(pruneState.invalidBurnQuantity.toString());
+        this._prunedValidBurnQuantity = new BigNumber(pruneState.validBurnQuantity.toString());
     }
 
     private static _mapTokenToDbo(graph: GraphMap): TokenDBObject {
