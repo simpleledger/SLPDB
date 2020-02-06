@@ -326,7 +326,7 @@ describe("4-Fan-out-Fan-in", () => {
             // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
             // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
             assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
-            assert.equal(t!.tokenStats.qty_valid_txns_since_genesis, inputTxnCount+1);
+            assert.equal(t!.tokenStats.approx_txns_since_genesis, inputTxnCount+1);
         }
     });
 

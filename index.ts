@@ -150,41 +150,9 @@ const daemon = {
 }
 
 const util = {
-    reprocess_token: async (tokenId: string) => {
-        let network = (await RpcClient.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet'
-        await Info.setNetwork(network);
-        await bit.init();
-        console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
-        console.time('[PERF] Initial Block Sync');
-        await bit.processBlocksForSLP();
-        await bit.processCurrentMempoolForSLP();
-        console.timeEnd('[PERF] Initial Block Sync');
-        console.log('[INFO] SLPDB Synchronization with BCH blockchain data complete.', new Date());
-        let currentHeight = await RpcClient.getBlockCount();
-        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit);
-        bit._slpGraphManager = tokenManager;
-        bit.listenToZmq();
-        //await tokenManager.updateAllTokenGraphs({ reprocessFrom: 0, loadFromDb: false });
-        //await tokenManager._startupQueue.onIdle();
-        console.log("[INFO] Reprocess done.");
-        process.exit(1);
-    },
     reset_to_block: async (block_height: number) => {  //592340
-        let includeTokenIds = [
-            "8aab2185354926d72c6a8f6bf7e403daaf1469c02e00a5ad5981b84ea776d980",
-        ];
-        // let filter = new TokenFilter();
-        // includeTokenIds.forEach(i => {
-        //     filter.addRule(new TokenFilterRule({ name: "unknown", info: i, type: 'include-single'}));
-        // });
         let network = (await RpcClient.getBlockchainInfo())!.chain === 'test' ? 'testnet' : 'mainnet';
         await Info.setNetwork(network);
-        let currentHeight = await RpcClient.getBlockCount();
-        let tokenManager = new SlpGraphManager(db, currentHeight, network, bit); //, filter);
-        //await tokenManager.updateAllTokenGraphs({ reprocessFrom: 0, reprocessTo: block_height });
-        //await tokenManager._startupQueue.onIdle();
-        let blockhash = (await RpcClient.getBlockHash(block_height+1)) as string;
-        await tokenManager.onBlockHash(blockhash);
         await Info.updateBlockCheckpoint(block_height, null);
         console.log("[INFO] Reset block done.");
         process.exit(1);
@@ -196,10 +164,6 @@ const start = async () => {
     if (args.length > 2) {
         if(args[2] === "run") {
             let options: any = {};
-            if(args.includes("--reprocess")) {
-                console.log("[INFO] Reprocessing all tokens.");
-                options.loadFromDb = false;
-            }
             if(args.includes("--startHeight")) {
                 let index = args.indexOf("--startHeight");
                 console.log("[INFO] Resync from startHeight:", index);
@@ -207,10 +171,9 @@ const start = async () => {
             }
             await daemon.run(options);
         }
-        else if(args[2] === "reprocess")
-            await util.reprocess_token(process.argv[3]);
-        else if(args[2] === "goToBlock")
+        else if(args[2] === "tip") {
             await util.reset_to_block(parseInt(process.argv[3]));
+        }
     } else {
         throw Error("No command provided after 'node ./index.js'.");
     }

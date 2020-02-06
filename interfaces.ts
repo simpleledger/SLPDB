@@ -33,10 +33,10 @@ export interface GraphTxnInput {
 
 export interface TokenStatsDbo {
     block_created: number|null;
-    qty_valid_txns_since_genesis: number|null;
-    qty_token_minted: Decimal128;
-    qty_token_burned: Decimal128|null;
-    qty_token_circulating_supply: Decimal128|null;
+    approx_txns_since_genesis: number|null;
+    // qty_token_minted: Decimal128;
+    // qty_token_burned: Decimal128|null;
+    // qty_token_circulating_supply: Decimal128|null;
     // qty_valid_token_utxos: number|null;
     // qty_valid_token_addresses: number|null;
     // block_last_active_send: number|null;
@@ -56,12 +56,12 @@ export interface TokenDBObject {
 }
 
 export interface TokenPruneStateDbo {
+    pruneHeight: number;
     sendCount: number;
     mintCount: number;
-    mintQuantity: Decimal128;
-    pruneHeight: number;
-    invalidBurnQuantity: Decimal128;
-    validBurnQuantity: Decimal128;
+    // mintQuantity: Decimal128;
+    // invalidBurnQuantity: Decimal128;
+    // validBurnQuantity: Decimal128;
 }
 
 export interface GraphTxnDbo {

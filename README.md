@@ -1,7 +1,7 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2020-01-28
+**Last Updated:** 2020-02-06
 
 **Current SLPDB Version:** 1.0.0-beta
 
@@ -18,19 +18,15 @@
 	* 4.6. [Updating SLPDB](#UpdatingSLPDB)
     * 4.7. [Filtering for Specific Token ID](#Filtering)
     * 4.8. [Pruning](#Pruning)
-* 5. [Token Stats](#TokenStats)
-	* 5.1. [Supply Stats](#SupplyStats)
-	* 5.2. [Summarized Usage Stats](#SummarizedUsageStats)
-	* 5.3. [Supply Event Stats](#SupplyEventStats)
-* 6. [Real-time Notifications](#Real-timeNotifications)
+* 5. [Real-time Notifications](#Real-timeNotifications)
 	* 6.1. [ZeroMQ (ZMQ)](#ZeroMQZMQ)
-* 7. [MongoDB Collections & Data Schema](#MongoDBCollectionsDataSchema)
+* 6. [MongoDB Collections & Data Schema](#MongoDBCollectionsDataSchema)
 	* 7.1. [DB Collections](#DBCollections)
-* 8. [Future Updates & Features](#FutureUpdatesFeatures)
+* 7. [Future Updates & Features](#FutureUpdatesFeatures)
 	* 8.1. [TokenID Filtering](#TokenIDFiltering)
 	* 8.2. [Make compatible with other Lokad IDs](#MakecompatiblewithotherLokadIDs)
-* 9. [Unit Tests](#UnitTests)
-* 10. [Change Log](#ChangeLog)
+* 8. [Unit Tests](#UnitTests)
+* 9. [Change Log](#ChangeLog)
 
 
 
@@ -162,37 +158,11 @@ Modify the `example-filters.yml` file to suit your needs and then rename it as `
 
 Pruning removes totally spent and aged transactions from the global transaction cache, the token graph, and the validator cache.  Pruning occurs after a transaction has been totally spent and is aged more than 10 blocks.  At this time there is no custom configuration available for pruning.
 
-##  5. <a name='TokenStats'></a>Token Stats
-
-The following properties are maintained and updated for each token in real-time to provide state and usage information:
-
-###  5.1. <a name='SupplyStats'></a>Supply Stats
-  * `qty_token_minted` - Total token quantity created in GENESIS and MINT transactions 
-  * `qty_token_burned` - Total token quantity burned in invalid SLP transactions or in transactions having lower token outputs than inputs.
-  * `qty_token_circulating_supply` - Total quantity of tokens circulating (i.e., Genesis + Minting - Burned = Circulating Supply).
-  * `minting_baton_status`  - State of the minting baton (possible baton status: `ALIVE`, `NEVER_CREATED`, `DEAD_BURNED`, or `DEAD_ENDED`).
-  * `mint_baton_address (NOT YET IMPLEMENTED)` - Address holding the minting baton or last address to hold.
-  * `mint_baton_txid (NOT YET IMPLEMENTED)` - TXID where the minting baton exists or existed before being destroyed.
-
-###  5.2. <a name='SummarizedUsageStats'></a>Summarized Usage Stats
-  * `qty_valid_txns_since_genesis` - Number of valid SLP transactions made since Genesis (Includes GENESIS, SEND and MINT transactions)
-  * `qty_valid_token_utxos` - Number of current unspent & valid SLP UTXOs
-  * `qty_valid_token_addresses` - Number of unique address holders
-  * `qty_satoshis_locked_up` - Quantity of BCH that is locked up in SLP UTXOs
-  * `block_last_active_mint` - The block containing the token's MINT transaction
-  * `block_last_active_send` - The block containing the token's SEND transaction
-  * `block_created` - The block containing the token's GENESIS transaction
-  * `block_last_burn (NOT YET IMPLEMENTED)` - The block containing the last burn event
-
-###  5.3. <a name='SupplyEventStats'></a>Supply Event Stats
-  * `events_mint (NOT YET IMPLEMENTED)` - Events when the minting baton was moved and new tokens were created
-  * `events_burn (NOT YET IMPLEMENTED)` - Events when tokens were burned (possible type of burn: `OUTS_LESS_THAN_INS` or `UTXO_DESTROYED`)
 
 
+##  5. <a name='Real-timeNotifications'></a>Real-time Notifications
 
-##  6. <a name='Real-timeNotifications'></a>Real-time Notifications
-
-###  6.1. <a name='ZeroMQZMQ'></a>ZeroMQ (ZMQ)
+###  5.1. <a name='ZeroMQZMQ'></a>ZeroMQ (ZMQ)
 
 SLPDB publishes the following notifications via [ZMQ](http://zeromq.org/intro:read-the-manual) and can be subscribed to by binding to http://0.0.0.0:28339.  The following events can be subscribed to:
 * `mempool`
@@ -235,7 +205,7 @@ Each notification is published in the following data format:
 
 
 
-##  7. <a name='MongoDBCollectionsDataSchema'></a>MongoDB Collections & Data Schema
+##  6. <a name='MongoDBCollectionsDataSchema'></a>MongoDB Collections & Data Schema
 
 Three categories of information are stored in MongoDB:
 
@@ -243,9 +213,7 @@ Three categories of information are stored in MongoDB:
 2. Statistical calculations about each token, and 
 3. Token graph state 
 
-
-
-###  7.1. <a name='DBCollections'></a>DB Collections
+###  6.1. <a name='DBCollections'></a>DB Collections
 
 Four MongoDB collections used to store these three categories of data, they are as follows:
 
@@ -315,11 +283,7 @@ Four MongoDB collections used to store these three categories of data, they are 
         };
         "tokenStats": {
             block_created: number|null;
-            qty_valid_txns_since_genesis: number;
-            qty_token_minted: Decimal128;
-            qty_token_burned: Decimal128;
-            qty_token_circulating_supply: Decimal128;
-            qty_satoshis_locked_up: number;
+            approx_txns_since_genesis: number;
         }
         "pruningState": TokenPruneStateDbo;
         "mintBatonUtxo": string;
@@ -352,17 +316,19 @@ Four MongoDB collections used to store these three categories of data, they are 
 	```
 
       
-##  8. <a name='FutureUpdatesFeatures'></a>Future Updates & Features
+##  7. <a name='FutureUpdatesFeatures'></a>Future Updates & Features
 
-###  8.1. <a name='TokenIDFiltering'></a>TokenID Filtering
+###  7.1. <a name='TokenIDFiltering'></a>TokenID Filtering
 
 SLPDB will soon include a filtering configuration so that only user specified tokens (or ranges of tokens) will be included or excluded in the SLPDB instance.
 
-###  8.2. <a name='MakecompatiblewithotherLokadIDs'></a>Make compatible with other Lokad IDs
+###  7.2. <a name='MakecompatiblewithotherLokadIDs'></a>Make compatible with other Lokad IDs
 
 We want to make SLPDB more easily forkable for other OP_RETURN projects which may be unrelated to SLP tokens.
 
-## 9. <a name='UnitTests'></a>Unit Tests
+
+
+## 8. <a name='UnitTests'></a>Unit Tests
 
 End to End tests can be run after the regtest network is setup as described in [./regtest/README.md](./regtest/README.md).
 
@@ -373,7 +339,9 @@ $ git apply ./patches/*
 $ npm test
 ```
 
-## 10. <a name='ChangeLog'></a>Change Log
+
+
+## 9. <a name='ChangeLog'></a>Change Log
 
 * 1.0.0
     * Removed "utxos" and "addresses" collections, as this information can be queried from the "graphs" collection (TODO: update README examples)
@@ -383,7 +351,9 @@ $ npm test
     * Move mint baton status (mintBatonStatus) and txo out of statistics (mintBatonUtxo), these are now main property of the token document
     * Update notification format for consistent value type, always returning string based numbers, no more Decimal128 in block notification
     * Removed token stats properties: block_last_active_send, block_last_active_mint, qty_valid_token_utxos, qty_valid_token_addresses
+    * Removed token stats properties: qty_token_minted, qty_token_burned, qty_token_circulating_supply
     * Removed UTXO status enums: SPENT_INVALID_SLP, BATON_SPENT_INVALID_SLP
+    * Renamed qty_valid_txns_since_genesis to approx_txns_since_genesis, since this can be corrupted if the block checkpoint is reset.
 
 * 0.15.6
     * Bug fixes and improvements in slpjs

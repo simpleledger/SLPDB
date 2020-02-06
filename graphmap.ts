@@ -1,7 +1,7 @@
 import { SlpTokenGraph } from "./slptokengraph";
 import { GraphTxnDbo, GraphTxnDetailsDbo, GraphTxnOutputDbo, TokenDBObject, 
             GraphTxnInput, GraphTxnOutput, GraphTxn, SlpTransactionDetailsDbo, 
-            TokenPruneStateDbo, TokenUtxoStatus } from "./interfaces";
+            TokenPruneStateDbo } from "./interfaces";
 import { Decimal128 } from "mongodb";
 import { Config } from "./config";
 import { RpcClient } from "./rpc";
@@ -22,12 +22,6 @@ export class GraphMap extends Map<string, GraphTxn> {
     private _graphSendCount = 0;
     private _prunedMintCount = 0;
     private _graphMintCount = 0;
-    private _prunedMintQuantity = new BigNumber(0);
-    private _graphMintQuantity = new BigNumber(0);
-    private _prunedInvalidBurnQuantity = new BigNumber(0);
-    private _graphInvalidBurnQuantity = new BigNumber(0);
-    private _prunedValidBurnQuantity = new BigNumber(0);
-    private _graphValidBurnQuantity = new BigNumber(0);
 
     constructor(graph: SlpTokenGraph) {
         super();
@@ -47,23 +41,8 @@ export class GraphMap extends Map<string, GraphTxn> {
         return this._prunedMintCount + this._graphMintCount;
     }
 
-    get TotalSupplyMinted() {
-        return this._prunedMintQuantity.plus(this._graphMintQuantity).plus(this._container._tokenDetails.genesisOrMintQuantity!);
-    }
-
-    get CirculatingSupply() {
-        return this.TotalSupplyMinted.minus(this.TotalBurnAmount);
-    }
-
     get TotalTransactionCount() {
         return this.SendCount + this.MintCount;
-    }
-
-    get TotalBurnAmount() {
-        return this._prunedInvalidBurnQuantity
-                .plus(this._graphInvalidBurnQuantity)
-                .plus(this._prunedValidBurnQuantity)
-                .plus(this._graphValidBurnQuantity);
     }
 
     private _incrementGraphCount(graphTxn: GraphTxn) {
@@ -72,7 +51,6 @@ export class GraphMap extends Map<string, GraphTxn> {
             this._graphSendCount++;
         } else if (txnType === SlpTransactionType.MINT) {
             this._graphMintCount++;
-            this._graphMintQuantity = this._graphMintQuantity.plus(graphTxn.details.genesisOrMintQuantity!);
         }
     }
 
@@ -101,7 +79,6 @@ export class GraphMap extends Map<string, GraphTxn> {
             this._graphSendCount--;
         } else if (txnType === SlpTransactionType.MINT) {
             this._graphMintCount--;
-            this._graphMintQuantity = this._graphMintQuantity.minus(graphTxn.details.genesisOrMintQuantity!);
         }
     }
 
@@ -148,26 +125,7 @@ export class GraphMap extends Map<string, GraphTxn> {
                     this._prunedSendCount++;
                 } else if (gt.details.transactionType === SlpTransactionType.MINT) {
                     this._prunedMintCount++;
-                    this._prunedMintQuantity = this._prunedMintQuantity.plus(gt.outputs.find(o => o.vout === 1)!.slpAmount);
                 }
-                gt.outputs.filter(o => o.status === TokenUtxoStatus.SPENT_NON_SLP).forEach(o => {
-                    if (!o.isBurnCounted) {
-                        throw Error("This should never happen");
-                    }
-                    this._graphInvalidBurnQuantity = this._graphInvalidBurnQuantity.minus(o.slpAmount);
-                    this._prunedInvalidBurnQuantity = this._prunedInvalidBurnQuantity.plus(o.slpAmount);
-                });
-                gt.outputs.filter(o => [ TokenUtxoStatus.EXCESS_INPUT_BURNED, 
-                                            TokenUtxoStatus.MISSING_BCH_VOUT,
-                                            TokenUtxoStatus.SPENT_NOT_IN_SEND,
-                                            TokenUtxoStatus.SPENT_WRONG_TOKEN ]
-                                    .includes(o.status as TokenUtxoStatus)).forEach(o => {
-                    if (!o.isBurnCounted) {
-                        throw Error("This should never happen");
-                    }
-                    this._graphValidBurnQuantity = this._graphValidBurnQuantity.minus(o.slpAmount);
-                    this._prunedValidBurnQuantity = this._prunedValidBurnQuantity.plus(o.slpAmount);
-                });
                 return true;
             } else if (pruneHeight < gt.prevPruneHeight) {
                 console.log(`[INFO] Pruning deferred until ${gt.prevPruneHeight}`);
@@ -215,26 +173,6 @@ export class GraphMap extends Map<string, GraphTxn> {
                 }
             };
             itemsToUpdate.push(dbo);
-
-            // increment invalid burn quantity
-            g.outputs.filter(o => o.status === TokenUtxoStatus.SPENT_NON_SLP).forEach(o => {
-                if (!o.isBurnCounted) {
-                    graph._graphInvalidBurnQuantity = graph._graphInvalidBurnQuantity.plus(o.slpAmount);
-                    o.isBurnCounted = true;
-                }
-            });
-
-            // increment valid burn quanity
-            g.outputs.filter(o => [ TokenUtxoStatus.EXCESS_INPUT_BURNED, 
-                                    TokenUtxoStatus.MISSING_BCH_VOUT,
-                                    TokenUtxoStatus.SPENT_NOT_IN_SEND,
-                                    TokenUtxoStatus.SPENT_WRONG_TOKEN ]
-                                    .includes(o.status as TokenUtxoStatus)).forEach(o => {
-                if (!o.isBurnCounted) {
-                    graph._graphValidBurnQuantity = graph._graphValidBurnQuantity.plus(o.slpAmount);
-                    o.isBurnCounted = true;
-                }
-            });
         });
 
         let itemsToDelete = Array.from(graph._doubleSpent);
@@ -252,35 +190,17 @@ export class GraphMap extends Map<string, GraphTxn> {
             let gt = GraphMap.mapGraphTxnFromDbo(item, this._container._tokenDetails.decimals);
             gt.outputs.forEach(o => {
                 globalUtxoSet.set(`${item.graphTxn.txid}:${o.vout}`, Buffer.from(this._rootId, "hex"));
-                if (o.status === TokenUtxoStatus.SPENT_NON_SLP) {
-                    this._graphInvalidBurnQuantity = this._graphInvalidBurnQuantity.plus(o.slpAmount);
-                    o.isBurnCounted = true;
-                }
-                if ([ TokenUtxoStatus.EXCESS_INPUT_BURNED,
-                      TokenUtxoStatus.MISSING_BCH_VOUT,
-                      TokenUtxoStatus.SPENT_NOT_IN_SEND,
-                      TokenUtxoStatus.SPENT_WRONG_TOKEN ].includes(o.status as TokenUtxoStatus)) {
-                    this._graphValidBurnQuantity = this._graphValidBurnQuantity.plus(o.slpAmount);
-                    o.isBurnCounted = true;
-                }
             });
             this.setFromDb(item.graphTxn.txid, gt);
         });
         this._lastPruneHeight = pruneState.pruneHeight;
         this._prunedSendCount = pruneState.sendCount;
         this._prunedMintCount = pruneState.mintCount;
-        this._prunedMintQuantity = new BigNumber(pruneState.mintQuantity.toString());
-        this._prunedInvalidBurnQuantity = new BigNumber(pruneState.invalidBurnQuantity.toString());
-        this._prunedValidBurnQuantity = new BigNumber(pruneState.validBurnQuantity.toString());
     }
 
     private static _mapTokenToDbo(graph: GraphMap): TokenDBObject {
         let tg = graph._container;
         let tokenDetails = GraphMap._mapTokenDetailsToDbo(tg._tokenDetails, tg._tokenDetails.decimals);
-
-        let mint = graph.TotalSupplyMinted.dividedBy(10**tg._tokenDetails.decimals);
-        let burn = graph.TotalBurnAmount.dividedBy(10**tg._tokenDetails.decimals);
-        let circ = mint.minus(burn);
 
         let result: TokenDBObject = {
             schema_version: Config.db.token_schema_version,
@@ -290,18 +210,12 @@ export class GraphMap extends Map<string, GraphTxn> {
             mintBatonStatus: tg._mintBatonStatus,
             tokenStats: {
                 block_created: tg._blockCreated,
-                qty_valid_txns_since_genesis: graph.SendCount,
-                qty_token_minted: Decimal128.fromString(mint.toFixed()),
-                qty_token_burned: Decimal128.fromString(burn.toFixed()),
-                qty_token_circulating_supply: Decimal128.fromString(circ.toFixed()),
+                approx_txns_since_genesis: graph.SendCount,
             },
             pruningState: {
                 pruneHeight: graph._lastPruneHeight,
                 sendCount: graph._prunedSendCount,
                 mintCount: graph._prunedMintCount,
-                mintQuantity: Decimal128.fromString(graph._prunedMintQuantity.toFixed()),
-                invalidBurnQuantity: Decimal128.fromString(graph._prunedInvalidBurnQuantity.toFixed()),
-                validBurnQuantity: Decimal128.fromString(graph._prunedValidBurnQuantity.toFixed())
             }
         }
         if (tg._tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
