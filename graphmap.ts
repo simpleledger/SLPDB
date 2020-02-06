@@ -294,7 +294,6 @@ export class GraphMap extends Map<string, GraphTxn> {
                 qty_token_minted: Decimal128.fromString(mint.toFixed()),
                 qty_token_burned: Decimal128.fromString(burn.toFixed()),
                 qty_token_circulating_supply: Decimal128.fromString(circ.toFixed()),
-                qty_satoshis_locked_up: null,
             },
             pruningState: {
                 pruneHeight: graph._lastPruneHeight,

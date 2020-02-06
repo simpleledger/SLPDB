@@ -33,15 +33,15 @@ export interface GraphTxnInput {
 
 export interface TokenStatsDbo {
     block_created: number|null;
-    // block_last_active_send: number|null;
-    // block_last_active_mint: number|null;
     qty_valid_txns_since_genesis: number|null;
-    // qty_valid_token_utxos: number|null;
-    // qty_valid_token_addresses: number|null;
     qty_token_minted: Decimal128;
     qty_token_burned: Decimal128|null;
     qty_token_circulating_supply: Decimal128|null;
-    qty_satoshis_locked_up: number|null;
+    // qty_valid_token_utxos: number|null;
+    // qty_valid_token_addresses: number|null;
+    // block_last_active_send: number|null;
+    // block_last_active_mint: number|null;
+    // qty_satoshis_locked_up: number|null;
 }
 
 export interface TokenDBObject {

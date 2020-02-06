@@ -255,7 +255,7 @@ describe("6-Burn-with-invalid-txn", () => {
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
         assert.equal(t!.mintBatonStatus, TokenBatonStatus.DEAD_BURNED);
         // assert.equal(t!.tokenStats!.qty_valid_token_utxos, 0);
-        assert.equal(t!.tokenStats!.qty_satoshis_locked_up, 0);
+        // assert.equal(t!.tokenStats!.qty_satoshis_locked_up, 0);
         // assert.equal(t!.tokenStats!.qty_valid_token_addresses, 0);
     });
 
