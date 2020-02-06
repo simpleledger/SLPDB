@@ -284,97 +284,87 @@ export class Bit {
         }
     }
 
-    async crawl(blockIndex: number, syncComplete?: boolean): Promise<[CrawlResult, [string,Uint8Array][]]|null> {
+    async crawl(blockIndex: number, syncComplete?: boolean): Promise<[CrawlResult, [string,Uint8Array][]]> {
         const result = new CacheMap<txid, CrawlTxnInfo>(-1);
-        let blockContent: BlockHeaderResult;
-        try {
-            blockContent = await RpcClient.getBlockInfo({ index: blockIndex });
-        } catch(_) {
-            return null;
-        }
+        let blockContent = await RpcClient.getBlockInfo({ index: blockIndex });
         const blockHash = blockContent.hash;
         const blockTime = blockContent.time;
         
-        if (blockContent) {
-            console.log('[INFO] Crawling block', blockIndex, 'hash:', blockHash);
-            const blockHex = <string>await RpcClient.getRawBlock(blockContent.hash);
-            const block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
+        console.log('[INFO] Crawling block', blockIndex, 'hash:', blockHash);
+        const blockHex = <string>await RpcClient.getRawBlock(blockContent.hash);
+        const block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
 
-            console.time(`Toposort-${blockIndex}`);
-            const blockTxCache = new Map<string, { deserialized: bitcore.Transaction, serialized: Buffer}>();
-            const spentOutpoints: [string,Uint8Array][] = [];
-            block.txs.forEach((t: any, i: number) => {
-                const serialized: Buffer = t.toRaw();
-                const hash = t.hash().reverse();
-                for (let input of t.inputs) {
-                    spentOutpoints.push([input.prevout.hash.reverse().toString("hex")+":"+input.prevout.index, hash]);
-                }
-                let res = this.applySlpTxnFilter(serialized);
-                if (res) {
-                    // @ts-ignore
-                    const deserialized = res.txn;
-                    const txid = deserialized.hash;
-                    blockTxCache.set(txid, {deserialized, serialized});
-                    RpcClient.transactionCache.set(txid, serialized);
-                    deserialized.inputs.forEach((input) => {
-                        let prevOutpoint = input.prevTxId.toString("hex") + ":" + input.outputIndex;
-                        this._spentTxoCache.set(prevOutpoint, { txid, block: blockIndex });  // TODO: update to only cache slp outpoints?
-                        console.log(`[INFO] _spentTxoCache.set ${prevOutpoint} -> ${txid} at ${blockIndex}`);
-                        // TODO: Scan for SLP token burns elsewhere... for all block transactoins (is this being done already somewhere else?)
-                    });
-                }
-            });
-            let stack: string[] = [];
-            await this.topologicalSort(blockTxCache, stack);
-            if (stack.length !== blockTxCache.size) {
-                throw Error("Transaction count is incorrect after topological sorting.");
+        console.time(`Toposort-${blockIndex}`);
+        const blockTxCache = new Map<string, { deserialized: bitcore.Transaction, serialized: Buffer}>();
+        const spentOutpoints: [string,Uint8Array][] = [];
+        block.txs.forEach((t: any, i: number) => {
+            const serialized: Buffer = t.toRaw();
+            const hash = t.hash().reverse();
+            for (let input of t.inputs) {
+                spentOutpoints.push([input.prevout.hash.reverse().toString("hex")+":"+input.prevout.index, hash]);
             }
-            console.timeEnd(`Toposort-${blockIndex}`);
-
-            // We use a recursive async loop so we don't block
-            // the event loop and lock out the possibility of user calling SIGINT
-            async function crawlInternal(self: Bit, i: number, blockSeenTokenIds: Set<string>) {
-
-                let txid = stack[i];
-                const serialized = blockTxCache.get(txid)!.serialized;
-                const deserialized = blockTxCache.get(txid)!.deserialized;
-
-                let t: TNATxn = tna.fromTx(deserialized, { network: self.network });
-                let slp = await self.setSlpProp(deserialized, blockTime, t, blockIndex, blockSeenTokenIds);
-
-                if (!self.slpMempool.has(txid) && syncComplete) {
-                    console.log("[WARN] SLP transaction not in mempool:", txid);
-                    await self.handleMempoolTransaction(txid, serialized);
-                    let syncResult = await Bit.sync(self, 'mempool', txid);
-                    self._slpGraphManager.onTransactionHash!(syncResult!);
-                }
-
-                t.blk = {
-                    h: blockHash,
-                    i: blockIndex,
-                    t: blockTime
-                };
-
-                if (slp.detail && slp.detail.tokenIdHex) {
-                    result.set(txid, { 
-                        txHex: serialized.toString("hex"), 
-                        tnaTxn: t, 
-                        tokenId: slp.detail.tokenIdHex }
-                    );
-                }
+            let res = this.applySlpTxnFilter(serialized);
+            if (res) {
+                // @ts-ignore
+                const deserialized = res.txn;
+                const txid = deserialized.hash;
+                blockTxCache.set(txid, {deserialized, serialized});
+                RpcClient.transactionCache.set(txid, serialized);
+                deserialized.inputs.forEach((input) => {
+                    let prevOutpoint = input.prevTxId.toString("hex") + ":" + input.outputIndex;
+                    this._spentTxoCache.set(prevOutpoint, { txid, block: blockIndex });  // TODO: update to only cache slp outpoints?
+                    console.log(`[INFO] _spentTxoCache.set ${prevOutpoint} -> ${txid} at ${blockIndex}`);
+                    // TODO: Scan for SLP token burns elsewhere... for all block transactoins (is this being done already somewhere else?)
+                });
             }
-
-            let blockSeenTokenIdsForLazyLoading = new Set<string>();
-            for (let i = 0; i < stack.length; i++) {
-                await crawlInternal(this, i, blockSeenTokenIdsForLazyLoading);
-            }
-
-            console.log(`[INFO] Block ${blockIndex} processed : ${block.txs.length} BCH tx | ${stack.length} SLP tx`);
-            return [ result, spentOutpoints ];
-    
-        } else {
-            return null;
+        });
+        let stack: string[] = [];
+        await this.topologicalSort(blockTxCache, stack);
+        if (stack.length !== blockTxCache.size) {
+            throw Error("Transaction count is incorrect after topological sorting.");
         }
+        console.timeEnd(`Toposort-${blockIndex}`);
+
+        // We use a recursive async loop so we don't block
+        // the event loop and lock out the possibility of user calling SIGINT
+        async function crawlInternal(self: Bit, i: number, blockSeenTokenIds: Set<string>) {
+
+            let txid = stack[i];
+            const serialized = blockTxCache.get(txid)!.serialized;
+            const deserialized = blockTxCache.get(txid)!.deserialized;
+
+            let t: TNATxn = tna.fromTx(deserialized, { network: self.network });
+            let slp = await self.setSlpProp(deserialized, blockTime, t, blockIndex, blockSeenTokenIds);
+
+            if (!self.slpMempool.has(txid) && syncComplete) {
+                console.log("[WARN] SLP transaction not in mempool:", txid);
+                await self.handleMempoolTransaction(txid, serialized);
+                let syncResult = await Bit.sync(self, 'mempool', txid);
+                self._slpGraphManager.onTransactionHash!(syncResult!);
+            }
+
+            t.blk = {
+                h: blockHash,
+                i: blockIndex,
+                t: blockTime
+            };
+
+            if (slp.detail && slp.detail.tokenIdHex) {
+                result.set(txid, { 
+                    txHex: serialized.toString("hex"), 
+                    tnaTxn: t, 
+                    tokenId: slp.detail.tokenIdHex }
+                );
+            }
+        }
+
+        let blockSeenTokenIdsForLazyLoading = new Set<string>();
+        for (let i = 0; i < stack.length; i++) {
+            await crawlInternal(this, i, blockSeenTokenIdsForLazyLoading);
+        }
+
+        console.log(`[INFO] Block ${blockIndex} processed : ${block.txs.length} BCH tx | ${stack.length} SLP tx`);
+        return [ result, spentOutpoints ];
     }
 
     private async setSlpProp(txn: bitcore.Transaction, blockTime: number|null, t: TNATxn, blockIndex: number|null, blockSeenTokenIds: Set<string>|null) {
