@@ -19,14 +19,10 @@
     * 4.7. [Filtering for Specific Token ID](#Filtering)
     * 4.8. [Pruning](#Pruning)
 * 5. [Real-time Notifications](#Real-timeNotifications)
-	* 6.1. [ZeroMQ (ZMQ)](#ZeroMQZMQ)
+	* 5.1. [ZeroMQ (ZMQ)](#ZeroMQZMQ)
 * 6. [MongoDB Collections & Data Schema](#MongoDBCollectionsDataSchema)
-	* 7.1. [DB Collections](#DBCollections)
-* 7. [Future Updates & Features](#FutureUpdatesFeatures)
-	* 8.1. [TokenID Filtering](#TokenIDFiltering)
-	* 8.2. [Make compatible with other Lokad IDs](#MakecompatiblewithotherLokadIDs)
-* 8. [Unit Tests](#UnitTests)
-* 9. [Change Log](#ChangeLog)
+	* 6.1. [DB Collections](#DBCollections)
+* 7. [Change Log](#ChangeLog)
 
 
 
@@ -45,7 +41,7 @@ Live status of nodes running slpdb can be found at: https://status.slpdb.io.
 Most likely you do <u>not</u> need to install SLPDB.  Most users will be better off using someone else's publicly shared SLPDB instance like https://slpdb.fountainhead.cash or https://query.slpdb.io.  You only need to install SLPDB, SlpServe, and/or SlpSockServe if any of the following is true:
 
 - You cannot rely on a third-party for your SLP data.
-- The rate limits impposed by `slpdb.fountainhead.cash`, or `query.slpdb.io` are too restrictive for your needs.
+- The rate limits impposed by `slpdb.fountainhead.cash`, `slpdb.bitcoin.com`, or `nyc1.slpdb.io` are too restrictive for your needs.
 - Realtime event notifications available at `slpsocket.fountainhead.cash` are not fast enough for your needs.
 
 NOTE: If you are going to operate your own SLPDB instance you should join the telegram group for help and updates: https://t.me/slpdb
@@ -110,7 +106,7 @@ The following settings should be applied to your full node's configuration.  NOT
 
 ###  4.3. <a name='BCHDgRPCSupport'></a>BCHD & gRPC Support
 
-**Experimental:** High speed gRPC is supported with BCHD 0.14.8+ full nodes in place of JSON RPC and incomming ZMQ notifications.  To enable, add the environment variables `grpc_url` and `grpc_certPath`.  See the `example.env` file in this project and the [BCHD documentation](https://github.com/gcash/bchd/tree/master/docs) for more details.
+High speed gRPC is supported with BCHD 0.15.2+ full nodes in place of JSON RPC and incomming ZMQ notifications.  To enable, add the environment variables `grpc_url` and `grpc_certPath`.  See the `example.env` file in this project and the [BCHD documentation](https://github.com/gcash/bchd/tree/master/docs) for more details.
 
 ###  4.4. <a name='TestnetSupport'></a>Testnet Support
 
@@ -315,33 +311,9 @@ Four MongoDB collections used to store these three categories of data, they are 
     }
 	```
 
-      
-##  7. <a name='FutureUpdatesFeatures'></a>Future Updates & Features
-
-###  7.1. <a name='TokenIDFiltering'></a>TokenID Filtering
-
-SLPDB will soon include a filtering configuration so that only user specified tokens (or ranges of tokens) will be included or excluded in the SLPDB instance.
-
-###  7.2. <a name='MakecompatiblewithotherLokadIDs'></a>Make compatible with other Lokad IDs
-
-We want to make SLPDB more easily forkable for other OP_RETURN projects which may be unrelated to SLP tokens.
 
 
-
-## 8. <a name='UnitTests'></a>Unit Tests
-
-End to End tests can be run after the regtest network is setup as described in [./regtest/README.md](./regtest/README.md).
-
-Run e2e tests using: 
-
-```
-$ git apply ./patches/*
-$ npm test
-```
-
-
-
-## 9. <a name='ChangeLog'></a>Change Log
+## 7. <a name='ChangeLog'></a>Change Log
 
 * 1.0.0
     * Removed "utxos" and "addresses" collections, as this information can be queried from the "graphs" collection (TODO: update README examples)
