@@ -316,16 +316,16 @@ Four MongoDB collections used to store these three categories of data, they are 
 ## 7. <a name='ChangeLog'></a>Change Log
 
 * 1.0.0
-    * Removed "utxos" and "addresses" collections, as this information can be queried from the "graphs" collection (TODO: update README examples)
+    * Removed `utxos` and `addresses` collections, as this information can be queried from the `graphs` collection.  Updated README examples for queries which relied on now defunct `utxos` and `addresses` collections
     * Added Topological sorting in block crawl to allow for token validation during block crawl
     * Fixed issue where unconfirmed/confirmed transactions where initially writen to db without SLP property and then updated later after a subsequent validation step.
     * Added graph pruning to actively reduce memory footprint
     * Move mint baton status (mintBatonStatus) and txo out of statistics (mintBatonUtxo), these are now main property of the token document
     * Update notification format for consistent value type, always returning string based numbers, no more Decimal128 in block notification
-    * Removed token stats properties: block_last_active_send, block_last_active_mint, qty_valid_token_utxos, qty_valid_token_addresses
-    * Removed token stats properties: qty_token_minted, qty_token_burned, qty_token_circulating_supply
-    * Removed UTXO status enums: SPENT_INVALID_SLP, BATON_SPENT_INVALID_SLP
-    * Renamed qty_valid_txns_since_genesis to approx_txns_since_genesis, since this can be corrupted if the block checkpoint is reset.
+    * Removed token stats properties: `block_last_active_send`, `block_last_active_mint`, `qty_valid_token_utxos`, `qty_valid_token_addresses`
+    * Removed token stats properties: `qty_token_minted`, `qty_token_burned`, `qty_token_circulating_supply`
+    * Removed UTXO status enums: `SPENT_INVALID_SLP`, `BATON_SPENT_INVALID_SLP`
+    * Renamed `qty_valid_txns_since_genesis` to `approx_txns_since_genesis`, since this can be corrupted if the block checkpoint is reset.
 
 * 0.15.6
     * Bug fixes and improvements in slpjs
