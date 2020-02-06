@@ -38,10 +38,10 @@ Live status of nodes running slpdb can be found at: https://status.slpdb.io.
 
 ##  2. <a name='DoyouneedtouinstalluSLPDB'></a>Do you need to <u>install</u> SLPDB?
 
-Most likely you do <u>not</u> need to install SLPDB.  Most users will be better off using someone else's publicly shared SLPDB instance like https://slpdb.fountainhead.cash or https://query.slpdb.io.  You only need to install SLPDB, SlpServe, and/or SlpSockServe if any of the following is true:
+Most likely you do <u>not</u> need to install SLPDB.  Most users will be better off using someone else's publicly shared SLPDB instance like https://slpdb.fountainhead.cash or https://slpdb.bitcoin.com.  You only need to install SLPDB, SlpServe, and/or SlpSockServe if any of the following is true:
 
 - You cannot rely on a third-party for your SLP data.
-- The rate limits impposed by `slpdb.fountainhead.cash`, `slpdb.bitcoin.com`, or `nyc1.slpdb.io` are too restrictive for your needs.
+- The rate limits impposed by `slpdb.fountainhead.cash` or `slpdb.bitcoin.com` are too restrictive for your needs.
 - Realtime event notifications available at `slpsocket.fountainhead.cash` are not fast enough for your needs.
 
 NOTE: If you are going to operate your own SLPDB instance you should join the telegram group for help and updates: https://t.me/slpdb
