@@ -319,6 +319,7 @@ Four MongoDB collections used to store these three categories of data, they are 
     * Removed `utxos` and `addresses` collections, as this information can be queried from the `graphs` collection.  Updated README examples for queries which relied on now defunct `utxos` and `addresses` collections
     * Added Topological sorting in block crawl to allow for token validation during block crawl
     * Fixed issue where unconfirmed/confirmed transactions where initially writen to db without SLP property and then updated later after a subsequent validation step.
+    * Fixed issue where MINT baton address is wrong if not the same as token receiver address.
     * Added graph pruning to actively reduce memory footprint
     * Move mint baton status (mintBatonStatus) and txo out of statistics (mintBatonUtxo), these are now main property of the token document
     * Update notification format for consistent value type, always returning string based numbers, no more Decimal128 in block notification
