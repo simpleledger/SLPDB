@@ -181,8 +181,6 @@ export class Bit {
                         this._slpGraphManager._tokens.delete(doubleSpentTxid);
                         this.db.tokenDelete(doubleSpentTxid);   // no need to await
                         this.db.graphDelete(doubleSpentTxid);   // no need to await
-                        this.db.addressDelete(doubleSpentTxid); // no need to await
-                        this.db.utxoDelete(doubleSpentTxid);    // no need to await
                     } else {
                         txidToDelete.push(doubleSpentTxid);
                     }

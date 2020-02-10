@@ -9,7 +9,7 @@ import { Config } from "../config";
 import { Db } from '../db';
 import { TNATxn, TNATxnSlpDetails } from "../tna";
 import { TokenBatonStatus } from "../interfaces";
-import { GraphTxnDbo, AddressBalancesDbo, UtxoDbo, TokenDBObject } from "../interfaces";
+import { TokenDBObject } from "../interfaces";
 
 const bitbox = new BITBOX();
 const slp = new Slp(bitbox);
@@ -132,7 +132,7 @@ describe("6-Burn-with-invalid-txn", () => {
         assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].address, receiverSlptest);
         assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.transactionType, SlpTransactionType.GENESIS);
         // @ts-ignore
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].amount!["$numberDecimal"], TOKEN_GENESIS_QTY.toFixed());
+        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].amount!, TOKEN_GENESIS_QTY.toFixed());
         assert.equal(slpdbTxnNotifications[0]!.blk === undefined, true);
         assert.equal(typeof slpdbTxnNotifications[0]!.in, "object");
         assert.equal(typeof slpdbTxnNotifications[0]!.out, "object");
@@ -197,10 +197,10 @@ describe("6-Burn-with-invalid-txn", () => {
         assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].address, receiverSlptest);
         assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.transactionType, SlpTransactionType.SEND);
         // @ts-ignore
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].amount!["$numberDecimal"], (new BigNumber(TOKEN_SEND_QTY)).toFixed());
+        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].amount!, (new BigNumber(TOKEN_SEND_QTY)).toFixed());
         let change = (new BigNumber(TOKEN_GENESIS_QTY)).minus(TOKEN_SEND_QTY).toFixed();
         // @ts-ignore
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![1].amount!["$numberDecimal"], change);
+        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![1].amount!, change);
         assert.equal(slpdbTxnNotifications[0]!.blk === undefined, true);
         assert.equal(typeof slpdbTxnNotifications[0]!.in, "object");
         assert.equal(typeof slpdbTxnNotifications[0]!.out, "object");

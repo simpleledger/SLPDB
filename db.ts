@@ -1,7 +1,7 @@
 import { MongoClient, Db as MongoDb } from 'mongodb';
 import { DbConfig } from './config';
 import { TNATxn } from './tna';
-import { UtxoDbo, AddressBalancesDbo, GraphTxnDbo, TokenDBObject } from "./interfaces";
+import { GraphTxnDbo, TokenDBObject } from "./interfaces";
 import { GraphMap } from './graphmap';
 
 export class Db {
@@ -135,80 +135,6 @@ export class Db {
         await this.db.collection('graphs').deleteMany({})
         .catch(function(err) {
             console.log('[ERROR] graphs collection reset ERR ', err)
-            throw err;
-        })
-    }
-
-    // this should be replaced with upsert
-    async addressInsertReplace(addresses: AddressBalancesDbo[], tokenIdHex: string) {
-        await this.checkClientStatus();
-        await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
-        if(addresses.length > 0) {
-            return await this.db.collection('addresses').insertMany(addresses);
-        }
-    }
-
-    async addressUpsert(addresses: AddressBalancesDbo[]) {
-
-    }
-
-    async addressDelete(tokenIdHex: string) {
-        await this.checkClientStatus();
-        return await this.db.collection('addresses').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
-    }
-
-    async addressFetch(tokenIdHex: string): Promise<AddressBalancesDbo[]> {
-        await this.checkClientStatus();
-        return await this.db.collection('addresses').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
-    }
-
-    async addressReset() {
-        await this.checkClientStatus();
-        await this.db.collection('addresses').deleteMany({})
-        .catch(function(err) {
-            console.log('[ERROR] addresses collection reset ERR ', err)
-            throw err;
-        })
-    }
-
-    // This should be replaced with upsert
-    async utxoInsertReplace(utxos: UtxoDbo[], tokenIdHex: string) {
-        await this.checkClientStatus();
-        await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
-        if(utxos.length > 0) {
-            return await this.db.collection('utxos').insertMany(utxos);
-        }
-    }
-
-    async utxoUpsert(utxos: UtxoDbo[]) {
-
-    }
-
-    async utxoDelete(tokenIdHex: string) {
-        await this.checkClientStatus();
-        return await this.db.collection('utxos').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
-    }
-
-    async utxoFetch(tokenIdHex: string): Promise<UtxoDbo[]> {
-        await this.checkClientStatus();
-        return await this.db.collection('utxos').find({ "tokenDetails.tokenIdHex": tokenIdHex }).toArray();
-    }
-
-    async singleUtxo(utxo: string): Promise<UtxoDbo|null> {
-        await this.checkClientStatus();
-        return await this.db.collection('utxos').findOne({ "utxo": utxo });
-    }
-
-    async singleMintUtxo(utxo: string): Promise<TokenDBObject|null> {
-        await this.checkClientStatus();
-        return await this.db.collection('tokens').findOne({ "mintBatonUtxo": utxo });
-    }
-
-    async utxoReset() {
-        await this.checkClientStatus();
-        await this.db.collection('utxos').deleteMany({})
-        .catch(function(err) {
-            console.log('[ERROR] utxos collection reset ERR ', err);
             throw err;
         })
     }

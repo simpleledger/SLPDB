@@ -9,7 +9,7 @@ import { Config } from "../config";
 import { Db } from '../db';
 import { TNATxn, TNATxnSlpDetails } from "../tna";
 import { CacheMap } from "../cache";
-import { TokenDBObject, TokenBatonStatus, GraphTxnDbo, UtxoDbo, AddressBalancesDbo } from "../interfaces";
+import { TokenDBObject, TokenBatonStatus } from "../interfaces";
 
 const bitbox = new BITBOX();
 const slp = new Slp(bitbox);

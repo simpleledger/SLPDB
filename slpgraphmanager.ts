@@ -41,7 +41,7 @@ export class SlpGraphManager {
     _cacheGraphTxnCount = 0;
 
     get TnaSynced(): boolean {
-        if(this._TnaQueue) {
+        if (this._TnaQueue) {
             return (this._TnaQueue.size === 0 && this._TnaQueue.pending === 0)
         } else {
             return true;

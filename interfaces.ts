@@ -71,29 +71,6 @@ export interface GraphTxnDbo {
     graphTxn: GraphTxnDetailsDbo;
 }
 
-export interface UtxoDbo {
-    tokenDetails: {
-        tokenIdHex: string;
-    };
-    utxo: string;
-    txid: string;
-    vout: number;
-    address: string;
-    bchSatoshis: number;
-    slpAmount: Decimal128;
-    utxosChecksum: Buffer;
-}
-
-export interface AddressBalancesDbo {
-    tokenDetails: {
-        tokenIdHex: string;
-    };
-    address: cashAddr;
-    satoshis_balance: number;
-    token_balance: Decimal128;
-    //utxosChecksum: Buffer;
-}
-
 export interface SlpTransactionDetailsDbo {
     transactionType: SlpTransactionType;
     tokenIdHex: string;

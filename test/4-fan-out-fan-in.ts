@@ -9,7 +9,7 @@ import { Config } from "../config";
 import { Db } from '../db';
 import { TNATxn, TNATxnSlpDetails } from "../tna";
 import { CacheMap } from "../cache";
-import { TokenDBObject, TokenBatonStatus, GraphTxnDbo, UtxoDbo, AddressBalancesDbo } from "../interfaces";
+import { TokenDBObject, TokenBatonStatus, GraphTxnDbo } from "../interfaces";
 
 const bitbox = new BITBOX();
 const slp = new Slp(bitbox);
@@ -290,7 +290,7 @@ describe("4-Fan-out-Fan-in", () => {
         assert.equal(txnNotification.slp!.detail!.transactionType, SlpTransactionType.SEND);
         for(let i = 0; i < 18; i++) {
             // @ts-ignore
-            assert.equal(txnNotification.slp!.detail!.outputs![i].amount!["$numberDecimal"], new BigNumber(perInputAmount.times(actualInputsCreated)).dividedBy(10**TOKEN_DECIMALS).toFixed());
+            assert.equal(txnNotification.slp!.detail!.outputs![i].amount!, new BigNumber(perInputAmount.times(actualInputsCreated)).dividedBy(10**TOKEN_DECIMALS).toFixed());
         }
         assert.equal(txnNotification.blk, null);
         assert.equal(typeof txnNotification.in, "object");
@@ -346,42 +346,6 @@ describe("4-Fan-out-Fan-in", () => {
         // "spendTxid": "7a19684d7eca289ff34faae06a3de7117852e445adb9bf147a5cbd3e420c5f05",
         // "status": "SPENT_SAME_TOKEN",
         // "invalidReason": null
-    });
-
-    step("FOFI-1: Check that fan-in transaction is in utxos (before block)", async () => {
-        let x: UtxoDbo[] = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        while(x.length !== 19) {
-            await sleep(50);
-            x = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        }
-        assert.equal(x.length, 19);
-        assert.equal(x[0].address, receiverSlptest);
-        assert.equal(x[0].bchSatoshis, 546);
-        
-        // @ts-ignore
-        //assert.equal(amounts.includes(x[0].slpAmount.toString()), true);
-        
-        // remove item and check the next amount
-        //amounts = amounts.filter(a => a !== x[0].slpAmount.toString());
-
-        assert.equal(x[1].address, receiverSlptest);
-        assert.equal(x[1].bchSatoshis, 546);
-
-        // @ts-ignore
-        //assert.equal(amounts.includes(x[1].slpAmount.toString()), true);
-    });
-
-    step("FOFI-1: Check that fan-in transaction is in addresses (before block)", async () => {
-        let a: AddressBalancesDbo[] = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        while(a.length === 0) {
-            await sleep(50);
-            a = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        }
-        assert.equal(a.length, 1);
-        assert.equal(a[0].address, receiverSlptest);
-        assert.equal(a[0].satoshis_balance, 19*546);
-        // @ts-ignore
-        assert.equal(a[0].token_balance.toString(), TOKEN_GENESIS_QTY.toFixed());
     });
 
     step("FOFI-1: Received ZMQ notification for block with fan-in transaction", async () => {
@@ -467,42 +431,6 @@ describe("4-Fan-out-Fan-in", () => {
         // "spendTxid": "7a19684d7eca289ff34faae06a3de7117852e445adb9bf147a5cbd3e420c5f05",
         // "status": "SPENT_SAME_TOKEN",
         // "invalidReason": null
-    });
-
-    step("FOFI-1: Check that fan-in transaction is in utxos (after block)", async () => {
-       let x: UtxoDbo[] = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        while(x.length !== 19) {
-            await sleep(50);
-            x = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        }
-        assert.equal(x.length, 19);
-        assert.equal(x[0].address, receiverSlptest);
-        assert.equal(x[0].bchSatoshis, 546);
-        
-        // @ts-ignore
-        //assert.equal(amounts.includes(x[0].slpAmount.toString()), true);
-        
-        // remove item and check the next amount
-        //amounts = amounts.filter(a => a !== x[0].slpAmount.toString());
-
-        assert.equal(x[1].address, receiverSlptest);
-        assert.equal(x[1].bchSatoshis, 546);
-        
-        // @ts-ignore
-        //assert.equal(amounts.includes(x[1].slpAmount.toString()), true);
-    });
-
-    step("FOFI-1: Check that fan-in transaction is in addresses (after block)", async () => {
-        let a: AddressBalancesDbo[] = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        while(a.length === 0) {
-            await sleep(50);
-            a = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        }
-        assert.equal(a.length, 1);
-        assert.equal(a[0].address, receiverSlptest);
-        assert.equal(a[0].satoshis_balance, 19*546);
-        // @ts-ignore
-        assert.equal(a[0].token_balance.toString(), TOKEN_GENESIS_QTY.toFixed());
     });
 
     step("Clean up", async () => {

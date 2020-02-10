@@ -9,7 +9,7 @@ import { Config } from "../config";
 import { Db } from '../db';
 import { TNATxn, TNATxnSlpDetails } from "../tna";
 import { TokenBatonStatus } from "../interfaces";
-import { GraphTxnDbo, AddressBalancesDbo, UtxoDbo, TokenDBObject } from "../interfaces";
+import { GraphTxnDbo, TokenDBObject } from "../interfaces";
 
 const bitbox = new BITBOX();
 const slp = new Slp(bitbox);
@@ -216,32 +216,6 @@ describe("3-Double-Spend-Send", () => {
         // TODO: Check unspent outputs.
     });
 
-    step("DS-S: Check SLPDB has pre-double spent transaction in UTXOs", async () => {
-        let x: UtxoDbo[] = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        while(x.length === 0) {
-            await sleep(50);
-            x = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        }
-        assert.equal(x.length, 1);
-        assert.equal(x[0].address, receiverSlptest);
-        assert.equal(x[0].bchSatoshis, 546);
-        // @ts-ignore
-        assert.equal(x[0].slpAmount.toString(), TOKEN_GENESIS_QTY.toFixed());
-    });
-
-    step("DS-S: Check SLPDB has pre-double spent transaction in addresses", async () => {
-        let a: AddressBalancesDbo[] = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        while(a.length === 0) {
-            await sleep(50);
-            a = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        }
-        assert.equal(a.length, 1);
-        assert.equal(a[0].address, receiverSlptest);
-        assert.equal(a[0].satoshis_balance, 546);
-        // @ts-ignore
-        assert.equal(a[0].token_balance.toString(), TOKEN_GENESIS_QTY.toFixed());
-    });
-
     step("DS-S: Check SLPDB has pre-double spent transaction in tokens", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId);
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
@@ -299,9 +273,9 @@ describe("3-Double-Spend-Send", () => {
         assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].address, receiverSlptest);
         assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.transactionType, SlpTransactionType.SEND);
         // @ts-ignore
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].amount!["$numberDecimal"], (TOKEN_GENESIS_QTY-1).toFixed());
+        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].amount!, (TOKEN_GENESIS_QTY-1).toFixed());
         // @ts-ignore
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![1].amount!["$numberDecimal"], (1).toFixed());
+        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![1].amount!, (1).toFixed());
         assert.equal(slpdbTxnNotifications[0]!.blk!.h, lastBlockHash);
         assert.equal(slpdbTxnNotifications[0]!.blk!.i, lastBlockIndex);
         assert.equal(typeof slpdbTxnNotifications[0]!.in, "object");
@@ -346,30 +320,6 @@ describe("3-Double-Spend-Send", () => {
         // assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
     });
 
-    step("DS-S: Check that the double spent txn is removed everywhere from SLPDB", async () => {
-        //let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-        let x: UtxoDbo[] = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        let a: AddressBalancesDbo[] = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        let g: GraphTxnDbo | null = await db.db.collection("graphs").findOne({ "graphTxn.txid": txid1 });
-        let txn_u = await db.unconfirmedFetch(txid1);
-        let txn_c = await db.confirmedFetch(txid1);
-        while(x.length !== 2 || a.length !== 1 || g || txn_u || txn_c) {
-            await sleep(50);
-            //t = await db.tokenFetch(txid1);
-            x = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-            a = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-            g = await db.db.collection("graphs").findOne({ "graphTxn.txid": txid1 });
-            txn_u = await db.unconfirmedFetch(txid1);
-            txn_c = await db.confirmedFetch(txid1);
-        }
-        //assert.equal(t, null);
-        assert.equal(x.length === 2, true);
-        assert.equal(a.length === 1, true);
-        assert.equal(g, null);
-        assert.equal(txn_c, null);
-        assert.equal(txn_u, null);
-    });
-
     step("DS-S: store double spend txid2 in confirmed", async () => {
         let txn = await db.confirmedFetch(txid2);
         while (!txn || !txn!.slp) { // NOTE: This is a problem where the unconfirmed item is first saved without the slp property (but ZMQ should happen only after slp is added)
@@ -400,39 +350,6 @@ describe("3-Double-Spend-Send", () => {
         // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
         // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
         assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
-    });
-
-    step("DS-S: stores double spend txid2 in utxos", async () => {
-        let x: UtxoDbo[] = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        while(x.length === 0) {
-            await sleep(50);
-            x = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        }
-        assert.equal(x.length, 2);
-        assert.equal(x[0].address, receiverSlptest);
-        assert.equal(x[0].bchSatoshis, 546);
-        assert.equal(x[1].address, receiverSlptest);
-        assert.equal(x[1].bchSatoshis, 546);
-
-        let amounts = [(TOKEN_GENESIS_QTY-1).toFixed(), (1).toFixed()];
-        // @ts-ignore
-        assert.equal(amounts.includes(x[0].slpAmount.toString()), true);
-        amounts = amounts.filter(a => a !== x[0].slpAmount.toString());
-        // @ts-ignore
-        assert.equal(amounts.includes(x[1].slpAmount.toString()), true);
-    });
-
-    step("DS-S: stores double spend token2 in addresses", async () => {
-        let a: AddressBalancesDbo[] = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        while(a.length === 0) {
-            await sleep(50);
-            a = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-        }
-        assert.equal(a.length, 1);
-        assert.equal(a[0].address, receiverSlptest);
-        assert.equal(a[0].satoshis_balance, 1092);
-        // @ts-ignore
-        assert.equal(a[0].token_balance.toString(), TOKEN_GENESIS_QTY.toFixed());
     });
 
     step("DS-S: stores double spend token2 in graphs", async () => {
