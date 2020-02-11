@@ -156,6 +156,7 @@ describe("4-Fan-out-Fan-in", () => {
         while (!txn || !txn!.slp || !txn.slp.valid || confirmed.length !== 1 || txn_u) {
             await sleep(50);
             confirmed = await db.db.collection("confirmed").find({ "tx.h": tokenId }).toArray();
+            txn = confirmed.find(i => i.tx.h === tokenId);
             txn_u = await db.unconfirmedFetch(tokenId);
         }
         assert.equal(txn!.slp!.valid, true);

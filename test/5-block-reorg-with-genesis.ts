@@ -166,7 +166,8 @@ describe("5-Reorg-Removes-Data", () => {
 
     step("BR-1: Make sure the token exists in the tokens collection (after block)", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-        while(!t || t!.tokenStats!.block_created === null) { // || t!.tokenStats!.qty_token_burned.toString() !== "0" || typeof t!.tokenDetails.timestamp !== "string") {
+        while (!t || t!.tokenStats!.block_created === null || typeof t!.tokenDetails.timestamp !== "string") { // || t!.tokenStats!.qty_token_burned.toString() !== "0" || typeof t!.tokenDetails.timestamp !== "string") {
+            console.log(t!.tokenDetails.timestamp);
             await sleep(50);
             t = await db.tokenFetch(tokenId);
         }

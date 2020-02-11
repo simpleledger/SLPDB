@@ -1,9 +1,9 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2020-02-06
+**Last Updated:** 2020-02-10
 
-**Current SLPDB Version:** 1.0.0-beta
+**Current SLPDB Version:** 1.0.0-rc1
 
 * 1. [What is SLPDB?](#WhatisSLPDB)
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)
@@ -22,7 +22,11 @@
 	* 5.1. [ZeroMQ (ZMQ)](#ZeroMQZMQ)
 * 6. [MongoDB Collections & Data Schema](#MongoDBCollectionsDataSchema)
 	* 6.1. [DB Collections](#DBCollections)
-* 7. [Change Log](#ChangeLog)
+* 7. [Test Harnesses](#TestHarnesses)
+    * 7.1 [Parser Tests](#ParserTests)
+    * 7.2 [Input Tests](#InputTests)
+    * 7.3 [Regtest Network Tests](#E2ETests)
+* 8. [Change Log](#ChangeLog)
 
 
 
@@ -313,7 +317,30 @@ Four MongoDB collections used to store these three categories of data, they are 
 
 
 
-## 7. <a name='ChangeLog'></a>Change Log
+## 7. <a name='TestHarnesses'></a>Test Harnesses
+
+SLPDB is backed by three different test harnesses, they includes (1) OP_RETURN message parsing unit tests and differential fuzzing, (2) graph input unit tests, and (3) end-to-end regression testing.
+
+###  7.1. <a name='ParserTests'></a>Parser Tests
+
+SLPDB leverages the SLPJS npm library has been tested using differential fuzzing and passes all SLP message parser unit tests.  You can learn more about this testing at the following locations:
+* [SLP Unit Test Repository]()
+* [SLPJS Fuzzer]()
+* [High speed c++ fuzzer for SLP]()
+
+###  7.2. <a name='InputTests'></a>Input Tests
+
+Graph validation generally requires checking that a transactions's valid input quantity is greater than or equal to the output quantity. 
+The SLPJS npm library also passes all unit tests which test for this condition, and you can learn more about these types of tests at the following location:
+* [SLP Unit Test Repository]()
+
+###  7.3. <a name='E2ETests'></a>End-to-End Tests
+
+A set of end-to-end tests have been created in order to ensure the expected behavior of SLPDB utilizing the bitcoin regtest network.  These tests simulate actual transaction activity using the bitcoin regtest test network and check for proper state in mongoDB and also check that zmq notifications are emitted.  The `tests` directory contains the end-to-end tests which can be run by following the instructions provided in the `regtest` directory.
+
+
+
+## 8. <a name='ChangeLog'></a>Change Log
 
 * 1.0.0
     * Removed `utxos` and `addresses` collections, as this information can be queried from the `graphs` collection.  Updated README examples for queries which relied on now defunct `utxos` and `addresses` collections

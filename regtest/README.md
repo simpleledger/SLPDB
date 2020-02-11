@@ -1,26 +1,21 @@
-## regtest network
+## Regtest Network for End-to-End testing
 
-To get started with unit tests you need to startup the sandboxed bitcoin regtest network described in `docker-compose.yml`.  This will creates a network of bitcoin nodes with one of the nodes connected to SLPDB.
+To get started with unit tests you need to startup the sandboxed bitcoin regtest network described in `docker-compose.yml`.  This will creates a network of bitcoin nodes which will connect to a locally running SLPDB instance outside of the docker container.
 
-Start the test network:
+Start the regtest network:
 ```
+$ git apply ./patches/*
+$ cp .env.regtest .env
 $ cd regtest
 $ docker-compose up -d
-$ docker logs -f regtest_slpdb_1
+$ docker logs -f regtest_slpdb_1  # this is optional
 ```
 
-Run the unit tests:
+Next, run the e2e tests located in the `test` folder using:
 
 ```
 $ npm test
 ```
-
-
-
-### Creating Unit Tests
-
-Take a look at the tests in the `test` directory for guidance on how to create unit tests.
-
 
 
 

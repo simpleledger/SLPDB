@@ -73,7 +73,7 @@ export class SlpGraphManager {
                 await graph.setNftParentId();
             }
             this._tokens.set(tokenIdHex, graph);
-        } else if (slpMsgDetailsGenesis && blockCreated && slpMsgDetailsGenesis.transactionType !== SlpTransactionType.GENESIS) {
+        } else if (slpMsgDetailsGenesis && blockCreated && !this._tokens.get(tokenIdHex)!._blockCreated) {
             this._tokens.get(tokenIdHex)!._blockCreated = blockCreated;
         }
         return this._tokens.get(tokenIdHex)!;

@@ -52,14 +52,15 @@ const daemon = {
         console.log("[INFO] RPC is initialized.");
 
         // set start height override
-        if(startHeight)
+        if (startHeight) {
             await Info.updateBlockCheckpoint(startHeight, null);
+        }
         
         await SlpdbStatus.saveStatus();
 
         // check for confirmed collection schema update
         let schema = await Info.getConfirmedCollectionSchema();
-        if(!schema || schema !== Config.db.confirmed_schema_version) {
+        if (!schema || schema !== Config.db.confirmed_schema_version) {
             await Info.setConfirmedCollectionSchema(Config.db.confirmed_schema_version);
             await Info.checkpointReset();
             console.log("[INFO] Schema version for the confirmed collection was updated. Reseting block checkpoint reset to", (await Info.getBlockCheckpoint()).height)
@@ -67,7 +68,7 @@ const daemon = {
 
         let lastSynchronized = <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
         console.log("reprocessFrom: ", lastSynchronized.height);
-        if(lastSynchronized.height > await RpcClient.getBlockCount()) {
+        if (lastSynchronized.height > await RpcClient.getBlockCount()) {
             lastSynchronized = await Bit.checkForBlockReorg(lastSynchronized);
             //throw Error("Config.core.from or Config.core.from_testnet cannot be larger than the current blockchain height (check the config.ts file)");
         }
@@ -114,7 +115,9 @@ const daemon = {
         if (bit._exit) {
             return;
         }
+
         // sync with mempool and listen for wire notifications
+        await db.unconfirmedReset();
         await bit.processCurrentMempoolForSLP();
         bit.listenToZmq();
         console.timeEnd('[PERF] Initial Block Sync');
@@ -124,28 +127,6 @@ const daemon = {
         await SlpdbStatus.changeStateToRunning({
             getSlpMempoolSize: () => tokenManager._bit.slpMempool.size
         });
-
-        // let onComplete = async () => {
-        //     await tokenManager._startupQueue.onIdle();
-        //     console.log("[INFO] Starting to process graph based on recent mempool and block activity");
-        //     tokenManager._updatesQueue.start();
-        //     await tokenManager._updatesQueue.onIdle();
-        //     console.log("[INFO] Updates from recent mempool and block activity complete");
-        //     await tokenManager.fixMissingTokenTimestamps();
-        //     await SlpdbStatus.changeStateToRunning({
-        //         getSlpMempoolSize: () => tokenManager._bit.slpMempool.size
-        //     });
-        //     console.log("[INFO] initAllTokens complete");
-        // }
-
-        // await tokenManager.updateAllTokenGraphs({ reprocessFrom: lastSynchronized.height, onComplete, loadFromDb: loadFromDb });
-
-        // // look for burned token transactions every hour after startup
-        // setInterval(async function() {
-        //     if(tokenManager._startupQueue.size === 0 && tokenManager._startupQueue.pending === 0) {
-        //         await tokenManager.searchForNonSlpBurnTransactions();
-        //     }
-        // }, 3600000);
     }
 }
 

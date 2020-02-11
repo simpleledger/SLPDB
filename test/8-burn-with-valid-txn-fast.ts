@@ -67,7 +67,7 @@ let lastBlockHash: string;
 let lastBlockIndex: number;
 let genesisBlockIndex: number;
 
-describe("9-Burn-with-valid-txn-slow", () => {
+describe("8-Burn-with-valid-txn-fast", () => {
 
     step("Initial setup for all tests", async () => {
         // TODO: burn any existing wallet funds, in order to prevent "Transaction too large".

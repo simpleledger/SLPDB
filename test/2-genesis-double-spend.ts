@@ -116,7 +116,7 @@ describe("2-Double-Spend-Genesis", () => {
         // disconnect nodes now
         let peerInfo: any[] = await rpcNode1_miner.getPeerInfo();
         await rpcNode1_miner.disconnectNode("bitcoin1");
-        while(peerInfo.length > 0) {
+        while (peerInfo.length > 0) {
             await sleep(100);
             peerInfo = await rpcNode1_miner.getPeerInfo();
         }
@@ -171,9 +171,14 @@ describe("2-Double-Spend-Genesis", () => {
 
     step("DS-G: Check SLPDB has pre-double spent transaction in tokens", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId1);
+        while (!t) {
+            await sleep(50);
+            t = await db.tokenFetch(tokenId1);
+        }
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId1);
         assert.equal(t!.mintBatonUtxo, tokenId1 + ":2");
         assert.equal(t!.tokenStats!.block_created, null);
+        assert.equal(t!.tokenStats.approx_txns_since_genesis, 0);
         // assert.equal(t!.tokenStats!.block_last_active_mint, null);
         // assert.equal(t!.tokenStats!.block_last_active_send, null);
         // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
@@ -214,7 +219,7 @@ describe("2-Double-Spend-Genesis", () => {
 
     step("DS-G: produces ZMQ output for the transaction", async () => {
         // give slpdb time to process
-        while(slpdbTxnNotifications.filter(txn => txn.tx.h === tokenId2).length === 0) {
+        while (slpdbTxnNotifications.filter(txn => txn.tx.h === tokenId2).length === 0) {
             await sleep(50);
         }
 
@@ -229,8 +234,8 @@ describe("2-Double-Spend-Genesis", () => {
         assert.equal(txn.slp!.detail!.transactionType, SlpTransactionType.GENESIS);
         // @ts-ignore
         assert.equal(txn.slp!.detail!.outputs![0].amount!, TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(txn.blk!.h, lastBlockHash);
-        assert.equal(txn.blk!.i, lastBlockIndex);
+        //assert.equal(txn.blk!.h, lastBlockHash);
+        //assert.equal(txn.blk!.i, lastBlockIndex);
         assert.equal(typeof txn.in, "object");
         assert.equal(typeof txn.out, "object");
         assert.equal(typeof txn.tx, "object");
@@ -299,6 +304,17 @@ describe("2-Double-Spend-Genesis", () => {
         assert.equal(g!.graphTxn.blockHash!.toString("hex"), lastBlockHash);
 
         // TODO: Check unspent outputs.
+    });
+
+    step("DS-S: Verify txid1 is deleted from confirmed/unconfirmed/graphs", async () => {
+        let unconf = await db.unconfirmedFetch(tokenId1);
+        assert.equal(unconf, null);
+        let conf = await db.confirmedFetch(tokenId1);
+        assert.equal(conf, null);
+        let graphTxn = await db.graphTxnFetch(tokenId1);
+        assert.equal(graphTxn, null);
+        let token = await db.tokenFetch(tokenId1);
+        assert.equal(token, null);
     });
 
     step("Cleanup after tests", async () => {

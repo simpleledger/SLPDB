@@ -61,7 +61,6 @@ export class Bit {
     _spentTxoCache = new CacheMap<string, { txid: string; block: number|null }>(100000);
 
     _tokenIdsModified = new Set<string>();
-    _isSyncing = false;
     _exit = false;
 
     constructor(db: Db) {
@@ -78,10 +77,6 @@ export class Bit {
 
     async stop() {
         this._exit = true;
-        while (this._isSyncing) {
-            console.log("Waiting for block/transaction sync to complete");
-            await sleep(250);
-        }
     }
 
     applySlpTxnFilter(txn: string|Buffer): { txn: bitcore.Transaction, slpMsg: SlpTransactionDetails } | null {
@@ -166,7 +161,7 @@ export class Bit {
         // check for double spending of inputs, if found delete double spent txid from the mempool
         // TODO: Need to test how this will work with BCHD!
         let inputTxos = Primatives.Transaction.parseFromBuffer(txnBuf).inputs;
-        let txidToDelete: string[] = [];
+        let txidToDelete = new Set<string>();
         inputTxos.forEach(input => {
             let txo = `${input.previousTxHash}:${input.previousTxOutIndex}`
             if (this._spentTxoCache.has(txo)) {
@@ -182,7 +177,7 @@ export class Bit {
                         this.db.tokenDelete(doubleSpentTxid);   // no need to await
                         this.db.graphDelete(doubleSpentTxid);   // no need to await
                     } else {
-                        txidToDelete.push(doubleSpentTxid);
+                        txidToDelete.add(doubleSpentTxid);
                     }
                     let date = new Date();
                     this.txoDoubleSpendCache.set(txo, { originalTxid: doubleSpentTxid, current: txid, time: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }});
@@ -192,15 +187,11 @@ export class Bit {
             }
         });
 
-        let tokenIdToUpdate= new Set<string>();
-        if (txidToDelete.length > 0) {
+        // here we need to loop through all of the in mempory graphs to make sure the double spend is completely removed.
+        // TODO: consider doing a db query instead of looping through all graphs.
+        if (txidToDelete.size > 0) {
             for (let [tokenId, g ] of this._slpGraphManager._tokens) { 
-                let removedAny = g.scanDoubleSpendTxids(txidToDelete);
-                if (removedAny) {
-                    this.slpMempool.delete(txid);
-                    tokenIdToUpdate.add(txid);
-                    //tokenIdToUpdate.add(tokenId);
-                }
+                g.scanDoubleSpendTxids(txidToDelete);
             }
         }
         let res = this.applySlpTxnFilter(txnBuf)
@@ -579,26 +570,23 @@ export class Bit {
     }
 
     static async sync(self: Bit, type: string, zmqHash?: string, txhex?: string): Promise<Map<txid, txhex>|null> {
-        self._isSyncing = true;
         let result = new Map<txid, txhex>();
         if (type === 'block') {
             let lastCheckpoint = zmqHash ? <ChainSyncCheckpoint>await Info.getBlockCheckpoint() : <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
-            
-            lastCheckpoint = await Bit.checkForBlockReorg(lastCheckpoint);
-
-            let currentHeight: number = await RpcClient.getBlockCount();
             let startHeight = lastCheckpoint.height + 1;
+            let currentHeight: number = await RpcClient.getBlockCount();
             if (zmqHash) {
                 let zmqHeight = (await RpcClient.getBlockInfo({ hash: zmqHash })).height;
-                if (zmqHeight > startHeight+1) {
-                    throw Error('zmqHeight cannot not be larger than the last checkpoint height.');
+                await Bit.checkForBlockReorg({ height: zmqHeight, hash: zmqHash });
+                if (zmqHeight < startHeight) {
+                    // NOTE: This can happen if the below for loop processes blocks before zmq block notifications
+                    console.log(`[WARN] zmqHeight (${zmqHeight}) is not greater than last checkpoint height (${startHeight}).`);
+                    return null;
                 }
                 startHeight = zmqHeight
             }
-            
             for (let index: number = startHeight; index <= currentHeight; index++) {
                 if (self._exit) {
-                    self._isSyncing = false;
                     return null;
                 }
 
@@ -617,7 +605,13 @@ export class Bit {
                 console.timeEnd('[PERF] RPC END ' + index);
                 console.time('[PERF] DB Insert ' + index);
 
-                let blockHash = (await RpcClient.getBlockHash(index, true)) as Buffer;
+                let blockHash: Buffer;
+                try {
+                    blockHash = (await RpcClient.getBlockHash(index, true)) as Buffer;
+                } catch (_) {
+                    currentHeight = await RpcClient.getBlockCount();
+                    continue;
+                }
         
                 if (crawledTxns && crawledTxns.size > 0) {
                     let array = Array.from(crawledTxns.values()).map(c => c.tnaTxn);
@@ -675,10 +669,8 @@ export class Bit {
             }
 
             if (lastCheckpoint.height === currentHeight) {
-                self._isSyncing = false;
                 return result;
             } else {
-                self._isSyncing = false;
                 return null;
             }
         } else if (type === 'mempool') {
@@ -715,13 +707,11 @@ export class Bit {
                 } else {
                     console.log(`[INFO] Skipping non-SLP transaction: ${zmqHash}`);
                 }
-                self._isSyncing = false;
                 return result;
             } else {
                 throw Error("Mempool transaction missing txid");
             }
         }
-        self._isSyncing = false;
         return null;
     }
 

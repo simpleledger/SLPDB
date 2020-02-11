@@ -53,11 +53,6 @@ export class Db {
         await this.db.collection('tokens').replaceOne({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex }, token, { upsert: true });
     }
 
-    // async tokenreplace(token: any) {
-    //     await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex })
-    //     return await this.db.collection('tokens').insertMany([ token ]);
-    // }
-
     async tokenDelete(tokenIdHex: string) {
         await this.checkClientStatus();
         return await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex });

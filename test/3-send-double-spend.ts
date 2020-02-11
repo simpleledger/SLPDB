@@ -181,7 +181,9 @@ describe("3-Double-Spend-Send", () => {
                                                         txnInputs, receiverSlptest, receiverSlptest);
     
         txid1 = await rpcNode1_miner.sendRawTransaction(sendTxnHex1, true);
+        console.log(`txid1: ${txid1}`);
         txid2 = await rpcNode2_miner.sendRawTransaction(sendTxnHex2, true);
+        console.log(`txid2: ${txid2}`);
 
         assert.equal(txid1.length === 64, true);
         assert.equal(txid2.length === 64, true);
@@ -192,7 +194,8 @@ describe("3-Double-Spend-Send", () => {
         //let txn = await db.unconfirmedFetch(txid1);
         let unconfirmed = await db.db.collection("unconfirmed").find({}).toArray();
         let txn = unconfirmed.find(i => i.tx.h === txid1);
-        while (!txn || unconfirmed.length !== 1) {
+        while (!txn) { // || unconfirmed.length !== 1) {
+            //console.log(unconfirmed.length);
             await sleep(50);
             unconfirmed = await db.db.collection("unconfirmed").find({}).toArray();
             txn = unconfirmed.find(i => i.tx.h === txid1);
@@ -261,27 +264,29 @@ describe("3-Double-Spend-Send", () => {
 
     step("DS-S: produces ZMQ output for the double-spend transaction", async () => {
         // give slpdb time to process
-        while(slpdbTxnNotifications.length === 0) {
+        let txn: TNATxn|undefined = slpdbTxnNotifications.find(t => t.tx.h === txid2);
+        while (!txn) {
             await sleep(50);
+            txn = slpdbTxnNotifications.find(t => t.tx.h === txid2);
         }
         // check that SLPDB made proper outgoing ZMQ messages for 
-        assert.equal(slpdbTxnNotifications.length, 1);
-        assert.equal(slpdbTxnNotifications[0]!.slp!.valid, true);
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.name, "unit-test-3");
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.symbol, "ut3");
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.tokenIdHex, tokenId);
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].address, receiverSlptest);
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.transactionType, SlpTransactionType.SEND);
+        //assert.equal(slpdbTxnNotifications.length, 1);
+        assert.equal(txn!.slp!.valid, true);
+        assert.equal(txn!.slp!.detail!.name, "unit-test-3");
+        assert.equal(txn!.slp!.detail!.symbol, "ut3");
+        assert.equal(txn!.slp!.detail!.tokenIdHex, tokenId);
+        assert.equal(txn!.slp!.detail!.outputs![0].address, receiverSlptest);
+        assert.equal(txn!.slp!.detail!.transactionType, SlpTransactionType.SEND);
         // @ts-ignore
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![0].amount!, (TOKEN_GENESIS_QTY-1).toFixed());
+        assert.equal(txn!.slp!.detail!.outputs![0].amount!, (TOKEN_GENESIS_QTY-1).toFixed());
         // @ts-ignore
-        assert.equal(slpdbTxnNotifications[0]!.slp!.detail!.outputs![1].amount!, (1).toFixed());
-        assert.equal(slpdbTxnNotifications[0]!.blk!.h, lastBlockHash);
-        assert.equal(slpdbTxnNotifications[0]!.blk!.i, lastBlockIndex);
-        assert.equal(typeof slpdbTxnNotifications[0]!.in, "object");
-        assert.equal(typeof slpdbTxnNotifications[0]!.out, "object");
-        assert.equal(typeof slpdbTxnNotifications[0]!.tx, "object");
-        assert.equal(slpdbTxnNotifications[0]!.tx!.h, txid2);
+        assert.equal(txn!.slp!.detail!.outputs![1].amount!, (1).toFixed());
+        //assert.equal(slpdbTxnNotifications[0]!.blk!.h, lastBlockHash);
+        //assert.equal(slpdbTxnNotifications[0]!.blk!.i, lastBlockIndex);
+        assert.equal(typeof txn!.in, "object");
+        assert.equal(typeof txn!.out, "object");
+        assert.equal(typeof txn!.tx, "object");
+        assert.equal(txn!.tx!.h, txid2);
     });
 
     step("DS-S: stores double spend txid2 in tokens (immediately after txn ZMQ)", async () => {
@@ -363,6 +368,21 @@ describe("3-Double-Spend-Send", () => {
         assert.equal(g!.graphTxn.blockHash!.toString("hex"), lastBlockHash);
 
         // TODO: Check unspent outputs.
+    });
+
+    step("DS-S: Verify txid1 is deleted from confirmed/unconfirmed/graphs", async () => {
+        let unconf = await db.unconfirmedFetch(txid1);
+        assert.equal(unconf, null);
+        let conf = await db.confirmedFetch(txid1);
+        assert.equal(conf, null);
+        let graphTxn = await db.graphTxnFetch(txid1);
+        assert.equal(graphTxn, null);
+    });
+
+    step("DS-S: Verify txid2 input txn have outputs pointing to txid2, not txid1", async () => {
+        let g = await db.graphTxnFetch(txid2);
+        let g0 = await db.graphTxnFetch(g?.graphTxn.inputs[0]!.txid);
+        assert.equal(g0?.graphTxn.outputs[0].spendTxid, txid2);
     });
 
     step("Cleanup after tests", async () => {

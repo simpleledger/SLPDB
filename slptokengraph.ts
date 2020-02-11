@@ -74,7 +74,7 @@ export class SlpTokenGraph {
         return this._graphTxns.size;
     }
 
-    public scanDoubleSpendTxids(txidToDelete: string[]): boolean {
+    public scanDoubleSpendTxids(txidToDelete: Set<string>): boolean {
         for (let txid of txidToDelete) {
             if (this._graphTxns.has(txid)) {
                 RpcClient.transactionCache.delete(txid);
