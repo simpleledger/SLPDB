@@ -100,7 +100,7 @@ export class Db {
         await this.tokenInsertReplace(tokenDbo);
 
         for (const txid of itemsToDelete) {
-            await this.db.collection("graphs").deleteMany({ "grpahTxn.txid": txid });
+            await this.db.collection("graphs").deleteMany({ "graphTxn.txid": txid });
             await this.db.collection("confirmed").deleteMany({ "tx.h": txid });
             await this.db.collection("unconfirmed").deleteMany({ "tx.h": txid });
         }
