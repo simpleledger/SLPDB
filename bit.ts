@@ -607,7 +607,10 @@ export class Bit {
                 let spentOutpoints: [string, Uint8Array][];
                 try {
                     [ crawledTxns, spentOutpoints ] = (await self.crawl(index, syncComplete)) as [CrawlResult, [string,Uint8Array][]];
-                } catch (_) {
+                } catch (err) {
+                    if (!zmqHash) {
+                        throw err;
+                    }
                     return null;
                 } finally {
                     console.timeEnd('[PERF] RPC END ' + index);
@@ -617,7 +620,10 @@ export class Bit {
                 let blockHash: Buffer;
                 try {
                     blockHash = (await RpcClient.getBlockHash(index, true)) as Buffer;
-                } catch (_) {
+                } catch (err) {
+                    if (!zmqHash) {
+                        throw err;
+                    }
                     return null;
                 }
         
