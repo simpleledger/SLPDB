@@ -114,11 +114,11 @@ export class RpcClient {
               }
         }
 
-        if(index) {
+        if (index) {
             console.log("[INFO] JSON RPC: getBlockInfo/getBlockHash", index);
             hash = await rpc.getBlockHash(index);
         }
-        else if(!hash) {
+        else if (!hash) {
             throw Error("No index or hash provided for block")
         }
 

@@ -148,7 +148,7 @@ describe("5-Reorg-Removes-Data", () => {
         lastBlockHash = (await rpcNode1_miner.generate(1))[0];
         intendedBlockCount++;
         lastBlockIndex = (await rpcNode1_miner.getBlock(lastBlockHash, true)).height;
-        while(slpdbBlockNotifications.filter(b => b.hash === lastBlockHash).length === 0) {
+        while (slpdbBlockNotifications.filter(b => b.hash === lastBlockHash).length === 0) {
             await sleep(50);
         }
         let notification = slpdbBlockNotifications.filter(b => b.hash === lastBlockHash)[0];

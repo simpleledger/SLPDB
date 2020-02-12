@@ -512,12 +512,14 @@ export class Bit {
                 }
                 self.blockHashIgnoreSetList.push(hash); 
                 console.log('[ZMQ-SUB] New block found:', hash);
-                await sync(self, 'block', hash);
-                if (!self._slpGraphManager.zmqPubSocket) {
-                    self._slpGraphManager.zmqPubSocket = self.outsock;
-                }
-                if (self._slpGraphManager.onBlockHash) {
-                    self._slpGraphManager.onBlockHash!(hash!);
+                let result = await sync(self, 'block', hash);
+                if (result) {
+                    if (!self._slpGraphManager.zmqPubSocket) {
+                        self._slpGraphManager.zmqPubSocket = self.outsock;
+                    }
+                    if (self._slpGraphManager.onBlockHash) {
+                        self._slpGraphManager.onBlockHash!(hash!);
+                    }
                 }
             });
         }
@@ -601,16 +603,22 @@ export class Bit {
 
                 console.time('[PERF] RPC END ' + index);
                 let syncComplete = zmqHash ? true : false;
-                let [crawledTxns, spentOutpoints] = (await self.crawl(index, syncComplete)) as [CrawlResult, [string,Uint8Array][]];
-                console.timeEnd('[PERF] RPC END ' + index);
-                console.time('[PERF] DB Insert ' + index);
+                let crawledTxns: CrawlResult; 
+                let spentOutpoints: [string, Uint8Array][];
+                try {
+                    [ crawledTxns, spentOutpoints ] = (await self.crawl(index, syncComplete)) as [CrawlResult, [string,Uint8Array][]];
+                } catch (_) {
+                    return null;
+                } finally {
+                    console.timeEnd('[PERF] RPC END ' + index);
+                    console.time('[PERF] DB Insert ' + index);
+                }
 
                 let blockHash: Buffer;
                 try {
                     blockHash = (await RpcClient.getBlockHash(index, true)) as Buffer;
                 } catch (_) {
-                    currentHeight = await RpcClient.getBlockCount();
-                    continue;
+                    return null;
                 }
         
                 if (crawledTxns && crawledTxns.size > 0) {
@@ -662,8 +670,10 @@ export class Bit {
                 currentHeight = await RpcClient.getBlockCount();
             }
 
+            lastCheckpoint = zmqHash ? <ChainSyncCheckpoint>await Info.getBlockCheckpoint() : <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
+
             // clear mempool and synchronize
-            if (lastCheckpoint.height < currentHeight && zmqHash) {
+            if (zmqHash) {
                 await self.removeExtraneousMempoolTxns();
                 //await self.checkForMissingMempoolTxns();
             }
