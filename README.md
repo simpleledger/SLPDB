@@ -321,15 +321,15 @@ SLPDB is backed by three distinct test harnesses, they include (1) OP_RETURN mes
 
 ###  7.1. <a name='ParserTests'></a>Parser Tests
 
-SLPDB leverages the SLPJS npm library has been tested using differential fuzzing and passes all SLP message parser unit tests.  You can learn more about this testing at the following locations:
+SLPDB leverages the SLPJS npm library has been tested using differential fuzzing and passes all SLP message parser unit tests for Token Type 1 and NFT1.  You can learn more about this testing at the following locations:
 * [SLP Unit Tests - Parsing of OP_RETURN scripts](https://github.com/simpleledger/slp-unit-test-data#part-a-parsing-of-op_return-scripts)
 * [JS Fuzzer](https://github.com/simpleledger/slp-validate/tree/master/fuzzer)
 * [c++ fuzzers](https://github.com/blockparty-sh/cpp_slp_graph_search/tree/master/fuzz)
 
 ###  7.2. <a name='InputTests'></a>Input Tests
 
-Graph validation generally requires checking that a transactions's valid input quantity is greater than or equal to the output quantity. 
-The SLPJS npm library also passes all unit tests which test for this condition, and you can learn more about these types of tests at the following location:
+Graph validation typically requires checking that a transactions's valid inputs the outputs specified in the SLP OP_RETURN message. 
+The SLPJS npm library also passes all unit tests which test for the specified input requirements for Token Type 1 and NFT1, and you can learn more about these types of tests at the following location:
 * [SLP Unit Tests - Transaction input tests](https://github.com/simpleledger/slp-unit-test-data#part-b-transaction-input-tests)
 
 ###  7.3. <a name='E2ETests'></a>End-to-End Tests

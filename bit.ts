@@ -643,11 +643,14 @@ export class Bit {
                             if (graph) {
                                 await graph!.addGraphTransaction({ txid, processUpToBlock: index, blockHash });
                             }
+                            for (let input of v.tnaTxn.in) {
+                                globalUtxoSet.delete(`${txid}:${input.i}`);
+                            }
                         }
                     }
                 }
 
-                // search for SLP burns that happenedd in non-SLP transactions
+                // search for SLP burns in non-SLP transactions
                 console.time(`burnSearch-${index}`);
                 for (let [txo, spentIn] of spentOutpoints) {
                     if (globalUtxoSet.has(txo)) {
