@@ -662,7 +662,7 @@ export class SlpTokenGraph {
         // Map _txnGraph
         tg!._graphTxns.fromDbos(
             dag,
-            token.pruningState
+            token._pruningState
         );
 
         // Preload SlpValidator with cachedValidations

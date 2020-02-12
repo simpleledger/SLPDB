@@ -3,7 +3,7 @@
 # SLPDB Readme
 **Last Updated:** 2020-02-12
 
-**Current SLPDB Version:** 1.0.0-rc2
+**Current SLPDB Version:** 1.0.0-rc3
 
 * 1. [What is SLPDB?](#WhatisSLPDB)
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)

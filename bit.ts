@@ -512,14 +512,12 @@ export class Bit {
                 }
                 self.blockHashIgnoreSetList.push(hash); 
                 console.log('[ZMQ-SUB] New block found:', hash);
-                let result = await sync(self, 'block', hash);
-                if (result) {
-                    if (!self._slpGraphManager.zmqPubSocket) {
-                        self._slpGraphManager.zmqPubSocket = self.outsock;
-                    }
-                    if (self._slpGraphManager.onBlockHash) {
-                        self._slpGraphManager.onBlockHash!(hash!);
-                    }
+                await sync(self, 'block', hash);
+                if (!self._slpGraphManager.zmqPubSocket) {
+                    self._slpGraphManager.zmqPubSocket = self.outsock;
+                }
+                if (self._slpGraphManager.onBlockHash) {
+                    self._slpGraphManager.onBlockHash!(hash!);
                 }
             });
         }

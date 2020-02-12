@@ -34,34 +34,23 @@ export interface GraphTxnInput {
 export interface TokenStatsDbo {
     block_created: number|null;
     approx_txns_since_genesis: number|null;
-    // qty_token_minted: Decimal128;
-    // qty_token_burned: Decimal128|null;
-    // qty_token_circulating_supply: Decimal128|null;
-    // qty_valid_token_utxos: number|null;
-    // qty_valid_token_addresses: number|null;
-    // block_last_active_send: number|null;
-    // block_last_active_mint: number|null;
-    // qty_satoshis_locked_up: number|null;
 }
 
 export interface TokenDBObject {
     schema_version: number;
     tokenDetails: SlpTransactionDetailsDbo;
     tokenStats: TokenStatsDbo;
-    pruningState: TokenPruneStateDbo;
     mintBatonUtxo: string;
     mintBatonStatus: TokenBatonStatus;
     lastUpdatedBlock: number;
     nftParentId?: string;
+    _pruningState: TokenPruneStateDbo;
 }
 
 export interface TokenPruneStateDbo {
     pruneHeight: number;
     sendCount: number;
     mintCount: number;
-    // mintQuantity: Decimal128;
-    // invalidBurnQuantity: Decimal128;
-    // validBurnQuantity: Decimal128;
 }
 
 export interface GraphTxnDbo {
@@ -93,8 +82,8 @@ export interface GraphTxnDetailsDbo {
     details: SlpTransactionDetailsDbo;
     outputs: GraphTxnOutputDbo[];
     inputs: GraphTxnInputDbo[];
-    blockHash: Buffer | null;
-    pruneHeight: number | null;
+    _blockHash: Buffer | null;
+    _blockHeight: number | null;
 }
 
 export interface GraphTxnOutputDbo {
@@ -111,7 +100,7 @@ export interface GraphTxnInputDbo {
     vout: number;
     slpAmount: Decimal128;
     address: string;
-    bchSatoshis: number; // temporarily allow undefined
+    bchSatoshis: number;
 }
 
 export enum TokenUtxoStatus {
@@ -123,7 +112,6 @@ export enum TokenUtxoStatus {
     //"SPENT_INVALID_SLP" = "SPENT_INVALID_SLP",
     "MISSING_BCH_VOUT" = "MISSING_BCH_VOUT",
     "EXCESS_INPUT_BURNED" = "EXCESS_INPUT_BURNED",
-    //"UNKNOWN_UNTIL_BLOCK_SYNC" = "UNKNOWN_UNTIL_BLOCK_SYNC"  // may resolve to anything
 }
 
 export enum BatonUtxoStatus {

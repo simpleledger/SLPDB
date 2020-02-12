@@ -244,7 +244,7 @@ export class SlpGraphManager {
                 if (token.schema_version !== Config.db.token_schema_version) {
                     throw Error("DB schema does not match the current version.");
                 }
-                let lastPrunedHeight = token.pruningState.pruneHeight;
+                let lastPrunedHeight = token._pruningState.pruneHeight;
                 if (lastPrunedHeight > checkpoint.height) {
                     lastPrunedHeight = checkpoint.height;
                 }

@@ -1,6 +1,6 @@
 {
   "name": "slpdb",
-  "version": "1.0.0-rc2",
+  "version": "1.0.0-rc3",
   "description": "A general purpose indexer and validity service for the Simple Ledger Protocol with real-time validation notifications.",
   "main": "index.js",
   "scripts": {

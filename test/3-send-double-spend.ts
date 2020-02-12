@@ -214,7 +214,7 @@ describe("3-Double-Spend-Send", () => {
         }
         assert.equal(g!.graphTxn.txid, txid1);
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(g!.graphTxn.blockHash, null);
+        assert.equal(g!.graphTxn._blockHash, null);
 
         // TODO: Check unspent outputs.
     });
@@ -365,7 +365,7 @@ describe("3-Double-Spend-Send", () => {
         }
         assert.equal(g!.graphTxn.txid, txid2);
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(g!.graphTxn.blockHash!.toString("hex"), lastBlockHash);
+        assert.equal(g!.graphTxn._blockHash!.toString("hex"), lastBlockHash);
 
         // TODO: Check unspent outputs.
     });

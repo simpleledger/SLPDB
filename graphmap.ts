@@ -168,8 +168,8 @@ export class GraphMap extends Map<string, GraphTxn> {
                             slpAmount: Decimal128.fromString(i.slpAmount.dividedBy(10**tg._tokenDetails.decimals).toFixed())
                         }
                     }),
-                    blockHash: g.blockHash,
-                    pruneHeight: g.prevPruneHeight
+                    _blockHash: g.blockHash,
+                    _blockHeight: g.prevPruneHeight
                 }
             };
             itemsToUpdate.push(dbo);
@@ -178,7 +178,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         let itemsToDelete = Array.from(graph._doubleSpent);
         
         // Do the pruning here
-        itemsToUpdate.forEach(dbo => { if (dbo.graphTxn.pruneHeight) graph.prune(dbo.graphTxn.txid, dbo.graphTxn.pruneHeight)});
+        itemsToUpdate.forEach(dbo => { if (dbo.graphTxn._blockHeight) graph.prune(dbo.graphTxn.txid, dbo.graphTxn._blockHeight)});
         graph._flush();
 
         let tokenDbo = GraphMap._mapTokenToDbo(graph);
@@ -212,7 +212,7 @@ export class GraphMap extends Map<string, GraphTxn> {
                 block_created: tg._blockCreated,
                 approx_txns_since_genesis: graph.SendCount,
             },
-            pruningState: {
+            _pruningState: {
                 pruneHeight: graph._lastPruneHeight,
                 sendCount: graph._prunedSendCount,
                 mintCount: graph._prunedMintCount,
@@ -251,8 +251,8 @@ export class GraphMap extends Map<string, GraphTxn> {
             details: SlpTokenGraph.MapDbTokenDetailsFromDbo(dbo.graphTxn.details, decimals),
             outputs: dbo.graphTxn.outputs as any as GraphTxnOutput[],
             inputs: dbo.graphTxn.inputs as any as GraphTxnInput[],
-            blockHash: dbo.graphTxn.blockHash, 
-            prevPruneHeight: dbo.graphTxn.pruneHeight
+            blockHash: dbo.graphTxn._blockHash, 
+            prevPruneHeight: dbo.graphTxn._blockHeight
         }
         return gt;
     }

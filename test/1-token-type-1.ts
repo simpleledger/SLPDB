@@ -168,7 +168,7 @@ describe("1-Token-Type-1", () => {
         }
         assert.equal(g!.graphTxn.txid, tokenId);
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(g!.graphTxn.blockHash, null);
+        assert.equal(g!.graphTxn._blockHash, null);
 
         // TODO: Check unspent outputs.
     });
@@ -198,13 +198,13 @@ describe("1-Token-Type-1", () => {
 
     step("GENESIS: updates graphs collection (after block)", async () => {
         let g: GraphTxnDbo | null = await db.db.collection("graphs").findOne({ "graphTxn.txid": tokenId });
-        while(!g || g!.graphTxn.blockHash === null) {
+        while(!g || g!.graphTxn._blockHash === null) {
             await sleep(50);
             g = await db.db.collection("graphs").findOne({ "graphTxn.txid": tokenId });
         }
         assert.equal(g!.graphTxn.txid, tokenId);
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(g!.graphTxn.blockHash.toString('hex'), lastBlockHash);
+        assert.equal(g!.graphTxn._blockHash.toString('hex'), lastBlockHash);
 
         // TODO: Check unspent outputs.
     });
@@ -247,13 +247,13 @@ describe("1-Token-Type-1", () => {
 
     step("GENESIS: updates graphs collection (after block)", async () => {
         let g: GraphTxnDbo | null = await db.db.collection("graphs").findOne({ "graphTxn.txid": tokenId });
-        while(!g || g!.graphTxn.blockHash === null) {
+        while(!g || g!.graphTxn._blockHash === null) {
             await sleep(50);
             g = await db.db.collection("graphs").findOne({ "graphTxn.txid": tokenId });
         }
         assert.equal(g!.graphTxn.txid, tokenId);
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(g!.graphTxn.blockHash.toString('hex'), lastBlockHash);
+        assert.equal(g!.graphTxn._blockHash.toString('hex'), lastBlockHash);
 
         // TODO: Check unspent outputs.
     });
@@ -331,7 +331,7 @@ describe("1-Token-Type-1", () => {
         }
         assert.equal(g!.graphTxn.txid, sendTxid);
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(g!.graphTxn.blockHash, null);
+        assert.equal(g!.graphTxn._blockHash, null);
 
         // TODO: Check unspent outputs.
 
@@ -420,13 +420,13 @@ describe("1-Token-Type-1", () => {
 
     step("SEND: updates graphs collection (after block)", async () => {
         let g: GraphTxnDbo | null = await db.db.collection("graphs").findOne({ "graphTxn.txid": sendTxid });
-        while(!g || g!.graphTxn.blockHash === null) {
+        while(!g || g!.graphTxn._blockHash === null) {
             await sleep(50);
             g = await db.db.collection("graphs").findOne({ "graphTxn.txid": sendTxid });
         }
         assert.equal(g!.graphTxn.txid, sendTxid);
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(g!.graphTxn.blockHash.toString('hex'), lastBlockHash);
+        assert.equal(g!.graphTxn._blockHash.toString('hex'), lastBlockHash);
 
         // TODO: Check unspent outputs.
 

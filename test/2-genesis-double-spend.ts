@@ -164,7 +164,7 @@ describe("2-Double-Spend-Genesis", () => {
         }
         assert.equal(g!.graphTxn.txid, tokenId1);
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId1);
-        assert.equal(g!.graphTxn.blockHash, null);
+        assert.equal(g!.graphTxn._blockHash, null);
 
         // TODO: Check unspent outputs.
     });
@@ -301,7 +301,7 @@ describe("2-Double-Spend-Genesis", () => {
         }
         assert.equal(g!.graphTxn.txid, tokenId2);
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId2);
-        assert.equal(g!.graphTxn.blockHash!.toString("hex"), lastBlockHash);
+        assert.equal(g!.graphTxn._blockHash!.toString("hex"), lastBlockHash);
 
         // TODO: Check unspent outputs.
     });

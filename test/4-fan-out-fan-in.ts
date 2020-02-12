@@ -339,7 +339,7 @@ describe("4-Fan-out-Fan-in", () => {
         }
         assert.equal(g!.graphTxn.txid, fiTxid);
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(g!.graphTxn.blockHash, null);
+        assert.equal(g!.graphTxn._blockHash, null);
 
         // TODO: Check unspent outputs.
 
@@ -418,13 +418,13 @@ describe("4-Fan-out-Fan-in", () => {
 
     step("FOFI-1: Check that fan-in transaction is in graphs (after block)", async () => {
         let g: GraphTxnDbo | null = await db.db.collection("graphs").findOne({ "graphTxn.txid": fiTxid });
-        while(!g || g!.graphTxn.blockHash === null) {
+        while(!g || g!.graphTxn._blockHash === null) {
             await sleep(50);
             g = await db.db.collection("graphs").findOne({ "graphTxn.txid": fiTxid });
         }
         assert.equal(g!.graphTxn.txid, fiTxid);
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(g!.graphTxn.blockHash.toString('hex'), lastBlockHash);
+        assert.equal(g!.graphTxn._blockHash.toString('hex'), lastBlockHash);
 
         // TODO: Check unspent outputs.
 
