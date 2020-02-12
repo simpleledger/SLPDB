@@ -237,6 +237,7 @@ export class SlpGraphManager {
 
     async initAllTokenGraphs() {
         let tokens = await this.db.tokenFetchAll();
+        let checkpoint = await Info.getBlockCheckpoint();
         if (tokens) {
             let count = 0;
             for (let token of tokens) {
@@ -244,6 +245,9 @@ export class SlpGraphManager {
                     throw Error("DB schema does not match the current version.");
                 }
                 let lastPrunedHeight = token.pruningState.pruneHeight;
+                if (lastPrunedHeight > checkpoint.height) {
+                    lastPrunedHeight = checkpoint.height;
+                }
                 await this.loadTokenFromDb(token, lastPrunedHeight);
                 console.log(`[INFO] ${++count} tokens loaded from db.`)
             }
