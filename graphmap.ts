@@ -169,7 +169,7 @@ export class GraphMap extends Map<string, GraphTxn> {
                         }
                     }),
                     _blockHash: g.blockHash,
-                    _blockHeight: g.prevPruneHeight
+                    _pruneHeight: g.prevPruneHeight
                 }
             };
             itemsToUpdate.push(dbo);
@@ -178,7 +178,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         let itemsToDelete = Array.from(graph._doubleSpent);
         
         // Do the pruning here
-        itemsToUpdate.forEach(dbo => { if (dbo.graphTxn._blockHeight) graph.prune(dbo.graphTxn.txid, dbo.graphTxn._blockHeight)});
+        itemsToUpdate.forEach(dbo => { if (dbo.graphTxn._pruneHeight) graph.prune(dbo.graphTxn.txid, dbo.graphTxn._pruneHeight)});
         graph._flush();
 
         let tokenDbo = GraphMap._mapTokenToDbo(graph);
@@ -252,7 +252,7 @@ export class GraphMap extends Map<string, GraphTxn> {
             outputs: dbo.graphTxn.outputs as any as GraphTxnOutput[],
             inputs: dbo.graphTxn.inputs as any as GraphTxnInput[],
             blockHash: dbo.graphTxn._blockHash, 
-            prevPruneHeight: dbo.graphTxn._blockHeight
+            prevPruneHeight: dbo.graphTxn._pruneHeight
         }
         return gt;
     }

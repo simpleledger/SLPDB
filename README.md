@@ -309,6 +309,9 @@ Four MongoDB collections used to store these three categories of data, they are 
             txid: string;
             details: SlpTransactionDetailsDbo;
             outputs: GraphTxnOutputDbo[];
+            inputs: GraphTxnInputDbo[];
+            _blockHash: Buffer | null;
+            _pruneHeight: number | null;
         };
     }
 	```

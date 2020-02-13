@@ -83,7 +83,7 @@ export interface GraphTxnDetailsDbo {
     outputs: GraphTxnOutputDbo[];
     inputs: GraphTxnInputDbo[];
     _blockHash: Buffer | null;
-    _blockHeight: number | null;
+    _pruneHeight: number | null;
 }
 
 export interface GraphTxnOutputDbo {
