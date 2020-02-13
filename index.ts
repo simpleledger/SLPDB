@@ -53,9 +53,10 @@ const daemon = {
 
         // set start height override
         if (startHeight) {
+            console.log("[WARN] Using the '--startHeight' option may result in missing data if the token schema is changed. Only use it on a one-off basis, if you know what you're doing.");
             await Info.updateBlockCheckpoint(startHeight, null);
         }
-        
+
         await SlpdbStatus.saveStatus();
 
         // check for confirmed collection schema update
