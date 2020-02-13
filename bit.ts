@@ -1,5 +1,5 @@
 import { Info, ChainSyncCheckpoint } from './info';
-import { TNA, TNATxn } from './tna';
+import { TNA, TNATxn, Sender } from './tna';
 import { Config } from './config';
 import { Db } from './db';
 
@@ -642,7 +642,7 @@ export class Bit {
                                 await graph!.addGraphTransaction({ txid, processUpToBlock: index, blockHash });
                             }
                             for (let input of v.tnaTxn.in) {
-                                globalUtxoSet.delete(`${txid}:${input.i}`);
+                                globalUtxoSet.delete(`${(input.e as Sender).h}:${(input.e as Sender).i}`);
                             }
                         }
                     }

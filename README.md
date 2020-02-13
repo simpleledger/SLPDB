@@ -1,9 +1,9 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2020-02-12
+**Last Updated:** 2020-02-13
 
-**Current SLPDB Version:** 1.0.0-rc3
+**Current SLPDB Version:** 1.0.0-rc4
 
 * 1. [What is SLPDB?](#WhatisSLPDB)
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)

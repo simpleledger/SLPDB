@@ -27,7 +27,6 @@ export class RpcClient {
         }
     }
 
-
     static loadTxnIntoCache(txid: string, txnBuf: Buffer) {
         RpcClient.transactionCache.set(txid, txnBuf);
     }
