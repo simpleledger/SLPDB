@@ -199,29 +199,10 @@ export class Db {
                 throw err;
             }
             console.log('[INFO] Updating block', blockIndex, 'with', items.length, 'items');
-        } else {
-            for(let i=0; i < items.length; i++) {
-                await this.db.collection('confirmed').deleteMany({ "tx.h": items[i].tx.h });
-            }
         }
-
-        let index = 0
-        while (true) {
-            let chunk = items.slice(index, index+1000);
-            if (chunk.length > 0) {
-                try {
-                    await this.db.collection('confirmed').insertMany(chunk, { ordered: false });
-                } catch(err) {
-                    // duplicates are ok because they will be ignored
-                    if (err.code !== 11000) {
-                        console.log('[ERROR] confirmedReplace ERR ', err, items);
-                        throw err;
-                    }
-                }
-                index+=1000
-            } else {
-                break
-            }
+        
+        for (let i=0; i < items.length; i++) {
+            await this.db.collection('confirmed').replaceOne({ "tx.h": items[i].tx.h }, items[i], { upsert: true });
         }
     }
 

@@ -102,6 +102,12 @@ describe("5-Reorg-Removes-Data", () => {
         try {
             await rpcNode1_miner.addNode("bitcoin1", "onetry");
         } catch(err) { }
+        let peerInfo: any[] = await rpcNode1_miner.getPeerInfo();
+        while (peerInfo.length < 1) {
+            await sleep(100);
+            peerInfo = await rpcNode1_miner.getPeerInfo();
+        }
+        assert.equal(peerInfo.length, 1);
 
         // make sure we have coins to use in tests
         let balance = await rpcNode1_miner.getBalance();
@@ -142,11 +148,18 @@ describe("5-Reorg-Removes-Data", () => {
         tokenId = await rpcNode1_miner.sendRawTransaction(genesisTxnHex, true);
 
         while (slpdbTxnNotifications.filter(t => t.tx.h === tokenId).length === 0) {
+            await sleep(100);
+        }
+
+        // give time for txn to propogate
+        let mempool = await rpcNode2_miner.getRawMemPool();
+        while (mempool.length === 0) {
             await sleep(50);
+            mempool = await rpcNode2_miner.getRawMemPool();
         }
 
         // disconnect nodes
-        let peerInfo: any[] = await rpcNode1_miner.getPeerInfo();
+        peerInfo = await rpcNode1_miner.getPeerInfo();
         await rpcNode1_miner.disconnectNode("bitcoin1");
         while(peerInfo.length > 0) {
             await sleep(100);
@@ -161,7 +174,8 @@ describe("5-Reorg-Removes-Data", () => {
         slpdbBlockNotifications = [];
 
         lastBlockHash = (await rpcNode1_miner.generate(1))[0];
-        await rpcNode2_miner.generate(1);
+        let newBlockHash = (await rpcNode2_miner.generate(1))[0];
+        console.log(`[INFO] New block hash to reorg: ${newBlockHash}`);
         intendedBlockCount++;
         lastBlockIndex = (await rpcNode1_miner.getBlock(lastBlockHash, true)).height;
         while (slpdbBlockNotifications.filter(b => b.hash === lastBlockHash).length === 0) {
@@ -206,6 +220,7 @@ describe("5-Reorg-Removes-Data", () => {
     step("BR-1: Invalidate initial block and generate block to cause SLPDB reorg detection", async () => {
         await sleep(100);
         try {
+            console.log(`Invalidating: ${lastBlockHash} for height ${intendedBlockCount}`);
             await rpcNode1_miner.invalidateBlock(lastBlockHash);
             //await rpcNode2_miner.invalidateBlock(lastBlockHash);
         } catch (_) { }

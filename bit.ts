@@ -278,7 +278,7 @@ export class Bit {
         let blockContent = await RpcClient.getBlockInfo({ index: blockIndex });
         const blockHash = blockContent.hash;
         const blockTime = blockContent.time;
-        
+
         console.log('[INFO] Crawling block', blockIndex, 'hash:', blockHash);
         const blockHex = <string>await RpcClient.getRawBlock(blockContent.hash);
         const block = Block.fromReader(new BufferReader(Buffer.from(blockHex, 'hex')));
@@ -286,6 +286,7 @@ export class Bit {
         console.time(`Toposort-${blockIndex}`);
         const blockTxCache = new Map<string, { deserialized: bitcore.Transaction, serialized: Buffer}>();
         const spentOutpoints: [string,Uint8Array][] = [];
+        console.log(`[DEBUG] Block ${blockContent.hash} has ${block.txs.length} txns`);
         block.txs.forEach((t: any, i: number) => {
             const serialized: Buffer = t.toRaw();
             const hash = t.hash().reverse();
@@ -581,7 +582,6 @@ export class Bit {
                 if (zmqHeight < startHeight) {
                     // NOTE: This can happen if the below for loop processes blocks before zmq block notifications
                     console.log(`[WARN] zmqHeight (${zmqHeight}) is not greater than last checkpoint height (${startHeight}).`);
-                    await Info.updateBlockCheckpoint(zmqHeight-1, null);
                 }
                 startHeight = zmqHeight
             }
@@ -766,33 +766,30 @@ export class Bit {
             }
         }
 
-        // Next, we should ensure our previous block hash stored in leveldb 
-        // matches the current tip's previous hash, otherwise we need to rollback again
-        let blockInfo: BlockHeaderResult = await RpcClient.getBlockInfo({ hash: actualHash });
-        let prevBlockHash = blockInfo.previousblockhash;
-        let prevBlockHeight = blockInfo.height - 1;
+        if (hadReorg) {
+            console.log("[INFO] SLPDB checkpoint was rolled back because SLPDB checkpoint is ahead of the chain tip.");
+        } else {
+            console.log("[INFO] SLPDB checkpoint is as least as long as the chain height.")
+        }
 
-        console.log(`[INFO] Checking previous actual block hash: ${prevBlockHash} for ${prevBlockHeight}`);
-        let storedPrevCheckpointHash = await Info.getCheckpointHash(prevBlockHeight);
-        console.log(`[INFO] Previously stored hash: ${storedPrevCheckpointHash} at ${prevBlockHeight}`);
-        if(storedPrevCheckpointHash) {
+        // Make sure the current tip hash matches chain best hash, otherwise we need to rollback again
+        let storedCheckpointHash = await Info.getCheckpointHash(lastCheckpoint.height);
+        console.log(`[INFO] Stored hash: ${storedCheckpointHash} at ${lastCheckpoint.height}`);
+        if(storedCheckpointHash) {
             maxRollback = 100;
             rollbackCount = 0;
-            while (storedPrevCheckpointHash !== prevBlockHash && prevBlockHeight > from) {
+            while (storedCheckpointHash !== actualHash && lastCheckpoint.height > from) {
+                lastCheckpoint.height--;
                 rollbackCount++;
                 hadReorg = true;
-                let blockInfo = <BlockHeaderResult>await RpcClient.getBlockInfo({ hash: prevBlockHash });
-                prevBlockHash = blockInfo.previousblockhash;
-                prevBlockHeight = blockInfo.height - 1;
-                storedPrevCheckpointHash = await Info.getCheckpointHash(prevBlockHeight);
-                console.log(`[WARN] Rolling back to stored previous height ${prevBlockHeight}`);
-                console.log(`[WARN] Rollback - actual previous hash ${prevBlockHash}`);
-                console.log(`[WARN] Rollback - stored previous hash ${storedPrevCheckpointHash}`);
+                actualHash = (await RpcClient.getBlockHash(lastCheckpoint.height)) as string;
+                storedCheckpointHash = await Info.getCheckpointHash(lastCheckpoint.height);
+                console.log(`[WARN] Rolling back to stored previous height ${lastCheckpoint.height}`);
+                console.log(`[WARN] Rollback - actual hash ${actualHash}`);
+                console.log(`[WARN] Rollback - stored hash ${storedCheckpointHash}`);
                 if(maxRollback > 0 && rollbackCount > maxRollback) {
                     throw Error("A large rollback occurred when rolling back due to prev hash mismatch, this should not happen, shutting down");
                 }
-                actualHash = prevBlockHash;
-                lastCheckpoint.height = prevBlockHeight;
             }
             if(rollbackCount > 0 && lastCheckpoint.height > from) {
                 console.log(`[WARN] Current checkpoint at ${actualHash} ${lastCheckpoint.height}`);
