@@ -8,7 +8,7 @@ import { step } from 'mocha-steps';
 import { Config } from "../config";
 import { Db } from '../db';
 import { TNATxn, TNATxnSlpDetails } from "../tna";
-import { TokenBatonStatus } from "../interfaces";
+import { TokenBatonStatus, TokenUtxoStatus, BatonUtxoStatus } from "../interfaces";
 import { GraphTxnDbo, TokenDBObject } from "../interfaces";
 
 const bitbox = new BITBOX();
@@ -208,7 +208,7 @@ describe("3-Double-Spend-Send", () => {
 
     step("DS-S: Check SLPDB has pre-double spent transaction in graphs", async () => {
         let g: GraphTxnDbo | null = await db.db.collection("graphs").findOne({ "graphTxn.txid": txid1 });
-        while(!g || !g.graphTxn) {
+        while (!g || !g.graphTxn) {
             await sleep(50);
             g = await db.db.collection("graphs").findOne({ "graphTxn.txid": txid1 });
         }
@@ -216,7 +216,15 @@ describe("3-Double-Spend-Send", () => {
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(g!.graphTxn._blockHash, null);
 
-        // TODO: Check unspent outputs.
+        // Check unspent outputs.
+        assert.equal(g!.graphTxn.outputs[0].status, TokenUtxoStatus.UNSPENT);
+
+        // Check genesis outputs updated
+        let genesis: GraphTxnDbo | null = await db.db.collection("graphs").findOne({"graphTxn.txid": tokenId});
+        assert.equal(genesis!.graphTxn.outputs[0].status, TokenUtxoStatus.SPENT_SAME_TOKEN);
+        assert.equal(genesis!.graphTxn.outputs[0].spendTxid, txid1);
+        assert.equal(genesis!.graphTxn.outputs[0].invalidReason, null);
+        assert.equal(genesis!.graphTxn.outputs[1].status, BatonUtxoStatus.BATON_UNSPENT);
     });
 
     step("DS-S: Check SLPDB has pre-double spent transaction in tokens", async () => {
@@ -320,9 +328,9 @@ describe("3-Double-Spend-Send", () => {
         assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![0].amount!, (TOKEN_GENESIS_QTY-1).toFixed());  // this type is not consistent with txn notification
         // @ts-ignore
         assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![1].amount!, (1).toFixed());  // this type is not consistent with txn notification
-        // TODO: There is not block hash with block zmq notification!
-        // assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
-        // assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
+        // Check block hash with block zmq notification
+        assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
+        assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
     });
 
     step("DS-S: store double spend txid2 in confirmed", async () => {
@@ -367,7 +375,15 @@ describe("3-Double-Spend-Send", () => {
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(g!.graphTxn._blockHash!.toString("hex"), lastBlockHash);
 
-        // TODO: Check unspent outputs.
+        // Check unspent outputs.
+        assert.equal(g!.graphTxn.outputs[0].status, TokenUtxoStatus.UNSPENT);
+
+        // Check genesis outputs updated
+        let genesis: GraphTxnDbo | null = await db.db.collection("graphs").findOne({"graphTxn.txid": tokenId});
+        assert.equal(genesis!.graphTxn.outputs[0].status, TokenUtxoStatus.SPENT_SAME_TOKEN);
+        assert.equal(genesis!.graphTxn.outputs[0].spendTxid, txid2);
+        assert.equal(genesis!.graphTxn.outputs[0].invalidReason, null);
+        assert.equal(genesis!.graphTxn.outputs[1].status, BatonUtxoStatus.BATON_UNSPENT);
     });
 
     step("DS-S: Verify txid1 is deleted from confirmed/unconfirmed/graphs", async () => {

@@ -8,7 +8,7 @@ import { step } from 'mocha-steps';
 import { Config } from "../config";
 import { Db } from '../db';
 import { TNATxn, TNATxnSlpDetails } from "../tna";
-import { TokenBatonStatus } from "../interfaces";
+import { TokenBatonStatus, TokenUtxoStatus, BatonUtxoStatus } from "../interfaces";
 import { GraphTxnDbo, TokenDBObject } from "../interfaces";
 
 const bitbox = new BITBOX();
@@ -166,7 +166,9 @@ describe("2-Double-Spend-Genesis", () => {
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId1);
         assert.equal(g!.graphTxn._blockHash, null);
 
-        // TODO: Check unspent outputs.
+        // Check unspent outputs.
+        assert.equal(g!.graphTxn.outputs[0].status, TokenUtxoStatus.UNSPENT);
+        assert.equal(g!.graphTxn.outputs[1].status, BatonUtxoStatus.BATON_UNSPENT);
     });
 
     step("DS-G: Check SLPDB has pre-double spent transaction in tokens", async () => {
@@ -253,9 +255,10 @@ describe("2-Double-Spend-Genesis", () => {
         assert.equal(slpdbBlockNotifications[0].txns[0]!.slp.detail!.symbol, "ut2b");
         // @ts-ignore
         assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![0].amount!, TOKEN_GENESIS_QTY.toFixed());  // this type is not consistent with txn notification
-        // TODO: There is not block hash with block zmq notification!
-        // assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
-        // assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
+        
+        // Check block hash with block zmq notification
+        assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
+        assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
     });
 
     step("DS-G: store double spend token2 in confirmed", async () => {
@@ -303,7 +306,9 @@ describe("2-Double-Spend-Genesis", () => {
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId2);
         assert.equal(g!.graphTxn._blockHash!.toString("hex"), lastBlockHash);
 
-        // TODO: Check unspent outputs.
+        // Check unspent outputs.
+        assert.equal(g!.graphTxn.outputs[0].status, TokenUtxoStatus.UNSPENT);
+        assert.equal(g!.graphTxn.outputs[1].status, BatonUtxoStatus.BATON_UNSPENT);
     });
 
     step("DS-S: Verify txid1 is deleted from confirmed/unconfirmed/graphs", async () => {

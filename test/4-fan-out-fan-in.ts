@@ -428,10 +428,10 @@ describe("4-Fan-out-Fan-in", () => {
 
         // TODO: Check unspent outputs.
 
+
         // TODO: Check... for genesis
-        // "spendTxid": "7a19684d7eca289ff34faae06a3de7117852e445adb9bf147a5cbd3e420c5f05",
-        // "status": "SPENT_SAME_TOKEN",
-        // "invalidReason": null
+        
+        
     });
 
     step("Clean up", async () => {

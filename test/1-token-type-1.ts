@@ -8,7 +8,7 @@ import { step } from 'mocha-steps';
 import { Config } from "../config";
 import { Db } from '../db';
 import { TNATxn, TNATxnSlpDetails } from "../tna";
-import { TokenBatonStatus } from "../interfaces";
+import { TokenBatonStatus, TokenUtxoStatus, BatonUtxoStatus } from "../interfaces";
 import { GraphTxnDbo, TokenDBObject } from "../interfaces";
 
 const bitbox = new BITBOX();
@@ -255,7 +255,9 @@ describe("1-Token-Type-1", () => {
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(g!.graphTxn._blockHash.toString('hex'), lastBlockHash);
 
-        // TODO: Check unspent outputs.
+        // Check unspent outputs.
+        assert.equal(g!.graphTxn.outputs[0].status, TokenUtxoStatus.UNSPENT);
+        assert.equal(g!.graphTxn.outputs[1].status, BatonUtxoStatus.BATON_UNSPENT);
     });
 
     step("SEND: setup for the txn tests", async () => {
@@ -333,12 +335,15 @@ describe("1-Token-Type-1", () => {
         assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(g!.graphTxn._blockHash, null);
 
-        // TODO: Check unspent outputs.
+        // Check unspent outputs.
+        assert.equal(g!.graphTxn.outputs[0].status, TokenUtxoStatus.UNSPENT);
 
-        // TODO: Check... for genesis
-        // "spendTxid": "7a19684d7eca289ff34faae06a3de7117852e445adb9bf147a5cbd3e420c5f05",
-        // "status": "SPENT_SAME_TOKEN",
-        // "invalidReason": null
+        // Check. for genesis
+        let genesis: GraphTxnDbo | null = await db.db.collection("graphs").findOne({"graphTxn.txid": tokenId});
+        assert.equal(genesis!.graphTxn.outputs[0].status, TokenUtxoStatus.SPENT_SAME_TOKEN);
+        assert.equal(genesis!.graphTxn.outputs[0].spendTxid, sendTxid);
+        assert.equal(genesis!.graphTxn.outputs[0].invalidReason, null);
+        assert.equal(genesis!.graphTxn.outputs[1].status, BatonUtxoStatus.BATON_UNSPENT);
     });
 
     step("SEND: stores in tokens collection (before block)", async () => {
@@ -346,12 +351,8 @@ describe("1-Token-Type-1", () => {
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(t!.mintBatonUtxo, tokenId + ":2");  // TODO
         assert.equal(t!.tokenStats!.block_created! > 0, true);
-        // assert.equal(t!.tokenStats!.block_last_active_mint, null);  // TODO
-        // assert.equal(t!.tokenStats!.block_last_active_send, null);  // TODO
-        // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0"); // TODO
-        // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());  // TODO
-        // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());  // TODO
-        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE); // TODO
+        assert.equal(t!.tokenStats!.approx_txns_since_genesis!, 1);
+        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("SEND: produces ZMQ output at block", async () => {

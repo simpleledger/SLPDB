@@ -581,7 +581,7 @@ export class Bit {
                 if (zmqHeight < startHeight) {
                     // NOTE: This can happen if the below for loop processes blocks before zmq block notifications
                     console.log(`[WARN] zmqHeight (${zmqHeight}) is not greater than last checkpoint height (${startHeight}).`);
-                    return null;
+                    await Info.updateBlockCheckpoint(zmqHeight-1, null);
                 }
                 startHeight = zmqHeight
             }

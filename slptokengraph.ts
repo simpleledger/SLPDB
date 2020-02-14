@@ -207,13 +207,13 @@ export class SlpTokenGraph {
         let spendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
         if (this._startupTxoSendCache) {
             spendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
-            if(spendTxnInfo) {
+            if (spendTxnInfo) {
                 console.log("[INFO] Used _startupTxoSendCache data", txid, vout);
             }
         }
         if (!spendTxnInfo) {
             spendTxnInfo = this._manager._bit._spentTxoCache.get(txid + ":" + vout); //this._liveTxoSpendCache.get(txid + ":" + vout);
-            if(spendTxnInfo) {
+            if (spendTxnInfo) {
                 console.log("[INFO] Used bit._spentTxoCache data", txid, vout);
             }
         }
@@ -324,7 +324,7 @@ export class SlpTokenGraph {
     public async addGraphTransaction({ txid, processUpToBlock, blockHash }: { txid: string; processUpToBlock?: number; blockHash?: Buffer; }): Promise<boolean|null> {
         if (this._graphTxns.has(txid)) {
             let gt = this._graphTxns.get(txid)!;
-            if (!gt.blockHash && blockHash) {
+            if (blockHash) {
                 gt.blockHash = blockHash;
                 this._graphTxns.SetDirty(txid);
             }

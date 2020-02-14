@@ -9,7 +9,7 @@ import { Config } from "../config";
 import { Db } from '../db';
 import { TNATxn, TNATxnSlpDetails } from "../tna";
 import { CacheMap } from "../cache";
-import { TokenDBObject, TokenBatonStatus } from "../interfaces";
+import { TokenDBObject, TokenBatonStatus, GraphTxnDbo } from "../interfaces";
 
 const bitbox = new BITBOX();
 const slp = new Slp(bitbox);
@@ -84,6 +84,8 @@ let inputTxnCount: number;
 let startingBlockCount: number;
 let intendedBlockCount: number;
 
+let originalBlockHashHex: string;
+
 describe("5-Reorg-Removes-Data", () => {
 
     step("BR-1: Initial setup for all tests", async () => {
@@ -138,6 +140,19 @@ describe("5-Reorg-Removes-Data", () => {
                                                         receiverSlptest, txnInputs
                                                         );
         tokenId = await rpcNode1_miner.sendRawTransaction(genesisTxnHex, true);
+
+        while (slpdbTxnNotifications.filter(t => t.tx.h === tokenId).length === 0) {
+            await sleep(50);
+        }
+
+        // disconnect nodes
+        let peerInfo: any[] = await rpcNode1_miner.getPeerInfo();
+        await rpcNode1_miner.disconnectNode("bitcoin1");
+        while(peerInfo.length > 0) {
+            await sleep(100);
+            peerInfo = await rpcNode1_miner.getPeerInfo();
+        }
+        assert.equal(peerInfo.length === 0, true);
     });
 
     step("BR-1: produces ZMQ output at block", async () => {
@@ -146,6 +161,7 @@ describe("5-Reorg-Removes-Data", () => {
         slpdbBlockNotifications = [];
 
         lastBlockHash = (await rpcNode1_miner.generate(1))[0];
+        await rpcNode2_miner.generate(1);
         intendedBlockCount++;
         lastBlockIndex = (await rpcNode1_miner.getBlock(lastBlockHash, true)).height;
         while (slpdbBlockNotifications.filter(b => b.hash === lastBlockHash).length === 0) {
@@ -159,9 +175,12 @@ describe("5-Reorg-Removes-Data", () => {
         assert.equal(notification.txns[0]!.slp.detail!.symbol, "ut5");
         // @ts-ignore
         assert.equal(notification.txns[0]!.slp!.detail!.outputs![0].amount!, TOKEN_GENESIS_QTY.toFixed());  // this type is not consistent with txn notification
-        // TODO: There is not block hash with block zmq notification!
-        // assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
-        // assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
+        
+        // Check block hash with block zmq notification
+        assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
+        assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
+        originalBlockHashHex = slpdbBlockNotifications[0]!.hash;
+        assert.equal(lastBlockHash, originalBlockHashHex);
     });
 
     step("BR-1: Make sure the token exists in the tokens collection (after block)", async () => {
@@ -188,53 +207,41 @@ describe("5-Reorg-Removes-Data", () => {
         await sleep(100);
         try {
             await rpcNode1_miner.invalidateBlock(lastBlockHash);
-            await rpcNode2_miner.invalidateBlock(lastBlockHash);
-        } catch (_) { } finally {
-            intendedBlockCount--;
-        }
+            //await rpcNode2_miner.invalidateBlock(lastBlockHash);
+        } catch (_) { }
 
-        // add one block that we'll keep
-        await rpcNode1_miner.generate(1);
-        intendedBlockCount++;
-
-        // add some blocks that we'll invalidate (so don't add to intendedBlockCount).
-        let hashes = await rpcNode1_miner.generate(10);
-        await sleep(100);
+        // reconnect nodes
         try {
-            await rpcNode1_miner.invalidateBlock(hashes[0]);
-            await rpcNode2_miner.invalidateBlock(hashes[0]);
-        } catch(_) { }
+            await rpcNode1_miner.addNode("bitcoin1", "onetry");
+        } catch(err) { }
+        let peerInfo: any[] = await rpcNode1_miner.getPeerInfo();
+        while (peerInfo.length < 1) {
+            await sleep(100);
+            peerInfo = await rpcNode1_miner.getPeerInfo();
+        }
+        assert.equal(peerInfo.length, 1);
 
-        await rpcNode1_miner.generate(1);
-        intendedBlockCount++;
-
-        assert.equal((await rpcNode1_miner.getBlockCount()), intendedBlockCount);
+        let blockCount = await rpcNode1_miner.getBlockCount();
+        while (blockCount !== intendedBlockCount) {
+            await sleep(50);
+            blockCount = await rpcNode1_miner.getBlockCount();
+        }
+        assert.equal(blockCount, intendedBlockCount);
     });
 
-    // SHOULD THIS TEST BE DELETED?
-    // step("BR-1: Make sure the token genesis txn in the reorg has been removed everywhere", async () => {
-    //     //let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-    //     let x: UtxoDbo[] = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-    //     let a: AddressBalancesDbo[] = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-    //     let g: GraphTxnDbo | null = await db.db.collection("graphs").findOne({ "graphTxn.txid": tokenId });
-    //     let txn_u = await db.unconfirmedFetch(tokenId);
-    //     let txn_c = await db.confirmedFetch(tokenId);
-    //     while(x.length !== 0 || a.length !== 0 || g || txn_u || txn_c) {
-    //         await sleep(50);
-    //         //t = await db.tokenFetch(txid1);
-    //         x = await db.db.collection("utxos").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-    //         a = await db.db.collection("addresses").find({ "tokenDetails.tokenIdHex": tokenId }).toArray();
-    //         g = await db.db.collection("graphs").findOne({ "graphTxn.txid": tokenId });
-    //         txn_u = await db.unconfirmedFetch(tokenId);
-    //         txn_c = await db.confirmedFetch(tokenId);
-    //     }
-    //     //assert.equal(t, null);
-    //     assert.equal(x.length === 0, true);
-    //     assert.equal(a.length === 0, true);
-    //     assert.equal(g, null);
-    //     assert.equal(txn_c, null);
-    //     assert.equal(txn_u, null);
-    // });
+    step("BR-1: Check updated graph txn block hash", async () => {
+        let g = await db.graphTxnFetch(tokenId);
+        let c = await db.confirmedFetch(tokenId);
+        while (!g || g.graphTxn._blockHash?.toString("hex") === originalBlockHashHex || !c || c.blk?.h === originalBlockHashHex) {
+            await sleep(50);
+            //t = await db.tokenFetch(txid1);
+            g = await db.graphTxnFetch(tokenId);
+            c = await db.confirmedFetch(tokenId);
+        }
+
+        assert.notEqual(g.graphTxn._blockHash?.toString("hex"), originalBlockHashHex);
+        assert.notEqual(c.blk?.h, originalBlockHashHex);
+    });
 
     step("Clean up", async () => {
         // generate block to clear the mempool (may be dirty from previous tests)
