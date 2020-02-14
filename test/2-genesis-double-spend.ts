@@ -254,7 +254,7 @@ describe("2-Double-Spend-Genesis", () => {
         assert.equal(slpdbBlockNotifications[0].txns[0]!.slp.detail!.name, "unit-test-2b");
         assert.equal(slpdbBlockNotifications[0].txns[0]!.slp.detail!.symbol, "ut2b");
         // @ts-ignore
-        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![0].amount!, TOKEN_GENESIS_QTY.toFixed());  // this type is not consistent with txn notification
+        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![0].amount!, TOKEN_GENESIS_QTY.toFixed());
         
         // Check block hash with block zmq notification
         assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");

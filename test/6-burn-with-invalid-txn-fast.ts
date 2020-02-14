@@ -69,15 +69,8 @@ let genesisBlockIndex: number;
 describe("6-Burn-with-invalid-txn", () => {
 
     step("Initial setup for all tests", async () => {
-        // TODO: burn any existing wallet funds, in order to prevent "Transaction too large".
-
         // generate block to clear the mempool (may be dirty from previous tests)
         await rpcNode1_miner.generate(1);
-
-        // (optional) connect miner node to a full node that is connected to slpdb
-        // try {
-        //     await rpcNode1_miner.addNode("bitcoin2", "onetry");
-        // } catch(err) { }
         
         // make sure we have coins to use in tests
         let balance = await rpcNode1_miner.getBalance();
@@ -210,7 +203,7 @@ describe("6-Burn-with-invalid-txn", () => {
     step("SEND: stores in confirmed collection (after block)", async () => {
         lastBlockHash = (await rpcNode1_miner.generate(1))[0];
         let txn = await db.confirmedFetch(sendTxid);
-        while(!txn) {
+        while (!txn) {
             await sleep(50);
             txn = await db.confirmedFetch(sendTxid);
         }
@@ -235,11 +228,7 @@ describe("6-Burn-with-invalid-txn", () => {
 
     step("BURN: check that tokens collection records correct circulating supply", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-        while(!t ||
-              t!.tokenStats!.block_created === null ||
-              //t!.tokenStats!.qty_token_circulating_supply.toString() !== "0" ||
-              t!.mintBatonUtxo !== ""
-        ) {
+        while (!t || t!.tokenStats!.block_created === null || t!.mintBatonUtxo !== "") {
             await sleep(50);
             t = await db.tokenFetch(tokenId);
         }
@@ -248,15 +237,7 @@ describe("6-Burn-with-invalid-txn", () => {
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(t!.mintBatonUtxo, "");
         assert.equal(t!.tokenStats!.block_created!, genesisBlockIndex);
-        // assert.equal(t!.tokenStats!.block_last_active_mint, null);
-        // assert.equal(t!.tokenStats!.block_last_active_send, lastBlockIndex-1);
-        // assert.equal(t!.tokenStats!.qty_token_burned.toString() === "100", true);
-        // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), "0");
-        // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
         assert.equal(t!.mintBatonStatus, TokenBatonStatus.DEAD_BURNED);
-        // assert.equal(t!.tokenStats!.qty_valid_token_utxos, 0);
-        // assert.equal(t!.tokenStats!.qty_satoshis_locked_up, 0);
-        // assert.equal(t!.tokenStats!.qty_valid_token_addresses, 0);
     });
 
     step("Cleanup after tests", async () => {

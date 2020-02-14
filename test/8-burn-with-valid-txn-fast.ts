@@ -70,15 +70,8 @@ let genesisBlockIndex: number;
 describe("8-Burn-with-valid-txn-fast", () => {
 
     step("Initial setup for all tests", async () => {
-        // TODO: burn any existing wallet funds, in order to prevent "Transaction too large".
-
         // generate block to clear the mempool (may be dirty from previous tests)
         await rpcNode1_miner.generate(1);
-
-        // (optional) connect miner node to a full node that is connected to slpdb
-        // try {
-        //     await rpcNode1_miner.addNode("bitcoin2", "onetry");
-        // } catch(err) { }
         
         // make sure we have coins to use in tests
         let balance = await rpcNode1_miner.getBalance();

@@ -232,11 +232,6 @@ describe("3-Double-Spend-Send", () => {
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(t!.mintBatonUtxo, tokenId + ":2");
         assert.equal(t!.tokenStats!.block_created, lastBlockIndex);
-        // assert.equal(t!.tokenStats!.block_last_active_mint, null);
-        // assert.equal(t!.tokenStats!.block_last_active_send, null);
-        // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
-        // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
-        // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
         assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
@@ -306,11 +301,6 @@ describe("3-Double-Spend-Send", () => {
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(t!.mintBatonUtxo, tokenId + ":2");
         assert.equal(t!.tokenStats!.block_created, lastBlockIndex-1);
-        // assert.equal(t!.tokenStats!.block_last_active_mint, null);
-        // assert.equal(t!.tokenStats!.block_last_active_send, lastBlockIndex);
-        // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
-        // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
-        // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
         assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
@@ -325,9 +315,9 @@ describe("3-Double-Spend-Send", () => {
         assert.equal(slpdbBlockNotifications[0].txns[0]!.slp.detail!.name, "unit-test-3");
         assert.equal(slpdbBlockNotifications[0].txns[0]!.slp.detail!.symbol, "ut3");
         // @ts-ignore
-        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![0].amount!, (TOKEN_GENESIS_QTY-1).toFixed());  // this type is not consistent with txn notification
+        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![0].amount!, (TOKEN_GENESIS_QTY-1).toFixed());
         // @ts-ignore
-        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![1].amount!, (1).toFixed());  // this type is not consistent with txn notification
+        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![1].amount!, (1).toFixed());
         // Check block hash with block zmq notification
         assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
         assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
@@ -335,7 +325,7 @@ describe("3-Double-Spend-Send", () => {
 
     step("DS-S: store double spend txid2 in confirmed", async () => {
         let txn = await db.confirmedFetch(txid2);
-        while (!txn || !txn!.slp) { // NOTE: This is a problem where the unconfirmed item is first saved without the slp property (but ZMQ should happen only after slp is added)
+        while (!txn) {
             await sleep(50);
             txn = await db.confirmedFetch(txid2);
         }
@@ -357,11 +347,6 @@ describe("3-Double-Spend-Send", () => {
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(t!.mintBatonUtxo, tokenId + ":2");
         assert.equal(t!.tokenStats!.block_created, lastBlockIndex-1);
-        // assert.equal(t!.tokenStats!.block_last_active_mint, null);
-        // assert.equal(t!.tokenStats!.block_last_active_send, lastBlockIndex);
-        // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
-        // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
-        // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
         assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 

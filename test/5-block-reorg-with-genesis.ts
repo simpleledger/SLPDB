@@ -96,7 +96,6 @@ describe("5-Reorg-Removes-Data", () => {
         // generate a block to clear the mempool (may be dirty from previous tests)
         invalidatedBlockHash = (await rpcNode1_miner.generate(1))[0];
         intendedBlockCount++;
-        //console.log((await rpcNode1_miner.getBlock(invalidatedBlockHash, true)).height);
 
         // connect miner node to a full node that is not connected to slpdb (to )
         try {
@@ -123,7 +122,6 @@ describe("5-Reorg-Removes-Data", () => {
         await rpcNode1_miner.sendToAddress(receiverRegtest, 1, "", "", true);
         lastBlockHash = (await rpcNode1_miner.generate(1))[0];
         intendedBlockCount++;
-        //console.log((await rpcNode1_miner.getBlock(lastBlockHash, true)).height);
 
         let unspent = await rpcNode1_miner.listUnspent(0);
         unspent = unspent.filter((txo: any) => txo.address === receiverRegtest);
@@ -188,7 +186,7 @@ describe("5-Reorg-Removes-Data", () => {
         assert.equal(notification.txns[0]!.slp.detail!.name, "unit-test-5");
         assert.equal(notification.txns[0]!.slp.detail!.symbol, "ut5");
         // @ts-ignore
-        assert.equal(notification.txns[0]!.slp!.detail!.outputs![0].amount!, TOKEN_GENESIS_QTY.toFixed());  // this type is not consistent with txn notification
+        assert.equal(notification.txns[0]!.slp!.detail!.outputs![0].amount!, TOKEN_GENESIS_QTY.toFixed());
         
         // Check block hash with block zmq notification
         assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
@@ -209,11 +207,6 @@ describe("5-Reorg-Removes-Data", () => {
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(t!.mintBatonUtxo, tokenId + ":2");
         assert.equal(t!.tokenStats!.block_created!, lastBlockIndex);
-        // assert.equal(t!.tokenStats!.block_last_active_mint, null);
-        // assert.equal(t!.tokenStats!.block_last_active_send, null);
-        // assert.equal(t!.tokenStats!.qty_token_burned.toString() === "0", true);
-        // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
-        // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
         assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
@@ -222,7 +215,6 @@ describe("5-Reorg-Removes-Data", () => {
         try {
             console.log(`Invalidating: ${lastBlockHash} for height ${intendedBlockCount}`);
             await rpcNode1_miner.invalidateBlock(lastBlockHash);
-            //await rpcNode2_miner.invalidateBlock(lastBlockHash);
         } catch (_) { }
 
         // reconnect nodes
@@ -249,13 +241,15 @@ describe("5-Reorg-Removes-Data", () => {
         let c = await db.confirmedFetch(tokenId);
         while (!g || g.graphTxn._blockHash?.toString("hex") === originalBlockHashHex || !c || c.blk?.h === originalBlockHashHex) {
             await sleep(50);
-            //t = await db.tokenFetch(txid1);
+            //TODO: t = await db.tokenFetch(txid1);
             g = await db.graphTxnFetch(tokenId);
             c = await db.confirmedFetch(tokenId);
         }
 
         assert.notEqual(g.graphTxn._blockHash?.toString("hex"), originalBlockHashHex);
         assert.notEqual(c.blk?.h, originalBlockHashHex);
+
+        // TODO: On a reorg with multiple block height difference does Token collection update?
     });
 
     step("Clean up", async () => {

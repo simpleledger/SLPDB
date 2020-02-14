@@ -70,8 +70,6 @@ let genesisBlockIndex: number;
 describe("9-Burn-with-valid-txn-slow", () => {
 
     step("Initial setup for all tests", async () => {
-        // TODO: burn any existing wallet funds, in order to prevent "Transaction too large".
-
         // generate block to clear the mempool (may be dirty from previous tests)
         await rpcNode1_miner.generate(1);
 
@@ -258,11 +256,7 @@ describe("9-Burn-with-valid-txn-slow", () => {
 
     step("BURN: check that tokens collection records correct circulating supply", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-        while(!t ||
-              t!.tokenStats!.block_created === null // ||
-              //t!.tokenStats!.qty_token_circulating_supply.toString() !== (TOKEN_GENESIS_QTY-TOKEN_BURN_QTY).toFixed() ||
-              //t!.tokenStats!.block_last_active_send !== lastBlockIndex
-        ) {
+        while (!t || t!.tokenStats!.block_created === null) {
             await sleep(50);
             t = await db.tokenFetch(tokenId);
         }
@@ -271,11 +265,6 @@ describe("9-Burn-with-valid-txn-slow", () => {
         assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
         assert.equal(t!.mintBatonUtxo, tokenId + ":2");
         assert.equal(t!.tokenStats!.block_created!, genesisBlockIndex);
-        // assert.equal(t!.tokenStats!.block_last_active_mint, null);
-        // assert.equal(t!.tokenStats!.block_last_active_send, lastBlockIndex);
-        // assert.equal(t!.tokenStats!.qty_token_burned.toString() === TOKEN_BURN_QTY.toFixed(), true);
-        // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), (TOKEN_GENESIS_QTY-TOKEN_BURN_QTY).toFixed());
-        // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
         assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 

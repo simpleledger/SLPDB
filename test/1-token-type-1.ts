@@ -190,10 +190,11 @@ describe("1-Token-Type-1", () => {
         assert.equal(slpdbBlockNotifications[0].txns[0]!.slp.detail!.name, "unit-test-1");
         assert.equal(slpdbBlockNotifications[0].txns[0]!.slp.detail!.symbol, "ut1");
         // @ts-ignore
-        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![0].amount!, TOKEN_GENESIS_QTY.toFixed());  // this type is not consistent with txn notification
-        // TODO: There is not block hash with block zmq notification!
-        // assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
-        // assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
+        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![0].amount!, TOKEN_GENESIS_QTY.toFixed());
+
+        // Check block hash with block zmq notification!
+        assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
+        assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
     });
 
     step("GENESIS: updates graphs collection (after block)", async () => {
@@ -372,12 +373,13 @@ describe("1-Token-Type-1", () => {
         assert.equal(slpdbBlockNotifications[0].txns[0]!.slp.detail!.name, "unit-test-1");
         assert.equal(slpdbBlockNotifications[0].txns[0]!.slp.detail!.symbol, "ut1");
         // @ts-ignore
-        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![0].amount!, TOKEN_SEND_QTY.toFixed());  // this type is not consistent with txn notification
+        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![0].amount!, TOKEN_SEND_QTY.toFixed());
         // @ts-ignore
-        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![1].amount!, (TOKEN_GENESIS_QTY-TOKEN_SEND_QTY).toFixed());  // this type is not consistent with txn notification
-        // TODO: There is not block hash with block zmq notification!
-        // assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
-        // assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
+        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![1].amount!, (TOKEN_GENESIS_QTY-TOKEN_SEND_QTY).toFixed());
+        
+        // Check block hash with block zmq notification
+        assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
+        assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
     });
 
     step("SEND: unconfirmed collction is empty (after block)", async () => {
