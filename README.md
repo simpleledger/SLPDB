@@ -85,10 +85,9 @@ The services `SlpServe` and `SlpSockServer` return query results as a JSON objec
 
 ###  4.1. <a name='Prerequisites'></a>Prerequisites
 * Node.js 12
-* TypeScript 3+ (`npm install -g typescript`)
 * MongoDB 4.0+
-* BitcoinABC, BitcoinUnlimited or other Bitcoin Cash full node with:
-  * RPC-JSON and 
+* BitcoinABC, BitcoinUnlimited, BCHD, or other Bitcoin Cash full node with:
+  * RPC-JSON (or gRPC) and 
   * ZeroMQ event notifications
 
 ###  4.2. <a name='FullNodeSettingsforbitcoin.conf'></a>Full Node Settings for `bitcoin.conf`
@@ -109,7 +108,7 @@ The following settings should be applied to your full node's configuration.  NOT
 
 ###  4.3. <a name='BCHDgRPCSupport'></a>BCHD & gRPC Support
 
-High speed gRPC is supported with BCHD 0.15.2+ full nodes in place of JSON RPC and incomming ZMQ notifications.  To enable, add the environment variables `grpc_url` and `grpc_certPath`.  See the `example.env` file in this project and the [BCHD documentation](https://github.com/gcash/bchd/tree/master/docs) for more details.
+High speed gRPC is supported with BCHD 0.15.2+ full nodes in place of JSON RPC and incomming ZMQ notifications.  To enable, add the environment variables `grpc_url` and `grpc_certPath`.  See the `example.env` file in this project and the [BCHD documentation](https://github.com/gcash/bchd/tree/master/docs) for more details.  For instructions on installing a self-signed certificate see guidance [here](https://github.com/simpleledgerinc/grpc-bchrpc-node#connecting-to-local-bchd).
 
 ###  4.4. <a name='TestnetSupport'></a>Testnet Support
 
