@@ -20,6 +20,7 @@
     * 4.8. [Pruning](#Pruning)
 * 5. [Real-time Notifications](#Real-timeNotifications)
 	* 5.1. [ZeroMQ (ZMQ)](#ZeroMQZMQ)
+    * 5.2. [HTTP Gateways](#HTTPGateways)
 * 6. [MongoDB Collections & Data Schema](#MongoDBCollectionsDataSchema)
 	* 6.1. [DB Collections](#DBCollections)
 * 7. [Test Harnesses](#TestHarnesses)
@@ -200,6 +201,12 @@ Each notification is published in the following data format:
     };
 }
 ```
+
+### 5.2 <a name='HTTPGateways'></a>HTTP Gateways
+
+Realtime notifications can be accessed via HTTP server-sent events (SSE) by utilizing either:
+* [SlpSocketServe](https://github.com/fountainhead-cash/slpsockserve), or 
+* [SlpStream](https://github.com/blockparty-sh/slpstream) servers.
 
 
 
