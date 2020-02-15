@@ -1,7 +1,7 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2020-02-13
+**Last Updated:** 2020-02-15
 
 **Current SLPDB Version:** 1.0.0-rc4
 
@@ -203,9 +203,7 @@ Each notification is published in the following data format:
 
 ### 5.2 <a name='HTTPGateways'></a>HTTP Gateways
 
-Realtime notifications can be accessed via HTTP server-sent events (SSE) by utilizing either:
-* [SlpSocketServe](https://github.com/fountainhead-cash/slpsockserve), or 
-* [SlpStream](https://github.com/blockparty-sh/slpstream) servers.
+Realtime SLP notifications can be accessed via HTTP server-sent events (SSE) by utilizing [SlpSocketServe](https://github.com/fountainhead-cash/slpsockserve).  A good alternative to SLPDB based realtime notifications is [SlpStream](https://github.com/blockparty-sh/slpstream) which utilizes the gs++ backend.
 
 
 
