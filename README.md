@@ -1,7 +1,7 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2020-02-15
+**Last Updated:** 2020-02-17
 
 **Current SLPDB Version:** 1.0.0-rc4
 
@@ -46,7 +46,7 @@ Live status of nodes running slpdb can be found at: https://status.slpdb.io.
 Most likely you do <u>not</u> need to install SLPDB.  Most users will be better off using someone else's publicly shared SLPDB instance like https://slpdb.fountainhead.cash or https://slpdb.bitcoin.com.  You only need to install SLPDB, SlpServe, and/or SlpSockServe if any of the following is true:
 
 - You cannot rely on a third-party for your SLP data.
-- The rate limits impposed by `slpdb.fountainhead.cash` or `slpdb.bitcoin.com` are too restrictive for your needs.
+- The rate limits imposed by `slpdb.fountainhead.cash` or `slpdb.bitcoin.com` are too restrictive for your needs.
 - Realtime event notifications available at `slpsocket.fountainhead.cash` are not fast enough for your needs.
 
 NOTE: If you are going to operate your own SLPDB instance you should join the telegram group for help and updates: https://t.me/slpdb
@@ -55,7 +55,7 @@ NOTE: If you are going to operate your own SLPDB instance you should join the te
 
 ##  3. <a name='HowdoIqueryforSLPdata'></a>How do I query for SLP data?
 
-Queries into SLPDB data are made using using [bitquery](https://docs.bitdb.network/docs/query_v3#2-what) which allows MongoDB queries and jq queries over HTTP. Here are some example SLPDB queries:
+Queries into SLPDB data are made using [bitquery](https://docs.bitdb.network/docs/query_v3#2-what) which allows MongoDB queries and jq queries over HTTP. Here are some example SLPDB queries:
 
 * Get details of all token IDs ([example](https://slpdb.fountainhead.cash/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOiB7fSwKICAgICJwcm9qZWN0IjogeyJ0b2tlbkRldGFpbHMiOiAxLCAidG9rZW5TdGF0cyI6IDEsICJfaWQiOiAwIH0sCiAgICAibGltaXQiOiAxMDAwMAogIH0KfQ==))
 * Get token details for single token ID ([example](https://slpdb.fountainhead.cash/explorer/ewogICJ2IjogMywKICAicSI6IHsKICAgICJkYiI6IFsidCJdLAogICAgImZpbmQiOgogICAgewogICAgICAiJHF1ZXJ5IjoKICAgICAgewogICAgICAgICJ0b2tlbkRldGFpbHMudG9rZW5JZEhleCI6ICI5NTlhNjgxOGNiYTVhZjhhYmEzOTFkM2Y3NjQ5ZjVmNmE1Y2ViNmNkY2QyYzJhM2RjYjVkMmZiZmM0YjA4ZTk4IgogICAgICB9CiAgICB9LAogICAgInByb2plY3QiOiB7InRva2VuRGV0YWlscyI6IDEsICJ0b2tlblN0YXRzIjogMSwgIl9pZCI6IDAgfSwKICAgICJsaW1pdCI6IDEwMDAKICB9Cn0=))
@@ -108,7 +108,7 @@ The following settings should be applied to your full node's configuration.  NOT
 
 ###  4.3. <a name='BCHDgRPCSupport'></a>BCHD & gRPC Support
 
-High speed gRPC is supported with BCHD 0.15.2+ full nodes in place of JSON RPC and incomming ZMQ notifications.  To enable, add the environment variables `grpc_url` and `grpc_certPath`.  See the `example.env` file in this project and the [BCHD documentation](https://github.com/gcash/bchd/tree/master/docs) for more details.  For instructions on installing a self-signed certificate see guidance [here](https://github.com/simpleledgerinc/grpc-bchrpc-node#connecting-to-local-bchd).
+High speed gRPC is supported with BCHD 0.15.2+ full nodes in place of JSON RPC and incoming ZMQ notifications.  To enable, add the environment variables `grpc_url` and `grpc_certPath`.  See the `example.env` file in this project and the [BCHD documentation](https://github.com/gcash/bchd/tree/master/docs) for more details.  For instructions on installing a self-signed certificate see guidance [here](https://github.com/simpleledgerinc/grpc-bchrpc-node#connecting-to-local-bchd).
 
 ###  4.4. <a name='TestnetSupport'></a>Testnet Support
 
@@ -406,7 +406,7 @@ A set of end-to-end tests have been created in order to ensure the expected beha
 
 * 0.13.0
 	* Breaking Change: This change may impact any application using `TokenUtxoStatus` or the Graph collection's `graphTxn.outputs.status` property. A new enum type was added to `TokenUtxoStatus` called "EXCESS_INPUT_BURNED".  This status is applied to any transaction that has an input SLP quantity that is greater than output SLP quantity.  This enum label is used within the Graphs collection's `graphTxn.outputs.status` property.
-	* A new startup script called "reprocess" was added for the pupose of debugging.  Usage is `node index.js reprocess <tokenId>`.
+	* A new startup script called "reprocess" was added for the purpose of debugging.  Usage is `node index.js reprocess <tokenId>`.
 	* Fixed issue with block and mempool item cache used to ignore duplicate zmq notifications
 	* Fixed testnet config starting block (off by one)
 	* P2MS and P2PK output addresses are stored as `scriptPubKey:<hex>`
