@@ -2,16 +2,17 @@
 
 To get started with unit tests you need to startup the sandboxed bitcoin regtest network described in `docker-compose.yml`.  This will creates a network of bitcoin nodes which will connect to a locally running SLPDB instance outside of the docker container.
 
-Start the regtest network:
+Start the regtest network and SLPDB:
 ```
 $ git apply ./patches/*
 $ cp .env.regtest .env
 $ cd regtest
 $ docker-compose up -d
-$ docker logs -f regtest_slpdb_1  # this is optional
+$ npm start
+
 ```
 
-Next, run the e2e tests located in the `test` folder using:
+Next, in a new terminal run the e2e tests using:
 
 ```
 $ npm test
