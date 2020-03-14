@@ -79,6 +79,12 @@ describe("2-Double-Spend-Genesis", () => {
         try {
             await rpcNode1_miner.addNode("bitcoin1", "onetry");
         } catch(err) { }
+        let peerInfo: any[] = await rpcNode1_miner.getPeerInfo();
+        while (peerInfo.length < 1) {
+            await sleep(100);
+            peerInfo = await rpcNode1_miner.getPeerInfo();
+        }
+        assert.equal(peerInfo.length, 1);
 
         // make sure we have coins to use in tests
         let balance = await rpcNode1_miner.getBalance();
@@ -97,7 +103,19 @@ describe("2-Double-Spend-Genesis", () => {
         let node2Hash = await rpcNode2_miner.getbestblockhash();
 
         while(node1Hash !== node2Hash) {
+            let bb1 = await rpcNode1_miner.getBlockCount();
+            let bb2 = await rpcNode2_miner.getBlockCount();
+            if (bb1 > bb2) {
+                await rpcNode1_miner.invalidateBlock(node1Hash);
+            } else if (bb1 < bb2) {
+                await rpcNode2_miner.invalidateBlock(node2Hash);
+            } else {
+                await rpcNode1_miner.invalidateBlock(node1Hash);
+                await rpcNode2_miner.invalidateBlock(node2Hash);
+            }
+            //await rpcNode1_miner.generate(1);
             await sleep(50);
+            node1Hash = await rpcNode1_miner.getbestblockhash();
             node2Hash = await rpcNode2_miner.getbestblockhash();
         }
         assert.equal(node1Hash, node2Hash);
@@ -114,7 +132,7 @@ describe("2-Double-Spend-Genesis", () => {
         txnInputs = utxos.nonSlpUtxos;
 
         // disconnect nodes now
-        let peerInfo: any[] = await rpcNode1_miner.getPeerInfo();
+        peerInfo = await rpcNode1_miner.getPeerInfo();
         await rpcNode1_miner.disconnectNode("bitcoin1");
         while (peerInfo.length > 0) {
             await sleep(100);

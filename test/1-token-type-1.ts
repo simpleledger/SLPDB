@@ -72,11 +72,6 @@ describe("1-Token-Type-1", () => {
 
         // generate block to clear the mempool (may be dirty from previous tests)
         await rpcNode1_miner.generate(1);
-
-        // (optional) connect miner node to a full node that is connected to slpdb
-        // try {
-        //     await rpcNode1_miner.addNode("bitcoin2", "onetry");
-        // } catch(err) { }
         
         // make sure we have coins to use in tests
         let balance = await rpcNode1_miner.getBalance();

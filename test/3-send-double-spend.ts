@@ -99,6 +99,7 @@ describe("3-Double-Spend-Send", () => {
 
         while(node1Hash !== node2Hash) {
             await sleep(50);
+            node1Hash = await rpcNode1_miner.getbestblockhash();
             node2Hash = await rpcNode2_miner.getbestblockhash();
         }
         assert.equal(node1Hash, node2Hash);
