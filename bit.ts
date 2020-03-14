@@ -5,7 +5,6 @@ import { Db } from './db';
 
 import * as pQueue from 'p-queue';
 import * as zmq from 'zeromq';
-import { BlockHeaderResult } from 'bitcoin-com-rest';
 import { BITBOX } from 'bitbox-sdk';
 import * as bitcore from 'bitcore-lib-cash';
 import { Primatives, SlpTransactionType, SlpTransactionDetails, Validation } from 'slpjs';
@@ -53,7 +52,7 @@ export class Bit {
     txoDoubleSpendCache = new CacheMap<string, any>(20);
     doubleSpendCache = new CacheSet<string>(100);
     slpTxnNotificationIgnoreList = new CacheSet<string>(Config.core.slp_mempool_ignore_length); // this allows us to quickly ignore txns on block acceptance notification
-    blockHashIgnoreSetList = new CacheSet<string>(10);
+    blockHashIgnoreSetList = new CacheSet<string>(100);
     _slpGraphManager!: SlpGraphManager;
     _zmqItemQueue = new pQueue({ concurrency: 1, autoStart: true });
     network!: string;
@@ -187,14 +186,14 @@ export class Bit {
             }
         });
 
-        // here we need to loop through all of the in mempory graphs to make sure the double spend is completely removed.
+        // here we need to loop through all graphs to make sure the double spend is completely removed.
         // TODO: consider doing a db query instead of looping through all graphs.
         if (txidToDelete.size > 0) {
             for (let [tokenId, g ] of this._slpGraphManager._tokens) { 
                 g.scanDoubleSpendTxids(txidToDelete);
             }
         }
-        let res = this.applySlpTxnFilter(txnBuf)
+        let res = this.applySlpTxnFilter(txnBuf);
         if (res) {
             RpcClient.loadTxnIntoCache(txid, txnBuf);
             this.slpMempool.set(txid, txnBuf.toString("hex"));
@@ -508,7 +507,7 @@ export class Bit {
             self._zmqItemQueue.add(async function() {
                 let hash = blockHash.toString('hex');
                 if (self.blockHashIgnoreSetList.has(hash)) {
-                    console.log('[ZMQ-SUB] Block message ignored:', hash);
+                    console.log('[ZMQ-SUB] Block message ignored (already processed):', hash);
                     return;
                 }
                 self.blockHashIgnoreSetList.push(hash); 
@@ -543,7 +542,8 @@ export class Bit {
         if (!txid) {
             txid = Buffer.from(bitbox.Crypto.hash256(txnBuf).toJSON().data.reverse()).toString('hex');
         }
-        if ((await this.handleMempoolTransaction(txid, txnBuf)).added) {
+        let res = await this.handleMempoolTransaction(txid, txnBuf);
+        if (res.added) {
             console.log('[ZMQ-SUB] Possible SLP transaction added:', txid);
             let syncResult = await Bit.sync(this, 'mempool', txid);
             if (!this._slpGraphManager.zmqPubSocket) //{}
@@ -551,6 +551,8 @@ export class Bit {
             if (syncResult) {
                 this._slpGraphManager.onTransactionHash!(syncResult);
             }
+        } else if (res.isSlp) {
+            console.log('[INFO] Transaction already handled:', txid);
         } else {
             console.log('[INFO] Transaction ignored:', txid);
         }
@@ -578,7 +580,7 @@ export class Bit {
             let currentHeight: number = await RpcClient.getBlockCount();
             if (zmqHash) {
                 let zmqHeight = (await RpcClient.getBlockInfo({ hash: zmqHash })).height;
-                await Bit.checkForBlockReorg({ height: zmqHeight, hash: zmqHash });
+                await self.checkForBlockReorg({ height: zmqHeight, hash: zmqHash });
                 if (zmqHeight < startHeight) {
                     // NOTE: This can happen if the below for loop processes blocks before zmq block notifications
                     console.log(`[WARN] zmqHeight (${zmqHeight}) is not greater than last checkpoint height (${startHeight}).`);
@@ -628,11 +630,11 @@ export class Bit {
                 if (crawledTxns && crawledTxns.size > 0) {
                     let array = Array.from(crawledTxns.values()).map(c => c.tnaTxn);
                     await self.db.confirmedReplace(array, index);
-                    if (zmqHash) {
-                        for (let tna of array) {
-                            await self.removeMempoolTransaction(tna.tx.h);
-                        }
+                    //if (zmqHash) {
+                    for (let tna of array) {
+                        await self.removeMempoolTransaction(tna.tx.h);
                     }
+                    //}
 
                     for (let [txid, v] of crawledTxns) {
                         if (v.tnaTxn.slp?.valid) {
@@ -641,9 +643,9 @@ export class Bit {
                             if (graph) {
                                 await graph!.addGraphTransaction({ txid, processUpToBlock: index, blockHash });
                             }
-                            for (let input of v.tnaTxn.in) {
-                                globalUtxoSet.delete(`${(input.e as Sender).h}:${(input.e as Sender).i}`);
-                            }
+                            // for (let input of v.tnaTxn.in) {
+                            //     globalUtxoSet.delete(`${(input.e as Sender).h}:${(input.e as Sender).i}`);
+                            // }
                         }
                     }
                 }
@@ -672,7 +674,9 @@ export class Bit {
                 if (index - 100 > 0) {
                     await Info.deleteBlockCheckpointHash(index - 100);
                 }
-                await Info.updateBlockCheckpoint(index, blockHash.toString('hex'));
+                let blockHashHex = blockHash.toString('hex');
+                self.blockHashIgnoreSetList.push(blockHashHex);
+                await Info.updateBlockCheckpoint(index, blockHashHex);
                 console.timeEnd('[PERF] DB Insert ' + index);
                 currentHeight = await RpcClient.getBlockCount();
             }
@@ -732,7 +736,7 @@ export class Bit {
         return null;
     }
 
-    static async checkForBlockReorg(lastCheckpoint: ChainSyncCheckpoint): Promise<ChainSyncCheckpoint> {
+    async checkForBlockReorg(lastCheckpoint: ChainSyncCheckpoint): Promise<ChainSyncCheckpoint> {
         // first, find a height with a block hash - should normallly be found on first try, otherwise rollback
         let from = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
         let hadReorg = false;
@@ -745,9 +749,10 @@ export class Bit {
                 actualHash = (await RpcClient.getBlockHash(lastCheckpoint.height)) as string;
                 console.log(`[INFO] Confirmed actual block hash: ${actualHash} at ${lastCheckpoint.height}`);
             } catch (err) {
-                if(lastCheckpoint.height > from) {
+                if (lastCheckpoint.height > from) {
                     console.log(`[WARN] Missing actual hash for height ${lastCheckpoint.height}, rolling back.`);
                     lastCheckpoint.hash = null;
+                    await this.removeReorgTransactionsAtHeight(lastCheckpoint.height);
                     lastCheckpoint.height--;
                     rollbackCount++;
                     hadReorg = true;
@@ -761,7 +766,7 @@ export class Bit {
             } else if(lastCheckpoint.height <= from) {
                 return { height: from, hash: null, hadReorg: true };
             }
-            if(maxRollback > 0 && rollbackCount > maxRollback) {
+            if (maxRollback > 0 && rollbackCount > maxRollback) {
                 throw Error("A large rollback occurred when trying to find actual block hash, this should not happen, shutting down");
             }
         }
@@ -775,10 +780,11 @@ export class Bit {
         // Make sure the current tip hash matches chain best hash, otherwise we need to rollback again
         let storedCheckpointHash = await Info.getCheckpointHash(lastCheckpoint.height);
         console.log(`[INFO] Stored hash: ${storedCheckpointHash} at ${lastCheckpoint.height}`);
-        if(storedCheckpointHash) {
+        if (storedCheckpointHash) {
             maxRollback = 100;
             rollbackCount = 0;
             while (storedCheckpointHash !== actualHash && lastCheckpoint.height > from) {
+                await this.removeReorgTransactionsAtHeight(lastCheckpoint.height);
                 lastCheckpoint.height--;
                 rollbackCount++;
                 hadReorg = true;
@@ -801,6 +807,30 @@ export class Bit {
 
         // return current checkpoint - if a rollback occured the returned value will be for the matching previous block hash
         return { hash: actualHash, height: lastCheckpoint.height, hadReorg };
+    }
+
+    private async removeReorgTransactionsAtHeight(height: number) {
+        let reorged: TNATxn[] = await this.db.confirmedFetchForReorg(height);
+        for (let t of reorged) {
+            console.log(`[INFO] Delete txn from graph: ${t.tx.h}`);
+            this.slpTxnNotificationIgnoreList.delete(t.tx.h);
+            this.slpMempool.delete(t.tx.h);
+            let tokenId = t.slp!.detail!.tokenIdHex!;
+            let tg = this._slpGraphManager._tokens.get(tokenId);
+            tg!.removeGraphTransaction({ txid: t.tx.h });
+            t.in.forEach(i => {
+                try {
+                    this._spentTxoCache.delete(`${(i.e as Sender).h}:${i.e!.i}`);
+                } catch (_) { }
+            });
+            await tg!.commitToDb();
+            if (tg!.graphSize === 0) {
+                console.log(`[INFO] Delete token graph: ${t.tx.h}`);
+                await this.db.tokenDelete(tg!._tokenIdHex);
+                this._slpGraphManager._tokens.delete(tg!._tokenIdHex);
+            }
+        }
+        await this.db.confirmedDeleteForReorg(height);
     }
 
     async processBlocksForSLP() {

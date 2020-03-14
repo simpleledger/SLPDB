@@ -14,7 +14,7 @@ const globalUtxoSet = slpUtxos();
 export class GraphMap extends Map<string, GraphTxn> {
     private _pruned = new Map<string, GraphTxn>();
     private _dirtyItems = new Set<string>();
-    private _doubleSpent = new Set<string>();
+    private _itemsToDelete = new Set<string>(); // used for double spent transaction items and reorgs
     private _lastPruneHeight = 0;
     private _rootId: string;
     private _container: SlpTokenGraph;
@@ -84,6 +84,7 @@ export class GraphMap extends Map<string, GraphTxn> {
 
     public delete(txid: string) {
         if (this.has(txid)) {
+            this._itemsToDelete.add(txid);
             let graphTxn = this.get(txid);
             let deleted = super.delete(txid);
             if (deleted) {
@@ -94,8 +95,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         return false;
     }
 
-    public deleteDoubleSpend(txid: string) {
-        this._doubleSpent.add(txid);
+    public deleteFromGraph(txid: string) {
         return this.delete(txid);
     }
 
@@ -141,7 +141,7 @@ export class GraphMap extends Map<string, GraphTxn> {
             delete this._container._slpValidator.cachedRawTransactions[txid];
             delete this._container._slpValidator.cachedValidations[txid];
         });
-        this._doubleSpent.clear();
+        this._itemsToDelete.clear();
         this._pruned.clear();
         this._dirtyItems.clear();
         return txids;
@@ -152,30 +152,32 @@ export class GraphMap extends Map<string, GraphTxn> {
         let itemsToUpdate: GraphTxnDbo[] = [];
 
         graph._dirtyItems.forEach(txid => {
-            let g = graph.get(txid)!;
-            let dbo: GraphTxnDbo = {
-                tokenDetails: { tokenIdHex: graph._container._tokenIdHex },
-                graphTxn: {
-                    txid,
-                    details: GraphMap._mapTokenDetailsToDbo(g.details, tg._tokenDetails.decimals),
-                    outputs: GraphMap._txnOutputsToDbo(tg, g.outputs),
-                    inputs: g.inputs.map((i) => {
-                        return {
-                            address: i.address,
-                            txid: i.txid,
-                            vout: i.vout,
-                            bchSatoshis: i.bchSatoshis,
-                            slpAmount: Decimal128.fromString(i.slpAmount.dividedBy(10**tg._tokenDetails.decimals).toFixed())
-                        }
-                    }),
-                    _blockHash: g.blockHash,
-                    _pruneHeight: g.prevPruneHeight
-                }
-            };
-            itemsToUpdate.push(dbo);
+            let g = graph.get(txid);
+            if (g) {
+                let dbo: GraphTxnDbo = {
+                    tokenDetails: { tokenIdHex: graph._container._tokenIdHex },
+                    graphTxn: {
+                        txid,
+                        details: GraphMap._mapTokenDetailsToDbo(g.details, tg._tokenDetails.decimals),
+                        outputs: GraphMap._txnOutputsToDbo(tg, g.outputs),
+                        inputs: g.inputs.map((i) => {
+                            return {
+                                address: i.address,
+                                txid: i.txid,
+                                vout: i.vout,
+                                bchSatoshis: i.bchSatoshis,
+                                slpAmount: Decimal128.fromString(i.slpAmount.dividedBy(10**tg._tokenDetails.decimals).toFixed())
+                            }
+                        }),
+                        _blockHash: g.blockHash,
+                        _pruneHeight: g.prevPruneHeight
+                    }
+                };
+                itemsToUpdate.push(dbo);
+            }
         });
 
-        let itemsToDelete = Array.from(graph._doubleSpent);
+        let itemsToDelete = Array.from(graph._itemsToDelete);
         
         // Do the pruning here
         itemsToUpdate.forEach(dbo => { if (dbo.graphTxn._pruneHeight) graph.prune(dbo.graphTxn.txid, dbo.graphTxn._pruneHeight)});

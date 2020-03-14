@@ -78,7 +78,7 @@ export class SlpTokenGraph {
         for (let txid of txidToDelete) {
             if (this._graphTxns.has(txid)) {
                 RpcClient.transactionCache.delete(txid);
-                this._graphTxns.deleteDoubleSpend(txid);
+                this._graphTxns.deleteFromGraph(txid);
                 this.commitToDb();
                 return true;
             }
@@ -228,23 +228,20 @@ export class SlpTokenGraph {
             throw Error(`Unable to locate spend details for output ${txid}:${vout}.`);
         }
         let validation = await this.validateTxid(spendTxnInfo.txid!);
-        try {
-            if (!validation) {
-                console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex);
-            }
-            if (validation.validity && validation.details!.transactionType === SlpTransactionType.MINT) {
-                return { status: BatonUtxoStatus.BATON_SPENT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: null };
-            } else if (validation.validity) {
-                this._mintBatonUtxo = '';
-                this._mintBatonStatus = TokenBatonStatus.DEAD_BURNED;
-                return { status: BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: "Baton was spent in a non-mint SLP transaction." };
-            } else {
-                throw Error("Unknown mint baton utxo status");
-            }
-        } catch(_) {
+        if (!validation) {
+            throw Error(`SLP Validator is missing transaction ${spendTxnInfo.txid} for token ${this._tokenDetails.tokenIdHex}`);
+        }
+        if (validation.validity && validation.details!.transactionType === SlpTransactionType.MINT) {
+            globalUtxoSet.delete(`${txid}:${vout}`);
+            return { status: BatonUtxoStatus.BATON_SPENT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: null };
+        } else if (validation.validity) {
             this._mintBatonUtxo = '';
             this._mintBatonStatus = TokenBatonStatus.DEAD_BURNED;
             globalUtxoSet.delete(`${txid}:${vout}`);
+            return { status: BatonUtxoStatus.BATON_SPENT_NOT_IN_MINT, txid: spendTxnInfo!.txid, invalidReason: "Baton was spent in a non-mint SLP transaction." };
+        } else {
+            this._mintBatonUtxo = '';
+            this._mintBatonStatus = TokenBatonStatus.DEAD_BURNED;
             if (vout < txnOutputLength!) {
                 return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: null, invalidReason: validation.invalidReason };
             }
@@ -279,19 +276,16 @@ export class SlpTokenGraph {
             throw Error(`Unable to locate spend details for output ${txid}:${vout}.`);
         }
         let validation = await this.validateTxid(spendTxnInfo.txid!);
-        try {
-            if (!validation) {
-                console.log('SLP Validator is missing transaction', spendTxnInfo.txid, 'for token', this._tokenDetails.tokenIdHex);
-            }
-            if (validation.validity && validation.details!.transactionType === SlpTransactionType.SEND) {
-                return { status: TokenUtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, invalidReason: null };
-            } else if (validation.validity) {
-                return { status: TokenUtxoStatus.SPENT_NOT_IN_SEND, txid: spendTxnInfo!.txid, invalidReason: null };
-            } else {
-                throw Error("Unknown utxo status");
-            }
-        } catch(_) {
+        if (!validation) {
+            throw Error(`SLP Validator is missing transaction ${spendTxnInfo.txid} for token ${this._tokenDetails.tokenIdHex}`);
+        }
+        if (validation.validity && validation.details!.transactionType === SlpTransactionType.SEND) {
             globalUtxoSet.delete(`${txid}:${vout}`);
+            return { status: TokenUtxoStatus.SPENT_SAME_TOKEN, txid: spendTxnInfo!.txid, invalidReason: null };
+        } else if (validation.validity) {
+            globalUtxoSet.delete(`${txid}:${vout}`);
+            return { status: TokenUtxoStatus.SPENT_NOT_IN_SEND, txid: spendTxnInfo!.txid, invalidReason: null };
+        } else {
             if (vout < txnOutputLength!) {
                 return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, invalidReason: validation.invalidReason };
             }
@@ -552,6 +546,37 @@ export class SlpTokenGraph {
         return true;
     }
 
+    public async removeGraphTransaction({ txid }: { txid: string }) {
+        if (!this._graphTxns.has(txid)) {
+            return;
+        }
+
+        // update status of inputs to UNSPENT or BATON_UNSPENT 
+        let gt = this._graphTxns.get(txid)!;
+        for (let input of gt.inputs) {
+            let gti = this._graphTxns.get(input.txid);
+            if (gti) {
+                let outs = gti.outputs.filter(o => o.spendTxid === txid);
+                outs.forEach(o => {
+                    if ([SlpTransactionType.GENESIS, SlpTransactionType.MINT].includes(gti!.details.transactionType) && 
+                        o.vout === gti!.details.batonVout) 
+                    {
+                        o.spendTxid = null;
+                        o.status = BatonUtxoStatus.BATON_UNSPENT;
+                        globalUtxoSet.set(`${txid}:${o.vout}`, this._tokenIdBuf.slice());
+                        this._graphTxns.SetDirty(txid);
+                    } else {
+                        o.spendTxid = null;
+                        o.status = TokenUtxoStatus.UNSPENT;
+                        globalUtxoSet.set(`${txid}:${o.vout}`, this._tokenIdBuf.slice());
+                        this._graphTxns.SetDirty(txid);
+                    }
+                });
+            }
+        }
+        this._graphTxns.deleteFromGraph(txid);
+    }
+
     private getAddressStringFromTxnOutput(txn: bitcore.Transaction, outputIndex: number) {
         let address;
         try {
@@ -596,10 +621,10 @@ export class SlpTokenGraph {
         return;
     }
 
-    static FormatUnixToDateString(unix_time: number): string {
-        var date = new Date(unix_time*1000);
-        return date.toISOString().replace("T", " ").replace(".000Z", "")
-    }
+    // static FormatUnixToDateString(unix_time: number): string {
+    //     var date = new Date(unix_time*1000);
+    //     return date.toISOString().replace("T", " ").replace(".000Z", "")
+    // }
 
     public static MapDbTokenDetailsFromDbo(details: SlpTransactionDetailsDbo, decimals: number): SlpTransactionDetails {
 

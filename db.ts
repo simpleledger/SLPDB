@@ -136,7 +136,8 @@ export class Db {
 
     async unconfirmedInsert(item: TNATxn) {
         await this.checkClientStatus();
-        return await this.db.collection('unconfirmed').insertMany([item])
+        console.log(`Added unconfirmed: ${item.tx.h}`);
+        return await this.db.collection('unconfirmed').insertMany([item]);
     }
 
     async unconfirmedReset() {
@@ -173,6 +174,16 @@ export class Db {
     async confirmedDelete(txid: string): Promise<any> {
         await this.checkClientStatus();
         return await this.db.collection('confirmed').deleteMany({ "tx.h": txid });
+    }
+
+    async confirmedFetchForReorg(blockIndex: number): Promise<any> {
+        await this.checkClientStatus();
+        return await this.db.collection('confirmed').find({ "blk.i": { "$gte": blockIndex }}).toArray();
+    }
+
+    async confirmedDeleteForReorg(blockIndex: number): Promise<any> {
+        await this.checkClientStatus();
+        return await this.db.collection('confirmed').deleteMany({ "blk.i": { "$gte": blockIndex }});
     }
 
     async confirmedReset() {
