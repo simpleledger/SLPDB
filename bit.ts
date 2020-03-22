@@ -21,6 +21,8 @@ const globalUtxoSet = slpUtxos();
 import { PruneStack } from './prunestack';
 import { TokenFilters } from './filters';
 
+import { GrpcClient } from 'grpc-bchrpc-node';
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const filterBuf = Buffer.from("6a04534c5000", "hex");
 const Block = require('bcash/lib/primitives/block');
@@ -108,9 +110,7 @@ export class Bit {
     }
 
     private async waitForFullNodeSync() {
-        let bitbox = this.network === 'mainnet' ? 
-                        new BITBOX({ restURL: `https://rest.bitcoin.com/v2/` }) : 
-                        new BITBOX({ restURL: `https://trest.bitcoin.com/v2/` });
+        let grpcClient: GrpcClient = new GrpcClient({ testnet: this.network !== 'mainnet' });
 
         let isSyncd = false;
         let lastReportedSyncBlocks = 0;
@@ -121,7 +121,7 @@ export class Bit {
                 break;
             }
             let syncdBlocks = info.blocks;
-            let networkBlocks = (await bitbox.Blockchain.getBlockchainInfo()).blocks;
+            let networkBlocks = (await grpcClient.getBlockchainInfo()).getBestHeight();
             isSyncd = syncdBlocks === networkBlocks ? true : false;
             if (syncdBlocks !== lastReportedSyncBlocks) {
                 console.log("[INFO] Waiting for bitcoind to sync with network ( on block", syncdBlocks, "of", networkBlocks, ")");

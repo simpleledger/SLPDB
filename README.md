@@ -1,9 +1,9 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2020-02-17
+**Last Updated:** 2020-03-22
 
-**Current SLPDB Version:** 1.0.0-rc4
+**Current SLPDB Version:** 1.0.0-rc6
 
 * 1. [What is SLPDB?](#WhatisSLPDB)
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)
@@ -359,6 +359,7 @@ A set of end-to-end tests have been created in order to ensure the expected beha
     * Removed token stats properties: `qty_token_minted`, `qty_token_burned`, `qty_token_circulating_supply`
     * Removed UTXO status enums: `SPENT_INVALID_SLP`, `BATON_SPENT_INVALID_SLP`
     * Renamed `qty_valid_txns_since_genesis` to `approx_txns_since_genesis`, since this can be corrupted if the block checkpoint is reset.
+    * Removed network dependency to rest.bitcoin.com
 
 * 0.15.6
     * Bug fixes and improvements in slpjs
