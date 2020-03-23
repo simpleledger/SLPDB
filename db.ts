@@ -149,15 +149,21 @@ export class Db {
         })
     }
 
+    async unconfirmedTxids(): Promise<string[]> {
+        await this.checkClientStatus();
+        let res: TNATxn[] = await this.db.collection('unconfirmed').find({}).toArray();
+        return res.map(u => u.tx.h);
+    }
+
     async unconfirmedFetch(txid: string): Promise<TNATxn|null> {
         await this.checkClientStatus();
         let res = await this.db.collection('unconfirmed').findOne({ "tx.h": txid }) as TNATxn;
         return res;
     }
 
-    async unconfirmedDelete(txid: string): Promise<number|undefined> {
+    async unconfirmedDelete(txids: string[]): Promise<number|undefined> {
         await this.checkClientStatus();
-        let res = (await this.db.collection('unconfirmed').deleteMany({ "tx.h": txid })).deletedCount;
+        let res = (await this.db.collection('unconfirmed').deleteMany({ "$or": txids.map(txid => { return { "tx.h": txid }})})).deletedCount;
         return res;
     }
 

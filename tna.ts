@@ -16,13 +16,13 @@ export class TNA {
         if (gene.inputs) {
             gene.inputs.forEach(function(input, input_index) {
                 if (input.script) {
-                    let xput: Xput = { i: input_index }
+                    let xput: Xput = { i: input_index };
                     input.script.chunks.forEach(function(c, chunk_index) {
                         if (c.buf) {
                             const key_prefix = (c.buf.length >= 512) ? 'l' : '';
-                            xput[key_prefix + "b" + chunk_index] = c.buf.toString('base64')
+                            xput[key_prefix + "b" + chunk_index] = c.buf.toString('base64');
                             if (options && options.h && options.h > 0) {
-                                xput[key_prefix + "h" + chunk_index] = c.buf.toString('hex')
+                                xput[key_prefix + "h" + chunk_index] = c.buf.toString('hex');
                             }
                         } else {
                             if (typeof c.opcodenum !== 'undefined') {

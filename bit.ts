@@ -169,7 +169,7 @@ export class Bit {
                     console.log(`[INFO] Detected a double spend ${txo} --> original: ${doubleSpentTxid}, current: ${txid}`);
                     // this.slpMempool.delete(doubleSpentTxid);
                     // RpcClient.transactionCache.delete(doubleSpentTxid);
-                    this.db.unconfirmedDelete(doubleSpentTxid); // no need to await
+                    this.db.unconfirmedDelete([doubleSpentTxid]); // no need to await
                     this.db.confirmedDelete(doubleSpentTxid);   // no need to await
                     if (this._slpGraphManager._tokens.has(doubleSpentTxid)) {
                         this._slpGraphManager._tokens.delete(doubleSpentTxid);
@@ -210,16 +210,6 @@ export class Bit {
         return { isSlp: false, added: false };
     }
 
-    async removeMempoolTransaction(txid: string) {
-        console.log(`Deleting unconfirmed ${txid}`);
-        let count = await this.db.unconfirmedDelete(txid);
-        if (count) {
-            this.slpMempool.delete(txid);
-        } else {
-            console.log(`[WARN] Unconfirmed transaction not deleted.`);
-
-        }
-    }
 
     async syncSlpMempool(currentBchMempoolList?: string[], recursive=false, outerLoop=true) {
         console.log(`[INFO] Syncing SLP Mempool...`);
@@ -560,16 +550,16 @@ export class Bit {
 
     async removeExtraneousMempoolTxns() {
         let currentBchMempoolList = await RpcClient.getRawMemPool();
-        
-        // remove extraneous SLP transactions no longer in the mempool
-        let cacheCopyForRemovals = new Map(this.slpMempool);
-        let txids = cacheCopyForRemovals.keys();
-        for (let i = 0; i < cacheCopyForRemovals.size; i++) {
-            let txid = txids.next().value;
+        let unconfTxids = await this.db.unconfirmedTxids();
+        const toDelete = new Set<string>();
+        for (let txid of unconfTxids) {
             if (!currentBchMempoolList.includes(txid)) {
-                await this.removeMempoolTransaction(txid);
+                this.slpMempool.delete(txid);
+                toDelete.add(txid);
             }
         }
+        // do not need to await this.
+        this.db.unconfirmedDelete(Array.from(toDelete.values()));
     }
 
     static async sync(self: Bit, type: string, zmqHash?: string, txhex?: string): Promise<Map<txid, txhex>|null> {
@@ -630,11 +620,6 @@ export class Bit {
                 if (crawledTxns && crawledTxns.size > 0) {
                     let array = Array.from(crawledTxns.values()).map(c => c.tnaTxn);
                     await self.db.confirmedReplace(array, index);
-                    //if (zmqHash) {
-                    for (let tna of array) {
-                        await self.removeMempoolTransaction(tna.tx.h);
-                    }
-                    //}
 
                     for (let [txid, v] of crawledTxns) {
                         if (v.tnaTxn.slp?.valid) {
