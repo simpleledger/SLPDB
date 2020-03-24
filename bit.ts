@@ -370,7 +370,7 @@ export class Bit {
                         let formatDate = (blockTime: number): string[] => {
                             let d = new Date(blockTime * 1000);
                             let res: string[] = [
-                                '0' + d.getUTCMonth() + 1, 
+                                '0' + (d.getUTCMonth() + 1), 
                                 '0' + d.getUTCDate(),
                                 '0' + d.getUTCHours(),
                                 '0' + d.getUTCMinutes(),
