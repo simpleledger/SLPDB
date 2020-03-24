@@ -163,6 +163,9 @@ export class Db {
 
     async unconfirmedDelete(txids: string[]): Promise<number|undefined> {
         await this.checkClientStatus();
+        if (txids.length === 0) {
+            return 0;
+        }
         let res = (await this.db.collection('unconfirmed').deleteMany({ "$or": txids.map(txid => { return { "tx.h": txid }})})).deletedCount;
         return res;
     }
