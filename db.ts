@@ -210,6 +210,7 @@ export class Db {
             throw Error("Attempted to add items without BLK property.");
         }
 
+        // THIS IS COMMENTED OUT AS IT MAY BE A RACE CONDITION WITH THE replaceOne upsert call.
         // if (blockIndex) {
         //     console.log('[INFO] Deleting confirmed transactions in block (for replacement):', blockIndex);
         //     try {
