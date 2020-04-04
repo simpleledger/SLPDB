@@ -103,15 +103,16 @@ export class SlpdbStatus {
     }
 
     static async logExitReason(errorMsg: string) {
-        if(errorMsg === 'SIGINT') {
+        if (errorMsg === "SIGINT") {
             SlpdbStatus.setState(SlpdbState.EXITED_SIGINT);
             await SlpdbStatus.saveStatus();
-        } 
-        else if(errorMsg === 'SIGTERM') {
+        } else if (errorMsg === "SIGTERM") {
             SlpdbStatus.setState(SlpdbState.EXITED_SIGTERM);
             await SlpdbStatus.saveStatus();
-        }
-        else {
+        } else if (errorMsg === "SIGQUIT") {
+            SlpdbStatus.setState(SlpdbState.EXITED_SIGQUIT);
+            await SlpdbStatus.saveStatus();
+        } else {
             await SlpdbStatus.changeStateToExitOnError(errorMsg);
         }
     }
@@ -254,7 +255,8 @@ export enum SlpdbState {
     "RUNNING" = "RUNNING",                                    // phase 4) startup completed, running normally
     "EXITED_ON_ERROR" = "EXITED_ON_ERROR",                    // process exited due to an error during normal operation
     "EXITED_SIGINT" = "EXITED_SIGINT",                        // process exited normally, clean shutdown or finished running a command
-    "EXITED_SIGTERM" = "EXITED_SIGTERM"                       // process exited normally, clean shutdown or finished running a command
+    "EXITED_SIGTERM" = "EXITED_SIGTERM",                      // process exited normally, clean shutdown or finished running a command
+    "EXITED_SIGQUIT" = "EXITED_SIGQUIT"                       // process exited normally, clean shutdown or finished running a command
 }
 
 interface StatusDbo {
