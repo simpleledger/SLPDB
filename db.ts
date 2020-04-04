@@ -210,16 +210,16 @@ export class Db {
             throw Error("Attempted to add items without BLK property.");
         }
 
-        if (blockIndex) {
-            console.log('[INFO] Deleting confirmed transactions in block (for replacement):', blockIndex);
-            try {
-                await this.db.collection('confirmed').deleteMany({ 'blk.i': blockIndex });
-            } catch(err) {
-                console.log('confirmedReplace ERR ', err);
-                throw err;
-            }
-            console.log('[INFO] Updating block', blockIndex, 'with', items.length, 'items');
-        }
+        // if (blockIndex) {
+        //     console.log('[INFO] Deleting confirmed transactions in block (for replacement):', blockIndex);
+        //     try {
+        //         await this.db.collection('confirmed').deleteMany({ 'blk.i': blockIndex });
+        //     } catch(err) {
+        //         console.log('confirmedReplace ERR ', err);
+        //         throw err;
+        //     }
+        //     console.log('[INFO] Updating block', blockIndex, 'with', items.length, 'items');
+        // }
         
         for (let i=0; i < items.length; i++) {
             await this.db.collection('confirmed').replaceOne({ "tx.h": items[i].tx.h }, items[i], { upsert: true });
