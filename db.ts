@@ -192,6 +192,7 @@ export class Db {
 
     async confirmedDeleteForReorg(blockIndex: number): Promise<any> {
         await this.checkClientStatus();
+        console.log(`[WARN] Deleting all transactions with block greater than or equal to ${blockIndex}.`)
         return await this.db.collection('confirmed').deleteMany({ "blk.i": { "$gte": blockIndex }});
     }
 
@@ -210,43 +211,12 @@ export class Db {
             throw Error("Attempted to add items without BLK property.");
         }
 
-        // THIS IS COMMENTED OUT AS IT MAY BE A RACE CONDITION WITH THE replaceOne upsert call.
-        // if (blockIndex) {
-        //     console.log('[INFO] Deleting confirmed transactions in block (for replacement):', blockIndex);
-        //     try {
-        //         await this.db.collection('confirmed').deleteMany({ 'blk.i': blockIndex });
-        //     } catch(err) {
-        //         console.log('confirmedReplace ERR ', err);
-        //         throw err;
-        //     }
-        //     console.log('[INFO] Updating block', blockIndex, 'with', items.length, 'items');
-        // }
+        if (blockIndex) {
+            console.log('[INFO] Updating block', blockIndex, 'with', items.length, 'items');
+        }
         
         for (let i=0; i < items.length; i++) {
             await this.db.collection('confirmed').replaceOne({ "tx.h": items[i].tx.h }, items[i], { upsert: true });
-        }
-    }
-
-    async confirmedInsert(items: TNATxn[]) {
-        await this.checkClientStatus();
-
-        let index = 0
-        while (true) {
-            let chunk = items.slice(index, index + 1000)
-            if (chunk.length > 0) {
-                try {
-                    await this.db.collection('confirmed').insertMany(chunk, { ordered: false })
-                } catch (e) {
-                // duplicates are ok because they will be ignored
-                    if (e.code !== 11000) {
-                        console.log('[ERROR] confirmedInsert error:', e, items)
-                        throw e
-                    }
-                }
-                index+=1000
-            } else {
-                break
-            }
         }
     }
 
