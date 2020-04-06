@@ -35,11 +35,11 @@ export class TNA {
                             }
                         }
                     })
-                    xput.str = input.script.toASM()
+                    xput.str = input.script.toASM();
                     let sender: Sender = {
                         h: input.prevTxId.toString('hex'),
                         i: input.outputIndex,
-                        s: input._scriptBuffer
+                        s: input._scriptBuffer,
                     }
                     let address;
                     try { address = Utils.toSlpAddress(input.script.toAddress(net).toString(bitcore.Address.CashAddrFormat)); } catch(_) { }
@@ -73,7 +73,7 @@ export class TNA {
             gene.outputs.forEach(function(output, output_index) {
                 if (output.script) {
                     let xput: Xput = { i: output_index }
-                    output.script.chunks.forEach(function(c, chunk_index) {
+                    output.script.chunks.forEach((c: Bitcore.Chunk, chunk_index: number) => {
                         if (c.buf) {
                             const key_prefix = (c.buf.length >= 512) ? 'l' : '';
 
@@ -109,7 +109,6 @@ export class TNA {
                 }
             })
         }
-        // @ts-ignore
         return { tx: { h: t.hash, raw: gene.toBuffer() }, in: inputs, out: outputs };
     }
 }

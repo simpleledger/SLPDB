@@ -1,7 +1,7 @@
 {
   "name": "slpdb",
   "version": "1.0.0-rc7",
-  "description": "A general purpose indexer and validity service for the Simple Ledger Protocol with real-time validation notifications.",
+  "description": "Indexer for the Simple Ledger Protocol with real-time validation notifications.",
   "main": "index.js",
   "scripts": {
     "test": "tsc && mocha --timeout 1000000 --exit --require mocha-steps",
@@ -41,7 +41,7 @@
     "cashaddrjs-slp": "^0.2.12",
     "dotenv": "^6.0.0",
     "fountainhead-core": "0.0.4",
-    "grpc-bchrpc-node": "0.6.2",
+    "grpc-bchrpc-node": "^0.10.0",
     "iconv-lite": "^0.4.24",
     "ip": "^1.1.5",
     "js-yaml": "^3.13.1",
@@ -53,7 +53,7 @@
     "os-utils": "0.0.14",
     "p-limit": "2.0.0",
     "p-queue": "3.1.0",
-    "slpjs": "0.22.5",
+    "slpjs": "0.25.6",
     "synchronized-promise": "0.2.0",
     "traverse": "^0.6.6",
     "typescript": "^3.7.5",
