@@ -13,7 +13,6 @@ let rpc_retry: any;
 export class RpcClient {
     static transactionCache = new CacheMap<string, Buffer>(500000);
     static useGrpc: boolean | undefined;
-    //spendCache = new MapCache<string, {txid: string, block: number|null, blockHash: string|null}>(10000);
     constructor({ useGrpc }: { useGrpc?: boolean }) {
         if(useGrpc) {
             RpcClient.useGrpc = useGrpc;
@@ -23,7 +22,7 @@ export class RpcClient {
                     grpc = new GrpcClient({ url: Config.grpc.url });
         } else {
             rpc = new _rpcClient(connectionString, { maxRetries: 0 });
-            rpc_retry = new _rpcClient(connectionString, { maxRetries: 5, retryDelayMs: 500 });
+            rpc_retry = new _rpcClient(connectionString, { maxRetries: 5, retryDelayMs: Config.rpc.rpcRetryDelayMs });
         }
     }
 

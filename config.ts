@@ -16,12 +16,13 @@ export interface RpcConfig {
 
 export class Config {
 	static rpc = {
-		'protocol': process.env.rpc_protocol ? process.env.rpc_protocol : 'http',
-		'user': process.env.rpc_user ? process.env.rpc_user : 'bitcoin',
-		'pass': process.env.rpc_pass ? process.env.rpc_pass : 'password',
-		'host': process.env.rpc_host ? process.env.rpc_host : '0.0.0.0',
-		'port': process.env.rpc_port ? process.env.rpc_port : '8332',
-		'limit': Number.parseInt(process.env.rpc_limit ? process.env.rpc_limit : "150")
+		protocol: process.env.rpc_protocol ? process.env.rpc_protocol : 'http',
+		user: process.env.rpc_user ? process.env.rpc_user : 'bitcoin',
+		pass: process.env.rpc_pass ? process.env.rpc_pass : 'password',
+		host: process.env.rpc_host ? process.env.rpc_host : '0.0.0.0',
+		port: process.env.rpc_port ? process.env.rpc_port : '8332',
+		limit: Number.parseInt(process.env.rpc_limit ? process.env.rpc_limit : "150"),
+		rpcRetryDelayMs: Number.parseInt(process.env.rpc_retry_delay ? process.env.rpc_retry_delay : "1000")
 	}
 	static grpc = {
 		url: Boolean(process.env.grpc_url) ? process.env.grpc_url : undefined, 
