@@ -1,5 +1,5 @@
 import * as assert from "assert";
-import { Slp, LocalValidator, TransactionHelpers, Utils, SlpAddressUtxoResult, SlpTransactionType } from 'slpjs';
+import { Slp, LocalValidator, TransactionHelpers, Utils, SlpAddressUtxoResult, SlpTransactionType, BitboxNetwork } from 'slpjs';
 import * as zmq from 'zeromq';
 import { BITBOX } from 'bitbox-sdk';
 import BigNumber from 'bignumber.js';
