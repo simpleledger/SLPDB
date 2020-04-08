@@ -164,13 +164,18 @@ describe("5a-Reorg-Removes-Data", () => {
 
         // create a new token
         receiverSlptest = Utils.toSlpAddress(receiverRegtest);
-        genesisTxnHex = txnHelpers.simpleTokenGenesis(
-                                                        "unit-test-5a", "ut5a", 
-                                                        new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), 
-                                                        null, null, 
-                                                        TOKEN_DECIMALS, receiverSlptest, receiverSlptest, 
-                                                        receiverSlptest, txnInputs
-                                                        );
+        genesisTxnHex = txnHelpers.simpleTokenGenesis({
+            tokenName: "unit-test-5a",
+            tokenTicker: "ut5a", 
+            tokenAmount: new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), 
+            documentUri: null,
+            documentHash: null, 
+            decimals: TOKEN_DECIMALS, 
+            tokenReceiverAddress: receiverSlptest, 
+            batonReceiverAddress: receiverSlptest, 
+            bchChangeReceiverAddress: receiverSlptest, 
+            inputUtxos: txnInputs
+        });
 
         // broadcast to node1
         tokenId = await rpcNode1_miner.sendRawTransaction(genesisTxnHex, true);
@@ -309,7 +314,7 @@ describe("5a-Reorg-Removes-Data", () => {
         g = await db.graphTxnFetch(tokenId);
         c = await db.confirmedFetch(tokenId);
         //u = await db.unconfirmedFetch(tokenId);
-        while (!t || !g || !c) { // || u) {
+        while (!t || !g || !c || !g.graphTxn._blockHash) { // || u) {
             await sleep(50);
             t = await db.tokenFetch(tokenId);
             g = await db.graphTxnFetch(tokenId);

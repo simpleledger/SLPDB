@@ -144,13 +144,31 @@ describe("2-Double-Spend-Genesis", () => {
     step("DS-G: Create two different genesis transactions", async () => {
         // create and broadcast SLP genesis transaction
         receiverSlptest = Utils.toSlpAddress(receiverRegtest);
-        let genesisTxnHex1 = txnHelpers.simpleTokenGenesis(
-                                "unit-test-2a", "ut2a", new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), null, null, 
-                                TOKEN_DECIMALS, receiverSlptest, receiverSlptest, receiverSlptest, txnInputs);
+        let genesisTxnHex1 = txnHelpers.simpleTokenGenesis({
+            tokenName: "unit-test-2a", 
+            tokenTicker: "ut2a", 
+            tokenAmount: new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), 
+            documentUri: null, 
+            documentHash: null, 
+            decimals: TOKEN_DECIMALS, 
+            tokenReceiverAddress: receiverSlptest, 
+            batonReceiverAddress: receiverSlptest, 
+            bchChangeReceiverAddress: receiverSlptest, 
+            inputUtxos: txnInputs
+        });
 
-        let genesisTxnHex2 = txnHelpers.simpleTokenGenesis(
-            "unit-test-2b", "ut2b", new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), null, null, 
-            TOKEN_DECIMALS, receiverSlptest, receiverSlptest, receiverSlptest, txnInputs);
+        let genesisTxnHex2 = txnHelpers.simpleTokenGenesis({
+            tokenName: "unit-test-2b", 
+            tokenTicker: "ut2b", 
+            tokenAmount: new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), 
+            documentUri: null, 
+            documentHash: null, 
+            decimals: TOKEN_DECIMALS, 
+            tokenReceiverAddress: receiverSlptest, 
+            batonReceiverAddress: receiverSlptest, 
+            bchChangeReceiverAddress: receiverSlptest, 
+            inputUtxos: txnInputs
+        });
     
         tokenId1 = await rpcNode1_miner.sendRawTransaction(genesisTxnHex1, true);
         tokenId2 = await rpcNode2_miner.sendRawTransaction(genesisTxnHex2, true);

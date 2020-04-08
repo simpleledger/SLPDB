@@ -5,6 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Start From Checkpoint (ts-node)",
+            "type": "node",
+            "request": "launch",
+            "args": ["${workspaceFolder}/index.ts", "run"],
+            "runtimeArgs": ["--nolazy", "-r", "ts-node/register"],
+            "sourceMaps": true,
+            "cwd": "${workspaceRoot}",
+            "protocol": "inspector",
+            "console": "externalTerminal"
+        },
+        {
             "type": "node",
             "request": "launch",
             //"preLaunchTask": "tsc",
@@ -13,14 +24,6 @@
             "args": ["--timeout", "1000000", "--exit", "--require", "mocha-steps"],
             "cwd": "${workspaceRoot}",
             "outFiles": []
-        },
-        {
-            "type": "node",
-            "request": "launch",
-            "name": "Start From Checkpoint",
-            "program": "${workspaceFolder}/index.js",
-            "args": ["run"],
-            "console": "externalTerminal"
         },
         {
             "type": "node",

@@ -136,13 +136,18 @@ describe("5-Reorg-Removes-Data", () => {
 
         // create a new token
         receiverSlptest = Utils.toSlpAddress(receiverRegtest);
-        let genesisTxnHex = txnHelpers.simpleTokenGenesis(
-                                                        "unit-test-5", "ut5", 
-                                                        new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), 
-                                                        null, null, 
-                                                        TOKEN_DECIMALS, receiverSlptest, receiverSlptest, 
-                                                        receiverSlptest, txnInputs
-                                                        );
+        let genesisTxnHex = txnHelpers.simpleTokenGenesis({
+            tokenName: "unit-test-5", 
+            tokenTicker: "ut5", 
+            tokenAmount: new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), 
+            documentUri: null, 
+            documentHash: null, 
+            decimals: TOKEN_DECIMALS, 
+            tokenReceiverAddress: receiverSlptest, 
+            batonReceiverAddress: receiverSlptest, 
+            bchChangeReceiverAddress: receiverSlptest, 
+            inputUtxos: txnInputs
+        });
         tokenId = await rpcNode1_miner.sendRawTransaction(genesisTxnHex, true);
 
         while (slpdbTxnNotifications.filter(t => t.tx.h === tokenId).length === 0) {

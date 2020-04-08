@@ -164,13 +164,18 @@ describe("5b-Reorg-Removes-Data", () => {
 
         // create a new token
         receiverSlptest = Utils.toSlpAddress(receiverRegtest);
-        genesisTxnHex = txnHelpers.simpleTokenGenesis(
-                                                        "unit-test-5b", "ut5b", 
-                                                        new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), 
-                                                        null, null, 
-                                                        TOKEN_DECIMALS, receiverSlptest, receiverSlptest, 
-                                                        receiverSlptest, txnInputs
-                                                        );
+        genesisTxnHex = txnHelpers.simpleTokenGenesis({
+            tokenName: "unit-test-5b",
+            tokenTicker: "ut5b", 
+            tokenAmount: new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), 
+            documentUri: null, 
+            documentHash: null, 
+            decimals: TOKEN_DECIMALS, 
+            tokenReceiverAddress: receiverSlptest, 
+            batonReceiverAddress: receiverSlptest, 
+            bchChangeReceiverAddress: receiverSlptest, 
+            inputUtxos: txnInputs
+        });
 
         // broadcast to node1
         tokenId = await rpcNode1_miner.sendRawTransaction(genesisTxnHex, true);
@@ -241,8 +246,13 @@ describe("5b-Reorg-Removes-Data", () => {
 
         receiverSlptest = Utils.toSlpAddress(receiverRegtest);
 
-        let sendTxnHex1 = txnHelpers.simpleTokenSend(tokenId, new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS),
-                                                        txnInputs, receiverSlptest, receiverSlptest);
+        let sendTxnHex1 = txnHelpers.simpleTokenSend({
+            tokenId, 
+            sendAmounts: new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS),
+            inputUtxos: txnInputs, 
+            tokenReceiverAddresses: receiverSlptest, 
+            changeReceiverAddress: receiverSlptest
+        });
 
         txid1 = await rpcNode1_miner.sendRawTransaction(sendTxnHex1, true);
 

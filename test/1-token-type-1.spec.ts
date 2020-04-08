@@ -103,9 +103,18 @@ describe("1-Token-Type-1", () => {
     step("GENESIS: produces ZMQ output for the transaction", async () => {
         // create and broadcast SLP genesis transaction
         receiverSlptest = Utils.toSlpAddress(receiverRegtest);
-        let genesisTxnHex = txnHelpers.simpleTokenGenesis(
-                                "unit-test-1", "ut1", new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), null, null, 
-                                TOKEN_DECIMALS, receiverSlptest, receiverSlptest, receiverSlptest, txnInputs);
+        let genesisTxnHex = txnHelpers.simpleTokenGenesis({
+                                tokenName:"unit-test-1",
+                                tokenTicker:"ut1",
+                                tokenAmount: new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS),
+                                decimals: TOKEN_DECIMALS,
+                                tokenReceiverAddress: receiverSlptest,
+                                batonReceiverAddress: receiverSlptest,
+                                bchChangeReceiverAddress: receiverSlptest,
+                                inputUtxos: txnInputs,
+                                documentUri: null,
+                                documentHash: null
+                            });
 
         tokenId = await rpcNode1_miner.sendRawTransaction(genesisTxnHex, true);
 
@@ -280,7 +289,13 @@ describe("1-Token-Type-1", () => {
         slpdbBlockNotifications = [];
 
         // create a SEND Transaction
-        let sendTxnHex = txnHelpers.simpleTokenSend(tokenId, new BigNumber(TOKEN_SEND_QTY).times(10**TOKEN_DECIMALS), txnInputs, receiverSlptest, receiverSlptest);
+        let sendTxnHex = txnHelpers.simpleTokenSend({
+            tokenId, 
+            sendAmounts: new BigNumber(TOKEN_SEND_QTY).times(10**TOKEN_DECIMALS),
+            inputUtxos: txnInputs, 
+            tokenReceiverAddresses: receiverSlptest, 
+            changeReceiverAddress: receiverSlptest,
+        });
 
         sendTxid = await rpcNode1_miner.sendRawTransaction(sendTxnHex, true);
 

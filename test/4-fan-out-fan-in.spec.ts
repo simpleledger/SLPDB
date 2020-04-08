@@ -10,6 +10,7 @@ import { Db } from '../db';
 import { TNATxn, TNATxnSlpDetails } from "../tna";
 import { CacheMap } from "../cache";
 import { TokenDBObject, TokenBatonStatus, GraphTxnDbo } from "../interfaces";
+import { SSL_OP_EPHEMERAL_RSA } from "constants";
 
 const bitbox = new BITBOX();
 const slp = new Slp(bitbox);
@@ -126,13 +127,19 @@ describe("4-Fan-out-Fan-in", () => {
 
         // create a new token
         receiverSlptest = Utils.toSlpAddress(receiverRegtest);
-        let genesisTxnHex = txnHelpers.simpleTokenGenesis(
-                                                        "unit-test-4", "ut4", 
-                                                        new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), 
-                                                        null, null, 
-                                                        TOKEN_DECIMALS, receiverSlptest, receiverSlptest, 
-                                                        receiverSlptest, txnInputs
-                                                        );
+        let genesisTxnHex = txnHelpers.simpleTokenGenesis({
+            tokenName: "unit-test-4", 
+            tokenTicker: "ut4", 
+            tokenAmount: new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), 
+            documentUri: null, 
+            documentHash: null, 
+            decimals: TOKEN_DECIMALS, 
+            tokenReceiverAddress: receiverSlptest, 
+            batonReceiverAddress: receiverSlptest, 
+            bchChangeReceiverAddress: receiverSlptest, 
+            inputUtxos: txnInputs
+        });
+
         tokenId = await rpcNode1_miner.sendRawTransaction(genesisTxnHex, true);
         lastBlockHash = (await rpcNode1_miner.generate(1))[0];
         lastBlockIndex = (await rpcNode1_miner.getBlock(lastBlockHash, true)).height;
@@ -141,7 +148,12 @@ describe("4-Fan-out-Fan-in", () => {
 
         // disconnect nodes now
         let peerInfo: any[] = await rpcNode1_miner.getPeerInfo();
-        await rpcNode1_miner.disconnectNode("bitcoin1");
+        try {
+            await rpcNode1_miner.disconnectNode("bitcoin1");
+        } catch (err) {
+            console.log(err);
+            throw Error("Running SLPDB e2e tests requires first running 'git apply ./patches/*'");
+        }
         while(peerInfo.length > 0) {
             await sleep(100);
             peerInfo = await rpcNode1_miner.getPeerInfo();
@@ -222,12 +234,13 @@ describe("4-Fan-out-Fan-in", () => {
 
             assert.equal(txnInputs.length > 1, true);
 
-            let txnHex = txnHelpers.simpleTokenSend(tokenId, 
-                                                    Array(18).fill(new BigNumber(perInputAmount).times(10**TOKEN_DECIMALS)),
-                                                    txnInputs, 
-                                                    Array(18).fill(receiverSlptest), 
-                                                    receiverSlptest
-                                                    );
+            let txnHex = txnHelpers.simpleTokenSend({
+                tokenId,
+                sendAmounts: Array(18).fill(new BigNumber(perInputAmount).times(10**TOKEN_DECIMALS)),
+                inputUtxos: txnInputs,
+                tokenReceiverAddresses: Array(18).fill(receiverSlptest),
+                changeReceiverAddress: receiverSlptest
+            });
 
             let txid = await rpcNode1_miner.sendRawTransaction(txnHex, true);
             rawTxnCache.set(txid, txnHex);
@@ -265,12 +278,13 @@ describe("4-Fan-out-Fan-in", () => {
         assert.equal(txnInputs.length, actualInputsCreated+2);  // +1 for SLP change, +1 for nonSlpUtxo
         console.log(`Please wait, signing ${txnInputs.length} inputs in fan-in transaction.`);
 
-        let txnHex = txnHelpers.simpleTokenSend(tokenId, 
-                                                Array(18).fill(new BigNumber(perInputAmount.times(actualInputsCreated))),
-                                                txnInputs, 
-                                                Array(18).fill(receiverSlptest), 
-                                                receiverSlptest
-                                                );
+        let txnHex = txnHelpers.simpleTokenSend({
+            tokenId, 
+            sendAmounts: Array(18).fill(new BigNumber(perInputAmount.times(actualInputsCreated))),
+            inputUtxos: txnInputs, 
+            tokenReceiverAddresses: Array(18).fill(receiverSlptest), 
+            changeReceiverAddress: receiverSlptest
+        });
 
         fiTxid = await rpcNode1_miner.sendRawTransaction(txnHex, true);
     });

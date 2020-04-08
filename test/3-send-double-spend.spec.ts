@@ -117,9 +117,19 @@ describe("3-Double-Spend-Send", () => {
 
         // create a new token
         receiverSlptest = Utils.toSlpAddress(receiverRegtest);
-        let genesisTxnHex = txnHelpers.simpleTokenGenesis(
-            "unit-test-3", "ut3", new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), null, null, 
-            TOKEN_DECIMALS, receiverSlptest, receiverSlptest, receiverSlptest, txnInputs);
+        let genesisTxnHex = txnHelpers.simpleTokenGenesis({
+            tokenName: "unit-test-3", 
+            tokenTicker: "ut3", 
+            tokenAmount: new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS), 
+            documentUri: null, 
+            documentHash: null, 
+            decimals: TOKEN_DECIMALS, 
+            tokenReceiverAddress: receiverSlptest, 
+            batonReceiverAddress: receiverSlptest, 
+            bchChangeReceiverAddress: receiverSlptest, 
+            inputUtxos: txnInputs
+        });
+            
         tokenId = await rpcNode1_miner.sendRawTransaction(genesisTxnHex, true);
         lastBlockHash = (await rpcNode1_miner.generate(1))[0];
         lastBlockIndex = (await rpcNode1_miner.getBlock(lastBlockHash, true)).height;
@@ -175,11 +185,21 @@ describe("3-Double-Spend-Send", () => {
         // create and broadcast SLP genesis transaction
         receiverSlptest = Utils.toSlpAddress(receiverRegtest);
 
-        let sendTxnHex1 = txnHelpers.simpleTokenSend(tokenId, new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS),
-                                                        txnInputs, receiverSlptest, receiverSlptest);
+        let sendTxnHex1 = txnHelpers.simpleTokenSend({
+            tokenId, 
+            sendAmounts: new BigNumber(TOKEN_GENESIS_QTY).times(10**TOKEN_DECIMALS),
+            inputUtxos: txnInputs, 
+            tokenReceiverAddresses: receiverSlptest, 
+            changeReceiverAddress: receiverSlptest
+        });
 
-        let sendTxnHex2 = txnHelpers.simpleTokenSend(tokenId, new BigNumber(TOKEN_GENESIS_QTY-1).times(10**TOKEN_DECIMALS),
-                                                        txnInputs, receiverSlptest, receiverSlptest);
+        let sendTxnHex2 = txnHelpers.simpleTokenSend({
+            tokenId, 
+            sendAmounts: new BigNumber(TOKEN_GENESIS_QTY-1).times(10**TOKEN_DECIMALS),
+            inputUtxos: txnInputs, 
+            tokenReceiverAddresses: receiverSlptest, 
+            changeReceiverAddress: receiverSlptest
+        });
     
         txid1 = await rpcNode1_miner.sendRawTransaction(sendTxnHex1, true);
         console.log(`txid1: ${txid1}`);
