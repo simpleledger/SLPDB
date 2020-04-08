@@ -536,8 +536,9 @@ export class Bit {
         if (res.added) {
             console.log('[ZMQ-SUB] Possible SLP transaction added:', txid);
             let syncResult = await Bit.sync(this, 'mempool', txid);
-            if (!this._slpGraphManager.zmqPubSocket) //{}
+            if (!this._slpGraphManager.zmqPubSocket) {
                 this._slpGraphManager.zmqPubSocket = this.outsock;
+            }
             if (syncResult) {
                 this._slpGraphManager.onTransactionHash!(syncResult);
             }
@@ -565,18 +566,16 @@ export class Bit {
     static async sync(self: Bit, type: string, zmqHash?: string, txhex?: string): Promise<Map<txid, txhex>|null> {
         let result = new Map<txid, txhex>();
         if (type === 'block') {
-            let lastCheckpoint = zmqHash ? <ChainSyncCheckpoint>await Info.getBlockCheckpoint() : <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
-            let startHeight = lastCheckpoint.height + 1;
-            let currentHeight: number = await RpcClient.getBlockCount();
+
             if (zmqHash) {
                 let zmqHeight = (await RpcClient.getBlockInfo({ hash: zmqHash })).height;
                 await self.checkForBlockReorg({ height: zmqHeight, hash: zmqHash });
-                if (zmqHeight < startHeight) {
-                    // NOTE: This can happen if the below for loop processes blocks before zmq block notifications
-                    console.log(`[WARN] zmqHeight (${zmqHeight}) is not greater than last checkpoint height (${startHeight}).`);
-                }
-                startHeight = zmqHeight
-            }
+            } 
+
+            let lastCheckpoint = zmqHash ? <ChainSyncCheckpoint>await Info.getBlockCheckpoint() : <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
+            let startHeight = lastCheckpoint.height + 1;
+            let currentHeight: number = await RpcClient.getBlockCount();
+
             for (let index: number = startHeight; index <= currentHeight; index++) {
                 if (self._exit) {
                     return null;
@@ -598,10 +597,10 @@ export class Bit {
                 try {
                     [ crawledTxns, spentOutpoints ] = (await self.crawl(index, syncComplete)) as [CrawlResult, [string,Uint8Array][]];
                 } catch (err) {
-                    //if (!zmqHash) {
-                    throw err;
-                    // }
-                    // return null;
+                    if (!zmqHash) {
+                        throw err;
+                    }
+                    return null;
                 } finally {
                     console.timeEnd('[PERF] RPC END ' + index);
                     console.time('[PERF] DB Insert ' + index);
@@ -611,10 +610,10 @@ export class Bit {
                 try {
                     blockHash = (await RpcClient.getBlockHash(index, true)) as Buffer;
                 } catch (err) {
-                    //if (!zmqHash) {
-                    throw err;
-                    // }
-                    // return null;
+                    if (!zmqHash) {
+                        throw err;
+                    }
+                    return null;
                 }
         
                 if (crawledTxns && crawledTxns.size > 0) {
@@ -802,7 +801,7 @@ export class Bit {
             this.slpMempool.delete(t.tx.h);
             let tokenId = t.slp!.detail!.tokenIdHex!;
             let tg = this._slpGraphManager._tokens.get(tokenId);
-            tg!.removeGraphTransaction({ txid: t.tx.h });
+            await tg!.removeGraphTransaction({ txid: t.tx.h });
             t.in.forEach(i => {
                 try {
                     this._spentTxoCache.delete(`${(i.e as Sender).h}:${i.e!.i}`);

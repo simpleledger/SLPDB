@@ -69,10 +69,6 @@ const daemon = {
 
         let lastSynchronized = <ChainSyncCheckpoint>await Info.getBlockCheckpoint((await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet);
         console.log("reprocessFrom: ", lastSynchronized.height);
-        if (lastSynchronized.height > await RpcClient.getBlockCount()) {
-            lastSynchronized = await bit.checkForBlockReorg(lastSynchronized);
-            //throw Error("Config.core.from or Config.core.from_testnet cannot be larger than the current blockchain height (check the config.ts file)");
-        }
 
         console.time('[PERF] Indexing Keys');
         let from = (await Info.getNetwork()) === 'mainnet' ? Config.core.from : Config.core.from_testnet;
