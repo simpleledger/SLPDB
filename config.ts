@@ -22,7 +22,8 @@ export class Config {
 		host: process.env.rpc_host ? process.env.rpc_host : '0.0.0.0',
 		port: process.env.rpc_port ? process.env.rpc_port : '8332',
 		limit: Number.parseInt(process.env.rpc_limit ? process.env.rpc_limit : "150"),
-		rpcRetryDelayMs: Number.parseInt(process.env.rpc_retry_delay ? process.env.rpc_retry_delay : "1000")
+		rpcRetryDelayMs: Number.parseInt(process.env.rpc_retry_delay ? process.env.rpc_retry_delay : "1000"),
+		rpcTimeoutMs: Number.parseInt(process.env.rpc_timeout ? process.env.rpc_timeout : "30000")
 	}
 	static grpc = {
 		url: Boolean(process.env.grpc_url) ? process.env.grpc_url : undefined, 

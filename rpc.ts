@@ -16,13 +16,15 @@ export class RpcClient {
     constructor({ useGrpc }: { useGrpc?: boolean }) {
         if(useGrpc) {
             RpcClient.useGrpc = useGrpc;
-                if(Boolean(Config.grpc.url) && Config.grpc.certPath)
-                    grpc = new GrpcClient({ url: Config.grpc.url, rootCertPath: Config.grpc.certPath });
-                else
-                    grpc = new GrpcClient({ url: Config.grpc.url });
+            if(Boolean(Config.grpc.url) && Config.grpc.certPath) {
+                grpc = new GrpcClient({ url: Config.grpc.url, rootCertPath: Config.grpc.certPath });
+            }
+            else {
+                grpc = new GrpcClient({ url: Config.grpc.url });
+            }
         } else {
             rpc = new _rpcClient(connectionString, { maxRetries: 0 });
-            rpc_retry = new _rpcClient(connectionString, { maxRetries: 5, retryDelayMs: Config.rpc.rpcRetryDelayMs });
+            rpc_retry = new _rpcClient(connectionString, { maxRetries: 2, timeoutMs: Config.rpc.rpcTimeoutMs, retryDelayMs: Config.rpc.rpcRetryDelayMs });
         }
     }
 
