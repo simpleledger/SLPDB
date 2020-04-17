@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "mocha --timeout 1000000 --exit --require mocha-steps",
-    "start": "node --nolazy -r ts-node/register --max_old_space_size=8192 index run",
+    "start": "tsc && node --max_old_space_size=8192 index run",
     "lint": "./node_modules/.bin/eslint .",
     "migrate": "./node_modules/.bin/migrate-mongo"
   },
@@ -26,8 +26,8 @@
     "@types/dotenv": "^6.1.0",
     "@types/ip": "^1.1.0",
     "@types/js-yaml": "^3.12.3",
-    "@types/mongodb": "^3.5.5",
-    "@types/node": "^10.17.18",
+    "@types/mongodb": "^3.5.8",
+    "@types/node": "^10.17.19",
     "@types/p-limit": "2.0.0",
     "@types/p-queue": "3.1.0",
     "@types/zeromq": "^4.6.3",
@@ -47,7 +47,7 @@
     "level": "^5.0.1",
     "migrate-mongo": "^5.0.1",
     "mingo": "^2.5.3",
-    "mongodb": "^3.5.5",
+    "mongodb": "^3.5.6",
     "node-jq": "1.6.0",
     "os-utils": "0.0.14",
     "p-limit": "2.0.0",
