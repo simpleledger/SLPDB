@@ -23,11 +23,12 @@ export class Config {
 		port: process.env.rpc_port ? process.env.rpc_port : '8332',
 		limit: Number.parseInt(process.env.rpc_limit ? process.env.rpc_limit : "150"),
 		rpcRetryDelayMs: Number.parseInt(process.env.rpc_retry_delay ? process.env.rpc_retry_delay : "1000"),
-		rpcTimeoutMs: Number.parseInt(process.env.rpc_timeout ? process.env.rpc_timeout : "30000")
+		rpcTimeoutMs: Number.parseInt(process.env.rpc_timeout ? process.env.rpc_timeout : "30000"),
+		skipInitialSyncCheck: process.env.skip_intial_sync_check ? ['1', 'true'].includes(process.env.skip_intial_sync_check) : false,
 	}
 	static grpc = {
-		url: Boolean(process.env.grpc_url) ? process.env.grpc_url : undefined, 
-		certPath: Boolean(process.env.grpc_certPath) ? process.env.grpc_certPath : undefined
+		url: Boolean(process.env.grpc_url) ? process.env.grpc_url : undefined,
+		certPath: Boolean(process.env.grpc_certPath) ? process.env.grpc_certPath : undefined,
 	}
 	static db: DbConfig = {
 		name: process.env.db_name ? process.env.db_name : 'slpdb',

@@ -360,6 +360,7 @@ A set of end-to-end tests have been created in order to ensure the expected beha
     * Removed UTXO status enums: `SPENT_INVALID_SLP`, `BATON_SPENT_INVALID_SLP`
     * Renamed `qty_valid_txns_since_genesis` to `approx_txns_since_genesis`, since this can be corrupted if the block checkpoint is reset.
     * Removed network dependency to rest.bitcoin.com
+    * Add env var to skip the initial full node sync check that happens only on startup
 
 * 0.15.6
     * Bug fixes and improvements in slpjs

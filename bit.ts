@@ -93,9 +93,9 @@ export class Bit {
         }
         const deserialized: bitcore.Transaction = new bitcore.Transaction(txn);
         let slpMsg: SlpTransactionDetails;
-        try {        
+        try {
             slpMsg = this._slpGraphManager.slp.parseSlpOutputScript(deserialized.outputs[0]._scriptBuffer);
-        } catch(_) {
+        } catch (_) {
             return null;
         }
         if (slpMsg.transactionType === "GENESIS") {
@@ -117,7 +117,7 @@ export class Bit {
         while (!isSyncd) {
             let info = await RpcClient.getBlockchainInfo();
             let chain = info.chain;
-            if (chain === 'regtest') {
+            if (chain === 'regtest' || Config.rpc.skipInitialSyncCheck) {
                 break;
             }
             let syncdBlocks = info.blocks;
