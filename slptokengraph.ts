@@ -394,7 +394,7 @@ export class SlpTokenGraph {
                             vout: i.outputIndex,
                             slpAmount: o.slpAmount,
                             address: o.address!,
-                            bchSatoshis: o.bchSatoshis
+                            bchSatoshis: o.bchSatoshis!
                         });
                         this._graphTxns.SetDirty(previd);
                     }
@@ -431,7 +431,7 @@ export class SlpTokenGraph {
                     graphTxn.outputs.push({
                         address: address,
                         vout: txnSlpDetails.batonVout,
-                        bchSatoshis: txnSlpDetails.batonVout < txn.outputs.length ? txn.outputs[txnSlpDetails.batonVout].satoshis : 0, 
+                        bchSatoshis: txnSlpDetails.batonVout < txn.outputs.length ? txn.outputs[txnSlpDetails.batonVout].satoshis : address ? 0 : null, 
                         slpAmount: new BigNumber(0),
                         spendTxid: null,
                         status: address ? BatonUtxoStatus.BATON_UNSPENT : BatonUtxoStatus.BATON_MISSING_BCH_VOUT,
@@ -453,7 +453,7 @@ export class SlpTokenGraph {
                         graphTxn.outputs.push({
                             address: address,
                             vout: slp_vout,
-                            bchSatoshis: slp_vout < txn.outputs.length ? txn.outputs[slp_vout].satoshis : 0, 
+                            bchSatoshis: slp_vout < txn.outputs.length ? txn.outputs[slp_vout].satoshis : address ? 0 : null, 
                             slpAmount: graphTxn.details.sendOutputs![slp_vout],
                             spendTxid: null,
                             status: address ? TokenUtxoStatus.UNSPENT : TokenUtxoStatus.MISSING_BCH_VOUT,

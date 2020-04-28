@@ -13,9 +13,9 @@ export interface GraphTxn {
 }
 
 export interface GraphTxnOutput {
-    address: string;
+    address: string|null;
     vout: number;
-    bchSatoshis: number;
+    bchSatoshis: number|null;
     slpAmount: BigNumber;
     isBurnCounted?: boolean;
     spendTxid: string | null;
