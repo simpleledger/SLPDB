@@ -401,54 +401,6 @@ export class SlpTokenGraph {
                 }
             }
 
-            // visited.clear();
-
-            // // check all inputs
-            // for (let i of txn.inputs) {
-            //     let previd = i.prevTxId.toString('hex');
-            //     let valid;
-            //     if (!this._slpValidator.cachedValidations[previd]) {
-            //         console.log(`Skipping assumed invalid SLP input: ${previd}:${i.outputIndex} in txn: ${txid}`);
-            //         continue;
-            //     }
-
-            //     valid = this._slpValidator.cachedValidations[previd].validity;
-
-            //     if (!this._graphTxns.has(previd) && valid) {
-            //         //
-            //         // NOTE: This branch should only happen in one of the following situations:
-            //         //          1) a new graph txn is spending non-SLP inputs from a pruned txn, OR
-            //         //          2) a valid NFT1 child is spending a non-SLP output from a valid NFT1 parent
-            //         //
-            //         // NOTE: A graph in SLPDB is an individual dag with 1 Genesis, whereas in slp-validate the validator for an NFT Child dag
-            //         //       will also cache validity data for the NFT group dag.  This is why #2 in the list above occurs.
-            //         //
-            //         if (!visited.has(previd)) {
-            //             visited.add(previd);
-            //             let res = await this._db.graphTxnFetch(previd);
-            //             if (!res) {
-            //                 // NOTE: Since situation #2 (with the NFT1 parent) may not yet have this specific graph item commited to db, so let's 
-            //                 //       parse the txn details and check token type !== NFT1_PARENT before we throw.
-            //                 let prevTxHex = await RpcClient.getRawTransaction(previd);
-            //                 let prevTx = new bitcore.Transaction(prevTxHex);
-            //                 let prevTxSlpMessage = slp.parseSlpOutputScript(prevTx.outputs[0]._scriptBuffer);
-            //                 if (this._tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child &&
-            //                     prevTxSlpMessage.versionType === SlpVersionType.TokenVersionType1_NFT_Parent) {
-            //                     continue;
-            //                 }
-            //                 throw Error(`Graph txid ${previd} was not found, this should never happen.`);
-            //             } else {
-            //                 let gt = GraphMap.mapGraphTxnFromDbo(res, this._tokenDetails.decimals);
-            //                 let unspentCount = gt.outputs.filter(o => [TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT].includes(o.status)).length
-            //                 if (gt.details.tokenIdHex === this._tokenIdHex &&
-            //                     unspentCount > 0) {
-            //                     throw Error(`Graph txid ${previd} was loaded from db with unspent outputs, this should never happen.`);
-            //                 }
-            //                 continue;
-            //             }
-            //         }
-            //     }
-            // }
         }
 
         if (!isValid) {
