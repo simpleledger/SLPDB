@@ -417,7 +417,7 @@ export class SlpTokenGraph {
                 graphTxn.outputs.push({
                     address: address,
                     vout: 1,
-                    bchSatoshis: txn.outputs.length > 1 ? txn.outputs[1].satoshis : 0, 
+                    bchSatoshis: txn.outputs.length > 1 ? txn.outputs[1].satoshis : address ? 0 : null, 
                     slpAmount: graphTxn.details.genesisOrMintQuantity! as BigNumber,
                     spendTxid: null,
                     status: address ? TokenUtxoStatus.UNSPENT : TokenUtxoStatus.MISSING_BCH_VOUT,
