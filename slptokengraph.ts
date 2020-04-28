@@ -393,7 +393,7 @@ export class SlpTokenGraph {
                             txid: i.prevTxId.toString('hex'),
                             vout: i.outputIndex,
                             slpAmount: o.slpAmount,
-                            address: o.address,
+                            address: o.address!,
                             bchSatoshis: o.bchSatoshis
                         });
                         this._graphTxns.SetDirty(previd);
@@ -420,8 +420,8 @@ export class SlpTokenGraph {
                     bchSatoshis: txn.outputs.length > 1 ? txn.outputs[1].satoshis : 0, 
                     slpAmount: graphTxn.details.genesisOrMintQuantity! as BigNumber,
                     spendTxid: null,
-                    status: TokenUtxoStatus.UNSPENT,
-                    invalidReason: null
+                    status: address ? TokenUtxoStatus.UNSPENT : TokenUtxoStatus.MISSING_BCH_VOUT,
+                    invalidReason: address ? null : "Transaction is missing output."
                 });
                 if (txnSlpDetails.batonVout) {
                     this._mintBatonStatus = TokenBatonStatus.ALIVE;
@@ -434,8 +434,8 @@ export class SlpTokenGraph {
                         bchSatoshis: txnSlpDetails.batonVout < txn.outputs.length ? txn.outputs[txnSlpDetails.batonVout].satoshis : 0, 
                         slpAmount: new BigNumber(0),
                         spendTxid: null,
-                        status: BatonUtxoStatus.BATON_UNSPENT,
-                        invalidReason: null
+                        status: address ? BatonUtxoStatus.BATON_UNSPENT : BatonUtxoStatus.BATON_MISSING_BCH_VOUT,
+                        invalidReason: address ? null : "Transaction is missing output."
                     });
                 } else if (txnSlpDetails.batonVout === null) {
                     this._mintBatonUtxo = "";
@@ -455,9 +455,9 @@ export class SlpTokenGraph {
                             vout: slp_vout,
                             bchSatoshis: slp_vout < txn.outputs.length ? txn.outputs[slp_vout].satoshis : 0, 
                             slpAmount: graphTxn.details.sendOutputs![slp_vout],
-                            spendTxid: null,                    //spendDetails.txid,
-                            status: TokenUtxoStatus.UNSPENT,    //spendDetails.status,
-                            invalidReason: null                 //spendDetails.invalidReason
+                            spendTxid: null,
+                            status: address ? TokenUtxoStatus.UNSPENT : TokenUtxoStatus.MISSING_BCH_VOUT,
+                            invalidReason: address ? null : "Transaction is missing output."
                         });
                     }
                 }
@@ -539,7 +539,7 @@ export class SlpTokenGraph {
                 address = 'scriptPubKey:' + txn.outputs[outputIndex]._scriptBuffer.toString('hex');
             }
             catch (_) {
-                address = 'Missing transaction output.';
+                address = null;
             }
         }
         return address;
