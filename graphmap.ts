@@ -173,6 +173,9 @@ export class GraphMap extends Map<string, GraphTxn> {
                         _pruneHeight: g.prevPruneHeight
                     }
                 };
+                if (g.details.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
+                    dbo.tokenDetails.nftGroupIdHex = tg._nftParentId!
+                }
                 itemsToUpdate.push(dbo);
             }
         });

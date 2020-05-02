@@ -35,7 +35,7 @@ export class Config {
 		name_testnet: process.env.db_name ? process.env.db_name + "_test" : 'slpdb_test',
 		url: process.env.db_url ? process.env.db_url : 'mongodb://127.0.0.1:27017',
 		confirmed_schema_version: 2,
-		token_schema_version: 78,
+		token_schema_version: 79,
 		lazy_loading: process.env.lazy_loading ? Number.parseInt(process.env.lazy_loading) : 0,
 		index: {
 			tokens: {
@@ -43,7 +43,7 @@ export class Config {
 				fulltext: [ 'tokenDetails.name', 'tokenDetails.symbol' ]
 			},
 			graphs: {
-				keys: [ 'tokenDetails.tokenIdHex', 'graphTxn.txid', 'graphTxn.outputs.spendTxid'],
+				keys: [ 'tokenDetails.tokenIdHex', 'tokenDetails.nftGroupIdHex', 'graphTxn.txid', 'graphTxn.outputs.spendTxid'],
 				fulltext: [ ]
 			},
 			confirmed: {

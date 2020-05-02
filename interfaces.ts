@@ -56,6 +56,7 @@ export interface TokenPruneStateDbo {
 export interface GraphTxnDbo {
     tokenDetails: {
         tokenIdHex: string;
+        nftGroupIdHex?: string;
     };
     graphTxn: GraphTxnDetailsDbo;
 }
