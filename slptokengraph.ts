@@ -203,7 +203,7 @@ export class SlpTokenGraph {
         return this._graphTxns.size > 0;
     }
 
-    private async getMintBatonSpentOutputDetails({ txid, vout, txnOutputLength }: { txid: string; vout: number; txnOutputLength: number|null; }): Promise<MintSpendDetails> {
+    private async getMintBatonSpentOutputDetails({ txid, vout }: { txid: string; vout: number; }): Promise<MintSpendDetails> {
         let spendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
         if (this._startupTxoSendCache) {
             spendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
@@ -242,16 +242,29 @@ export class SlpTokenGraph {
         } else {
             this._mintBatonUtxo = '';
             this._mintBatonStatus = TokenBatonStatus.DEAD_BURNED;
-            if (vout < txnOutputLength!) {
-                return { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: null, invalidReason: validation.invalidReason };
+
+            const txnHex = await RpcClient.getRawTransaction(spendTxnInfo.txid!);
+            const txn = Primatives.Transaction.parseFromBuffer(Buffer.from(txnHex, "hex"));
+
+            // SPENT_NON_SLP
+            try {
+                slp.parseSlpOutputScript(Buffer.from(txn.outputs[0]!.scriptPubKey));
+            } catch (_) {
+                return  { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: spendTxnInfo.txid!, invalidReason: "SLP baton output was spent in a non-SLP transaction." }
             }
-            this._mintBatonStatus = TokenBatonStatus.DEAD_BURNED;
-            return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
+
+            // MISSING_BCH_VOUT
+            if (vout > txn.outputs.length-1) {
+                return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: spendTxnInfo.txid!, invalidReason: "SLP baton output has no corresponding BCH output." };
+            }
+
+            // SPENT_INVALID_SLP
+            return { status: BatonUtxoStatus.BATON_SPENT_INVALID_SLP, txid: spendTxnInfo.txid!, invalidReason: validation.invalidReason };
         }
     }
 
-    private async getSpentOutputDetails({ txid, vout, txnOutputLength }: { txid: string; vout: number; txnOutputLength: number|null; }): Promise<SpendDetails> {
-        let spendTxnInfo: SendTxnQueryResult | {txid: string, block: number|null} | undefined
+    private async getSpentOutputDetails({ txid, vout }: { txid: string; vout: number; }): Promise<SpendDetails> {
+        let spendTxnInfo: SendTxnQueryResult | { txid: string, block: number|null } | undefined
         if (this._startupTxoSendCache) {
             spendTxnInfo = this._startupTxoSendCache.get(txid + ":" + vout);
             if (spendTxnInfo) {
@@ -286,10 +299,23 @@ export class SlpTokenGraph {
             globalUtxoSet.delete(`${txid}:${vout}`);
             return { status: TokenUtxoStatus.SPENT_NOT_IN_SEND, txid: spendTxnInfo!.txid, invalidReason: null };
         } else {
-            if (vout < txnOutputLength!) {
-                return { status: TokenUtxoStatus.SPENT_NON_SLP, txid: null, invalidReason: validation.invalidReason };
+            const txnHex = await RpcClient.getRawTransaction(spendTxnInfo.txid!);
+            const txn = Primatives.Transaction.parseFromBuffer(Buffer.from(txnHex, "hex"));
+
+            // SPENT_NON_SLP
+            try {
+                slp.parseSlpOutputScript(Buffer.from(txn.outputs[0]!.scriptPubKey));
+            } catch (_) {
+                return  { status: TokenUtxoStatus.SPENT_NON_SLP, txid: spendTxnInfo.txid!, invalidReason: "SLP output was spent in a non-SLP transaction." }
             }
-            return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: null, invalidReason: "SLP output has no corresponding BCH output." };
+
+            // MISSING_BCH_VOUT
+            if (vout > txn.outputs.length-1) {
+                return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: spendTxnInfo.txid!, invalidReason: "SLP output has no corresponding BCH output." };
+            }
+
+            // SPENT_INVALID_SLP
+            return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo.txid!, invalidReason: validation.invalidReason };
         }
     }
 
@@ -366,9 +392,9 @@ export class SlpTokenGraph {
                             let spendInfo: SpendDetails|MintSpendDetails;
                             if ([SlpTransactionType.GENESIS, SlpTransactionType.MINT].includes(ptxn!.details.transactionType) &&
                                 ptxn.details.batonVout === vout) {
-                                    spendInfo = await this.getMintBatonSpentOutputDetails({ txid: previd, vout, txnOutputLength: null });
+                                    spendInfo = await this.getMintBatonSpentOutputDetails({ txid: previd, vout });
                             } else {
-                                spendInfo = await this.getSpentOutputDetails({ txid: previd, vout, txnOutputLength: null });
+                                spendInfo = await this.getSpentOutputDetails({ txid: previd, vout });
                             }
                             let o = gtos.find(o => o.vout === vout);
                             if (o) {
