@@ -215,7 +215,7 @@ export class GraphMap extends Map<string, GraphTxn> {
             mintBatonStatus: tg._mintBatonStatus,
             tokenStats: {
                 block_created: tg._blockCreated,
-                approx_txns_since_genesis: graph.SendCount,
+                approx_txns_since_genesis: graph.SendCount + graph.MintCount,
             },
             _pruningState: {
                 pruneHeight: graph._lastPruneHeight,
