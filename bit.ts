@@ -73,7 +73,7 @@ export class Bit {
 
     async init() {
         this.network = await Info.getNetwork();
-        await this.waitForFullNodeSync();
+        //await this.waitForFullNodeSync();
     }
 
     async stop() {
