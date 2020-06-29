@@ -634,13 +634,13 @@ export class Bit {
                     }
                 }
 
-                // search for SLP burns in non-SLP transactions
+                // search for SLP output burns in non-SLP or invalid SLP transactions
                 console.time(`burnSearch-${index}`);
                 for (let [txo, spentIn] of spentOutpoints) {
                     if (globalUtxoSet.has(txo)) {
                         let tokenIdHex = globalUtxoSet.get(txo)!.toString("hex");
                         let graph = (await self._slpGraphManager.getTokenGraph({ txid: tokenIdHex, tokenIdHex }))!;
-                        let updated = graph.markOutputAsBurnedNonSlp(txo, Buffer.from(spentIn).toString("hex"), index);
+                        let updated = graph.markInvalidSlpOutputAsBurned(txo, Buffer.from(spentIn).toString("hex"), index);
                         if (updated) {
                             self._tokenIdsModified.add(tokenIdHex);
                         }

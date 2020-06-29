@@ -86,7 +86,7 @@ export class SlpTokenGraph {
         return false
     }
 
-    markOutputAsBurnedNonSlp(txo: string, burnedInTxid: string, blockIndex: number) {
+    markInvalidSlpOutputAsBurned(txo: string, burnedInTxid: string, blockIndex: number) {
         let txid = txo.split(":")[0];
         let vout = Number.parseInt(txo.split(":")[1]);
         let gt = this._graphTxns.get(txid);
@@ -98,14 +98,15 @@ export class SlpTokenGraph {
                     batonVout = gt.details.batonVout;
                 }
                 if (batonVout === vout) {
-                    o.status = BatonUtxoStatus.BATON_SPENT_NON_SLP;
+                    o.status = BatonUtxoStatus.BATON_SPENT_INVALID_SLP;
+                    o.invalidReason = "Token baton output burned in an invalid SLP transaction";
                     this._mintBatonUtxo = "";
                     this._mintBatonStatus = TokenBatonStatus.DEAD_BURNED;
                 } else {
-                    o.status = TokenUtxoStatus.SPENT_NON_SLP;
+                    o.status = TokenUtxoStatus.SPENT_INVALID_SLP;
+                    o.invalidReason = "Output burned in an invalid SLP transaction";
                 }
                 o.spendTxid = burnedInTxid;
-                o.invalidReason = "Output burned in non-SLP transaction";
                 this._graphTxns.SetDirty(txid);
                 if (gt.outputs.filter(o => [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(o.status)).length === 0) {
                     let pruningStack = PruneStack()
@@ -246,11 +247,16 @@ export class SlpTokenGraph {
             const txnHex = await RpcClient.getRawTransaction(spendTxnInfo.txid!);
             const txn = Primatives.Transaction.parseFromBuffer(Buffer.from(txnHex, "hex"));
 
-            // SPENT_NON_SLP
+            // SPENT_INVALID_SLP (bad OP_RETURN)          
             try {
                 slp.parseSlpOutputScript(Buffer.from(txn.outputs[0]!.scriptPubKey));
             } catch (_) {
-                return  { status: BatonUtxoStatus.BATON_SPENT_NON_SLP, txid: spendTxnInfo.txid!, invalidReason: "SLP baton output was spent in a non-SLP transaction." }
+                return  { status: BatonUtxoStatus.BATON_SPENT_INVALID_SLP, txid: spendTxnInfo.txid!, invalidReason: "SLP baton output was spent in an invalid SLP transaction (bad SLP metadata)." }
+            }
+
+            // SPENT_INVALID_SLP (bad DAG)          
+            if (! validation.validity) {
+                return  { status: BatonUtxoStatus.BATON_SPENT_INVALID_SLP, txid: spendTxnInfo.txid!, invalidReason: "SLP baton output was spent in an invalid SLP transaction (bad DAG)." }
             }
 
             // MISSING_BCH_VOUT
@@ -258,8 +264,7 @@ export class SlpTokenGraph {
                 return { status: BatonUtxoStatus.BATON_MISSING_BCH_VOUT, txid: spendTxnInfo.txid!, invalidReason: "SLP baton output has no corresponding BCH output." };
             }
 
-            // SPENT_INVALID_SLP
-            return { status: BatonUtxoStatus.BATON_SPENT_INVALID_SLP, txid: spendTxnInfo.txid!, invalidReason: validation.invalidReason };
+            throw Error(`Unhandled scenario for updating token baton output status (${txid}:${vout} in ${spendTxnInfo.txid})`);
         }
     }
 
@@ -302,11 +307,16 @@ export class SlpTokenGraph {
             const txnHex = await RpcClient.getRawTransaction(spendTxnInfo.txid!);
             const txn = Primatives.Transaction.parseFromBuffer(Buffer.from(txnHex, "hex"));
 
-            // SPENT_NON_SLP
+            // SPENT_INVALID_SLP (bad OP_RETURN)
             try {
                 slp.parseSlpOutputScript(Buffer.from(txn.outputs[0]!.scriptPubKey));
             } catch (_) {
-                return  { status: TokenUtxoStatus.SPENT_NON_SLP, txid: spendTxnInfo.txid!, invalidReason: "SLP output was spent in a non-SLP transaction." }
+                return  { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo.txid!, invalidReason: "SLP output was spent in an invalid SLP transaction (bad SLP metadata)." }
+            }
+
+            // SPENT_INVALID_SLP (bad DAG)
+            if (! validation.validity) {
+                return  { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo.txid!, invalidReason: "SLP output was spent in an invalid SLP transaction (bad DAG)." }
             }
 
             // MISSING_BCH_VOUT
@@ -314,8 +324,7 @@ export class SlpTokenGraph {
                 return { status: TokenUtxoStatus.MISSING_BCH_VOUT, txid: spendTxnInfo.txid!, invalidReason: "SLP output has no corresponding BCH output." };
             }
 
-            // SPENT_INVALID_SLP
-            return { status: TokenUtxoStatus.SPENT_INVALID_SLP, txid: spendTxnInfo.txid!, invalidReason: validation.invalidReason };
+            throw Error(`Unhandled scenario for updating token output status (${txid}${vout} in ${spendTxnInfo.txid})`);
         }
     }
 
