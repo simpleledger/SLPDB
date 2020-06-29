@@ -73,24 +73,10 @@ export class GraphMap extends Map<string, GraphTxn> {
         this._dirtyItems.add(txid);
     }
 
-    private _decrementGraphCount(graphTxn: GraphTxn) {
-        let txnType = graphTxn.details.transactionType;
-        if (txnType === SlpTransactionType.SEND) {
-            this._graphSendCount--;
-        } else if (txnType === SlpTransactionType.MINT) {
-            this._graphMintCount--;
-        }
-    }
-
     public delete(txid: string) {
         if (this.has(txid)) {
             this._itemsToDelete.add(txid);
-            let graphTxn = this.get(txid);
-            let deleted = super.delete(txid);
-            if (deleted) {
-                this._decrementGraphCount(graphTxn!);
-                return true;
-            }
+            return super.delete(txid);
         }
         return false;
     }
@@ -117,14 +103,16 @@ export class GraphMap extends Map<string, GraphTxn> {
         this._lastPruneHeight = pruneHeight;
         if (this.has(txid) && txid !== this._rootId) {
             let gt = this.get(txid)!;
-            if (!gt.prevPruneHeight || pruneHeight >= gt.prevPruneHeight) {
+            if (! gt.prevPruneHeight || pruneHeight >= gt.prevPruneHeight) {
                 this._pruned.set(txid, gt);
                 this.delete(txid);
                 console.log(`[INFO] Pruned ${txid} with prune height of ${pruneHeight}`);
                 if (gt.details.transactionType === SlpTransactionType.SEND) {
                     this._prunedSendCount++;
+                    this._graphSendCount--;
                 } else if (gt.details.transactionType === SlpTransactionType.MINT) {
                     this._prunedMintCount++;
+                    this._graphMintCount--;
                 }
                 return true;
             } else if (pruneHeight < gt.prevPruneHeight) {
