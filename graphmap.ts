@@ -19,9 +19,7 @@ export class GraphMap extends Map<string, GraphTxn> {
     private _rootId: string;
     private _container: SlpTokenGraph;
     private _prunedSendCount = 0;
-    private _graphSendCount = 0;
     private _prunedMintCount = 0;
-    private _graphMintCount = 0;
 
     constructor(graph: SlpTokenGraph) {
         super();
@@ -33,44 +31,25 @@ export class GraphMap extends Map<string, GraphTxn> {
         return this._dirtyItems.size;
     }
 
-    get SendCount() {
-        return this._prunedSendCount + this._graphSendCount;
-    }
-
-    get MintCount() {
-        return this._prunedMintCount + this._graphMintCount;
-    }
-
     get TotalTransactionCount() {
-        return this.SendCount + this.MintCount;
+        return this._prunedSendCount + this._prunedMintCount + this.size - 1;
     }
 
-    private _incrementGraphCount(graphTxn: GraphTxn) {
-        let txnType = graphTxn.details.transactionType;
-        if (txnType === SlpTransactionType.SEND) {
-            this._graphSendCount++;
-        } else if (txnType === SlpTransactionType.MINT) {
-            this._graphMintCount++;
-        }
-    }
-
-    public setFromDb(txid: string, graphTxn: GraphTxn) {
-        if (!this.has(txid)) {
-            this._incrementGraphCount(graphTxn);
-        }
+    private setFromDb(txid: string, graphTxn: GraphTxn) {
         return super.set(txid, graphTxn);
     }
 
+    // @ts-ignore
     public set(txid: string, graphTxn: GraphTxn) {
-        this.SetDirty(txid);
-        if (!this.has(txid)) {
-            this._incrementGraphCount(graphTxn);
-        }
-        return super.set(txid, graphTxn);
+        throw Error("method is not implemented, use 'setDirty(txid, graphTxn)' instead");
     }
 
-    public SetDirty(txid: string) {
+    public setDirty(txid: string, graphTxn?: GraphTxn) {
         this._dirtyItems.add(txid);
+        if (! graphTxn) {
+            graphTxn = this.get(txid)!;
+        }
+        return super.set(txid, graphTxn);
     }
 
     public delete(txid: string) {
@@ -109,10 +88,8 @@ export class GraphMap extends Map<string, GraphTxn> {
                 console.log(`[INFO] Pruned ${txid} with prune height of ${pruneHeight}`);
                 if (gt.details.transactionType === SlpTransactionType.SEND) {
                     this._prunedSendCount++;
-                    this._graphSendCount--;
                 } else if (gt.details.transactionType === SlpTransactionType.MINT) {
                     this._prunedMintCount++;
-                    this._graphMintCount--;
                 }
                 return true;
             } else if (pruneHeight < gt.prevPruneHeight) {
@@ -169,9 +146,13 @@ export class GraphMap extends Map<string, GraphTxn> {
         });
 
         let itemsToDelete = Array.from(graph._itemsToDelete);
-        
+
         // Do the pruning here
-        itemsToUpdate.forEach(dbo => { if (dbo.graphTxn._pruneHeight) graph.prune(dbo.graphTxn.txid, dbo.graphTxn._pruneHeight)});
+        itemsToUpdate.forEach(dbo => {
+            if (dbo.graphTxn._pruneHeight) {
+                graph.prune(dbo.graphTxn.txid, dbo.graphTxn._pruneHeight);
+            }
+        });
         graph._flush();
 
         let tokenDbo = GraphMap._mapTokenToDbo(graph);
@@ -203,7 +184,7 @@ export class GraphMap extends Map<string, GraphTxn> {
             mintBatonStatus: tg._mintBatonStatus,
             tokenStats: {
                 block_created: tg._blockCreated,
-                approx_txns_since_genesis: graph.SendCount + graph.MintCount,
+                approx_txns_since_genesis: graph.TotalTransactionCount
             },
             _pruningState: {
                 pruneHeight: graph._lastPruneHeight,

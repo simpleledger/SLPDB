@@ -107,7 +107,7 @@ export class SlpTokenGraph {
                     o.invalidReason = "Output burned in an invalid SLP transaction";
                 }
                 o.spendTxid = burnedInTxid;
-                this._graphTxns.SetDirty(txid);
+                this._graphTxns.setDirty(txid);
                 if (gt.outputs.filter(o => [ TokenUtxoStatus.UNSPENT, BatonUtxoStatus.BATON_UNSPENT ].includes(o.status)).length === 0) {
                     let pruningStack = PruneStack()
                     pruningStack.addGraphTxidToPruningStack(blockIndex, this._tokenIdHex, txid);
@@ -129,7 +129,7 @@ export class SlpTokenGraph {
                 if (canBePruned) {
                     if (!gt.prevPruneHeight || pruneHeight >= gt.prevPruneHeight) {
                         gt.prevPruneHeight = pruneHeight;
-                        this._graphTxns.SetDirty(txid);
+                        this._graphTxns.setDirty(txid);
                     }
                 }
             }
@@ -355,7 +355,7 @@ export class SlpTokenGraph {
             let gt = this._graphTxns.get(txid)!;
             if (blockHash) {
                 gt.blockHash = blockHash;
-                this._graphTxns.SetDirty(txid);
+                this._graphTxns.setDirty(txid);
             }
             return true;
         }
@@ -389,7 +389,7 @@ export class SlpTokenGraph {
 
                 if (this._graphTxns.has(previd)) {
                     let ptxn = this._graphTxns.get(previd)!;
-                    this._graphTxns.SetDirty(previd);
+                    this._graphTxns.setDirty(previd);
                     // update the parent's output items
                     console.log("[INFO] addGraphTransaction: update the status of the input txns' outputs");
                     if (!visited.has(previd)) {
@@ -431,7 +431,7 @@ export class SlpTokenGraph {
                             address: o.address!,
                             bchSatoshis: o.bchSatoshis!
                         });
-                        this._graphTxns.SetDirty(previd);
+                        this._graphTxns.setDirty(previd);
                     }
                 }
             }
@@ -524,7 +524,7 @@ export class SlpTokenGraph {
             this._lastUpdatedBlock = processUpToBlock;
         }
 
-        this._graphTxns.set(txid, graphTxn);
+        this._graphTxns.setDirty(txid, graphTxn);
 
         if (!blockHash) {
             this.mempoolCommitToDb({ zmqTxid: txid });
@@ -551,12 +551,12 @@ export class SlpTokenGraph {
                         o.spendTxid = null;
                         o.status = BatonUtxoStatus.BATON_UNSPENT;
                         globalUtxoSet.set(`${txid}:${o.vout}`, this._tokenIdBuf.slice());
-                        this._graphTxns.SetDirty(txid);
+                        this._graphTxns.setDirty(txid);
                     } else {
                         o.spendTxid = null;
                         o.status = TokenUtxoStatus.UNSPENT;
                         globalUtxoSet.set(`${txid}:${o.vout}`, this._tokenIdBuf.slice());
-                        this._graphTxns.SetDirty(txid);
+                        this._graphTxns.setDirty(txid);
                     }
                 });
             }
