@@ -551,12 +551,12 @@ export class SlpTokenGraph {
                         o.spendTxid = null;
                         o.status = BatonUtxoStatus.BATON_UNSPENT;
                         globalUtxoSet.set(`${txid}:${o.vout}`, this._tokenIdBuf.slice());
-                        this._graphTxns.setDirty(txid);
+                        this._graphTxns.setDirty(input.txid);
                     } else {
                         o.spendTxid = null;
                         o.status = TokenUtxoStatus.UNSPENT;
                         globalUtxoSet.set(`${txid}:${o.vout}`, this._tokenIdBuf.slice());
-                        this._graphTxns.setDirty(txid);
+                        this._graphTxns.setDirty(input.txid);
                     }
                 });
             }
