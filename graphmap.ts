@@ -17,6 +17,7 @@ export class GraphMap extends Map<string, GraphTxn> {
     private _itemsToDelete = new Set<string>(); // used for double spent transaction items and reorgs
     private _lastPruneHeight = 0;
     private _rootId: string;
+    private _rootGraphTxn!: GraphTxn;
     private _container: SlpTokenGraph;
     private _prunedSendCount = 0;
     private _prunedMintCount = 0;
@@ -45,6 +46,9 @@ export class GraphMap extends Map<string, GraphTxn> {
     }
 
     public setDirty(txid: string, graphTxn?: GraphTxn) {
+        if (graphTxn && txid === this._rootId) {
+            this._rootGraphTxn = graphTxn;
+        }
         this._dirtyItems.add(txid);
         if (! graphTxn) {
             graphTxn = this.get(txid)!;
@@ -53,34 +57,36 @@ export class GraphMap extends Map<string, GraphTxn> {
     }
 
     public delete(txid: string) {
+        this._itemsToDelete.add(txid);
         if (this.has(txid)) {
-            this._itemsToDelete.add(txid);
             return super.delete(txid);
         }
         return false;
     }
 
-    public deleteFromGraph(txid: string) {
-        return this.delete(txid);
-    }
-
     public has(txid: string, includePrunedItems=false): boolean {
-        if(includePrunedItems) {
+        if (includePrunedItems) {
             return super.has(txid) || this._pruned.has(txid);
         }
         return super.has(txid);
     }
 
     public get(txid: string, includePrunedItems=false): GraphTxn|undefined {
-        if(includePrunedItems) {
+        if (txid === this._rootId && this._rootGraphTxn) {
+            return this._rootGraphTxn;
+        }
+        if (includePrunedItems) {
             return super.get(txid) || this._pruned.get(txid);
         }
         return super.get(txid);
     }
 
     private prune(txid: string, pruneHeight: number) {
+        if (txid === this._rootId) {
+            return false;
+        }
         this._lastPruneHeight = pruneHeight;
-        if (this.has(txid) && txid !== this._rootId) {
+        if (this.has(txid)) {
             let gt = this.get(txid)!;
             if (! gt.prevPruneHeight || pruneHeight >= gt.prevPruneHeight) {
                 this._pruned.set(txid, gt);

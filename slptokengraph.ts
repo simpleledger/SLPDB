@@ -78,7 +78,7 @@ export class SlpTokenGraph {
         for (let txid of txidToDelete) {
             if (this._graphTxns.has(txid)) {
                 RpcClient.transactionCache.delete(txid);
-                this._graphTxns.deleteFromGraph(txid);
+                this._graphTxns.delete(txid);
                 this.commitToDb();
                 return true;
             }
@@ -561,7 +561,7 @@ export class SlpTokenGraph {
                 });
             }
         }
-        this._graphTxns.deleteFromGraph(txid);
+        this._graphTxns.delete(txid);
     }
 
     private getAddressStringFromTxnOutput(txn: bitcore.Transaction, outputIndex: number) {
