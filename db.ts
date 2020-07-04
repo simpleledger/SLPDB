@@ -109,6 +109,11 @@ export class Db {
         return await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
+    async graphItemDelete(txid: string) {
+        await this.checkClientStatus();
+        return await this.db.collection('graphs').deleteMany({ "graphTxn.txid": txid });
+    }
+
     async graphFetch(tokenIdHex: string, lastPrunedHeight?: number): Promise<GraphTxnDbo[]> {
         await this.checkClientStatus();
         if (lastPrunedHeight) {
