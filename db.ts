@@ -80,9 +80,12 @@ export class Db {
     async graphItemsUpsert(graph: GraphMap) {
         await this.checkClientStatus();        
         console.time("ToDBO");
-        let { itemsToUpdate, tokenDbo, itemsToDelete } = GraphMap.toDbos(graph);
+        let { itemsToUpdate, tokenDbo, txidsToDelete } = GraphMap.toDbos(graph);
         console.timeEnd("ToDBO");
         for (const i of itemsToUpdate) {
+            if (txidsToDelete.includes(i.graphTxn.txid)) {
+                continue;
+            }
             let res = await this.db.collection("graphs").replaceOne({ "tokenDetails.tokenIdHex": i.tokenDetails.tokenIdHex, "graphTxn.txid": i.graphTxn.txid }, i, { upsert: true });
             if (res.modifiedCount) {
                 console.log(`[DEBUG] graphItemsUpsert - modified: ${i.graphTxn.txid}`);
@@ -94,7 +97,7 @@ export class Db {
         }
         await this.tokenInsertReplace(tokenDbo);
 
-        for (const txid of itemsToDelete) {
+        for (const txid of txidsToDelete) {
             await this.db.collection("graphs").deleteMany({ "graphTxn.txid": txid });
             await this.db.collection("confirmed").deleteMany({ "tx.h": txid });
             await this.db.collection("unconfirmed").deleteMany({ "tx.h": txid });

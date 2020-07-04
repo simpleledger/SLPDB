@@ -170,7 +170,7 @@ export class Bit {
                     // this.slpMempool.delete(doubleSpentTxid);
                     // RpcClient.transactionCache.delete(doubleSpentTxid);
                     this.db.unconfirmedDelete([doubleSpentTxid]); // no need to await
-                    this.db.confirmedDelete(doubleSpentTxid);   // no need to await
+                    this.db.confirmedDelete(doubleSpentTxid);     // no need to await
                     if (this._slpGraphManager._tokens.has(doubleSpentTxid)) {
                         this._slpGraphManager._tokens.delete(doubleSpentTxid);
                         this.db.tokenDelete(doubleSpentTxid);   // no need to await

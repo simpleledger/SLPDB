@@ -14,7 +14,7 @@ const globalUtxoSet = slpUtxos();
 export class GraphMap extends Map<string, GraphTxn> {
     private _pruned = new Map<string, GraphTxn>();
     private _dirtyItems = new Set<string>();
-    private _itemsToDelete = new Set<string>(); // used for double spent transaction items and reorgs
+    private _txidsToDelete = new Set<string>(); // used for double spent transaction items and reorgs
     private _lastPruneHeight = 0;
     private _rootId: string;
     private _rootGraphTxn!: GraphTxn;
@@ -57,7 +57,7 @@ export class GraphMap extends Map<string, GraphTxn> {
     }
 
     public delete(txid: string) {
-        this._itemsToDelete.add(txid);
+        this._txidsToDelete.add(txid);
         if (this.has(txid)) {
             return super.delete(txid);
         }
@@ -112,17 +112,21 @@ export class GraphMap extends Map<string, GraphTxn> {
             delete this._container._slpValidator.cachedRawTransactions[txid];
             delete this._container._slpValidator.cachedValidations[txid];
         });
-        this._itemsToDelete.clear();
+        this._txidsToDelete.clear();
         this._pruned.clear();
         this._dirtyItems.clear();
         return txids;
     }
 
-    public static toDbos(graph: GraphMap): { itemsToUpdate: GraphTxnDbo[], tokenDbo: TokenDBObject, itemsToDelete: string[] } {
+    public static toDbos(graph: GraphMap): { itemsToUpdate: GraphTxnDbo[], tokenDbo: TokenDBObject, txidsToDelete: string[] } {
         let tg = graph._container;
         let itemsToUpdate: GraphTxnDbo[] = [];
 
-        graph._dirtyItems.forEach(txid => {
+        for (const txid of graph._dirtyItems) {
+            if (Array.from(graph._txidsToDelete).includes(txid)) {
+                graph.delete(txid);
+                continue;
+            }
             let g = graph.get(txid);
             if (g) {
                 let dbo: GraphTxnDbo = {
@@ -149,9 +153,9 @@ export class GraphMap extends Map<string, GraphTxn> {
                 }
                 itemsToUpdate.push(dbo);
             }
-        });
+        }
 
-        let itemsToDelete = Array.from(graph._itemsToDelete);
+        let txidsToDelete = Array.from(graph._txidsToDelete);
 
         // Do the pruning here
         itemsToUpdate.forEach(dbo => {
@@ -162,7 +166,7 @@ export class GraphMap extends Map<string, GraphTxn> {
         graph._flush();
 
         let tokenDbo = GraphMap._mapTokenToDbo(graph);
-        return { itemsToUpdate, tokenDbo, itemsToDelete };
+        return { itemsToUpdate, tokenDbo, txidsToDelete };
     }
 
     public fromDbos(dag: GraphTxnDbo[], pruneState: TokenPruneStateDbo) {
