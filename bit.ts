@@ -184,8 +184,6 @@ export class Bit {
                     this.doubleSpendCache.push(doubleSpentTxid);
                     SlpdbStatus.doubleSpendHistory = Array.from(this.txoDoubleSpendCache.toMap()).map(v => { return { txo: v[0], details: v[1]}});
                 }
-            } else {
-                console.log(`[WARN] handleMempoolTransaction - input not found in cache ${txo}`);
             }
         });
 
