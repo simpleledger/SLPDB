@@ -184,6 +184,8 @@ export class Bit {
                     this.doubleSpendCache.push(doubleSpentTxid);
                     SlpdbStatus.doubleSpendHistory = Array.from(this.txoDoubleSpendCache.toMap()).map(v => { return { txo: v[0], details: v[1]}});
                 }
+            } else {
+                console.log(`[WARN] handleMempoolTransaction - input not found in cache ${txo}`);
             }
         });
 
@@ -803,11 +805,11 @@ export class Bit {
             let tokenId = t.slp!.detail!.tokenIdHex!;
             let tg = this._slpGraphManager._tokens.get(tokenId);
             await tg!.removeGraphTransaction({ txid: t.tx.h });
-            t.in.forEach(i => {
-                try {
-                    this._spentTxoCache.delete(`${(i.e as Sender).h}:${i.e!.i}`);
-                } catch (_) { }
-            });
+            // t.in.forEach(i => {
+            //     try {
+            //         this._spentTxoCache.delete(`${(i.e as Sender).h}:${i.e!.i}`);
+            //     } catch (_) { }
+            // });
             await tg!.commitToDb();
             if (tg!.graphSize === 0) {
                 console.log(`[INFO] Delete token graph: ${t.tx.h}`);
