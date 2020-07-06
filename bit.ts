@@ -52,7 +52,7 @@ export class Bit {
     outsock = zmq.socket('pub');
     slpMempool = new Map<txid, txhex>();
     txoDoubleSpendCache = new CacheMap<string, any>(20);
-    doubleSpendCache = new CacheSet<string>(100);
+    //doubleSpendCache = new CacheSet<string>(100);
     slpTxnNotificationIgnoreList = new CacheSet<string>(Config.core.slp_mempool_ignore_length); // this allows us to quickly ignore txns on block acceptance notification
     blockHashIgnoreSetList = new CacheSet<string>(100);
     _slpGraphManager!: SlpGraphManager;
@@ -181,7 +181,7 @@ export class Bit {
                     }
                     let date = new Date();
                     this.txoDoubleSpendCache.set(txo, { originalTxid: doubleSpentTxid, current: txid, time: { utc: date.toUTCString(), unix: Math.floor(date.getTime()/1000) }});
-                    this.doubleSpendCache.push(doubleSpentTxid);
+                    //this.doubleSpendCache.push(doubleSpentTxid);
                     SlpdbStatus.doubleSpendHistory = Array.from(this.txoDoubleSpendCache.toMap()).map(v => { return { txo: v[0], details: v[1]}});
                 }
             }

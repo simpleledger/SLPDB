@@ -151,6 +151,13 @@ export class GraphMap extends Map<string, GraphTxn> {
                 if (g.details.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
                     dbo.tokenDetails.nftGroupIdHex = tg._nftParentId!
                 }
+
+                if ((g.details.transactionType === SlpTransactionType.SEND ||
+                     g.details.transactionType === SlpTransactionType.MINT) &&
+                    dbo.graphTxn.inputs.length === 0) {
+                    throw Error("Cannot store a SEND or MINT transaction without any inputs");
+                }
+
                 itemsToUpdate.push(dbo);
             }
         }

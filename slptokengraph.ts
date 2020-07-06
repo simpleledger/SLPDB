@@ -33,15 +33,15 @@ export class SlpTokenGraph {
     _blockCreated: number|null;
     _mintBatonUtxo = "";
     _mintBatonStatus = TokenBatonStatus.UNKNOWN;
-    _nftParentId?: string;      // TODO!
+    _nftParentId?: string;
     private _graphTxns: GraphMap;
     _slpValidator = new LocalValidator(bitbox, async (txids) => {
-        if (this._manager._bit.doubleSpendCache.has(txids[0])) {
-            return [ Buffer.alloc(60).toString('hex') ];
-        }
+        // if (this._manager._bit.doubleSpendCache.has(txids[0])) {
+        //     return [ Buffer.alloc(60).toString('hex') ];
+        // }
         let txn;
         try {
-            txn = <string>await RpcClient.getRawTransaction(txids[0]);
+            txn = <string>await RpcClient.getRawTransaction(txids[0], false);
         } catch(err) {
             console.log(`[ERROR] Could not get transaction ${txids[0]} in local validator: ${err}`);
             return [ Buffer.alloc(60).toString('hex') ];
@@ -328,7 +328,7 @@ export class SlpTokenGraph {
         }
     }
 
-    public async queueAddGraphTransaction({ txid, processUpToBlock }: { txid: string, processUpToBlock?: number; }): Promise<void> {
+    public async queueAddGraphTransaction({ txid }: { txid: string }): Promise<void> {
         let self = this;
 
         while (this._loadInitiated && !this.IsLoaded) {
@@ -340,12 +340,12 @@ export class SlpTokenGraph {
             this._loadInitiated = true;
             return this._graphUpdateQueue.add(async () => {
                 console.log(`[INFO] (queueTokenGraphUpdateFrom) Initiating graph for ${txid}`);
-                await self.addGraphTransaction({ txid, processUpToBlock });
+                await self.addGraphTransaction({ txid });
             });
         } else {
             return this._graphUpdateQueue.add(async () => {
                 console.log(`[INFO] (queueTokenGraphUpdateFrom) Updating graph from ${txid}`);
-                await self.addGraphTransaction({ txid, processUpToBlock });
+                await self.addGraphTransaction({ txid });
             });
         }
     }
@@ -436,6 +436,9 @@ export class SlpTokenGraph {
                 }
             }
 
+            if (graphTxn.inputs.length === 0) {
+                throw Error("Cannot have a SEND or MINT transaction without any input.");
+            }
         }
 
         if (!isValid) {
