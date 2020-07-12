@@ -437,7 +437,7 @@ export class SlpTokenGraph {
             }
 
             if (graphTxn.inputs.length === 0) {
-                console.log("[WARN] Cannot have a SEND or MINT transaction without any input.");
+                console.log(`[WARN] Cannot have a SEND or MINT transaction without any input (${txid}).`);
                 //throw Error("Cannot have a SEND or MINT transaction without any input.");
             }
         }
@@ -512,7 +512,7 @@ export class SlpTokenGraph {
             let outputQty = graphTxn.outputs.reduce((a, c) => a.plus(c.slpAmount), new BigNumber(0));
             let inputQty = graphTxn.inputs.reduce((a, c) => a.plus(c.slpAmount), new BigNumber(0));
             if (outputQty.isGreaterThan(inputQty) && SlpTransactionType.MINT !== graphTxn.details.transactionType) {
-                console.log('[WARN] Graph item cannot have inputs less than outputs (txid: ${txid}, inputs: ${inputQty.toFixed()} | ${graphTxn.inputs.length}, outputs: ${outputQty.toFixed()} | ${graphTxn.outputs.length}).');
+                console.log(`[WARN] Graph item cannot have inputs less than outputs (txid: ${txid}, inputs: ${inputQty.toFixed()} | ${graphTxn.inputs.length}, outputs: ${outputQty.toFixed()} | ${graphTxn.outputs.length}).`);
                 //throw Error(`Graph item cannot have inputs less than outputs (txid: ${txid}, inputs: ${inputQty.toFixed()} | ${graphTxn.inputs.length}, outputs: ${outputQty.toFixed()} | ${graphTxn.outputs.length}).`);
             }
             if (inputQty.isGreaterThan(outputQty)) {
