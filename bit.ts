@@ -803,11 +803,11 @@ export class Bit {
             let tokenId = t.slp!.detail!.tokenIdHex!;
             let tg = this._slpGraphManager._tokens.get(tokenId);
             await tg!.removeGraphTransaction({ txid: t.tx.h });
-            // t.in.forEach(i => {
-            //     try {
-            //         this._spentTxoCache.delete(`${(i.e as Sender).h}:${i.e!.i}`);
-            //     } catch (_) { }
-            // });
+            t.in.forEach(i => {
+                try {
+                    this._spentTxoCache.delete(`${(i.e as Sender).h}:${i.e!.i}`);
+                } catch (_) { }
+            });
             await tg!.commitToDb();
             if (tg!.graphSize === 0) {
                 console.log(`[INFO] Delete token graph: ${t.tx.h}`);
