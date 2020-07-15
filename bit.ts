@@ -24,7 +24,7 @@ import { TokenFilters } from './filters';
 import { GrpcClient } from 'grpc-bchrpc-node';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-const filterBuf = Buffer.from("6a04534c5000", "hex");
+const slpLokadIdHex = "534c5000";
 const Block = require('bcash/lib/primitives/block');
 const BufferReader = require('bufio/lib/reader');
 
@@ -83,9 +83,9 @@ export class Bit {
     applySlpTxnFilter(txn: string|Buffer): { txn: bitcore.Transaction, slpMsg: SlpTransactionDetails } | null {
         let isSlp = false;
         if (typeof txn !== "string") {
-            isSlp = (txn as Buffer).includes(filterBuf);
+            isSlp = (txn as Buffer).includes(Buffer.from(slpLokadIdHex, "hex"));
             txn = txn.toString("hex");
-        } else if (txn.includes('6a04534c5000')) {
+        } else if (txn.includes("534c5000")) {
             isSlp = true;
         }
         if (!isSlp) {
