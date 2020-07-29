@@ -1,6 +1,6 @@
 {
   "name": "slpdb",
-  "version": "1.0.0-rc11",
+  "version": "1.0.0-beta-rc12",
   "description": "Indexer for the Simple Ledger Protocol with real-time validation notifications.",
   "main": "index.js",
   "scripts": {
@@ -52,7 +52,7 @@
     "os-utils": "0.0.14",
     "p-limit": "2.0.0",
     "p-queue": "3.1.0",
-    "slpjs": "0.27.2",
+    "slpjs": "0.27.4",
     "synchronized-promise": "0.2.0",
     "traverse": "^0.6.6",
     "ts-node": "^7.0.1",

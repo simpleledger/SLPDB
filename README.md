@@ -1,9 +1,9 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2020-06-22
+**Last Updated:** 2020-07-29
 
-**Current SLPDB Version:** 1.0.0-rc12
+**Current SLPDB Version:** 1.0.0-beta-rc12
 
 * 1. [What is SLPDB?](#WhatisSLPDB)
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)
@@ -12,12 +12,13 @@
 * 4. [Installation & Setup Instructions](#InstallationInstructions)
 	* 4.1. [Prerequisites](#Prerequisites)
 	* 4.2. [Full Node Settings for `bitcoin.conf`](#FullNodeSettingsforbitcoin.conf)
-    * 4.3  [BCHD & gRPC Support](#BCHDgRPCSupport)
-	* 4.4. [Testnet Support](#TestnetSupport)
-	* 4.5. [Running SLPDB](#RunningSLPDB)
-	* 4.6. [Updating SLPDB](#UpdatingSLPDB)
-    * 4.7. [Filtering for Specific Token ID](#Filtering)
-    * 4.8. [Pruning](#Pruning)
+    * 4.3. [MongoDB Configuration Settings](#MongoDBConfig)
+    * 4.4. [BCHD & gRPC Support](#BCHDgRPCSupport)
+	* 4.5. [Testnet Support](#TestnetSupport)
+	* 4.6. [Running SLPDB](#RunningSLPDB)
+	* 4.7. [Updating SLPDB](#UpdatingSLPDB)
+    * 4.8. [Filtering for Specific Token ID](#Filtering)
+    * 4.9. [Pruning](#Pruning)
 * 5. [Real-time Notifications](#Real-timeNotifications)
 	* 5.1. [ZeroMQ (ZMQ)](#ZeroMQZMQ)
     * 5.2. [HTTP Gateways](#HTTPGateways)
@@ -106,11 +107,15 @@ The following settings should be applied to your full node's configuration.  NOT
 * `zmqpubrawblock=tcp://*:28332`
 * Optional: `testnet=1`
 
-###  4.3. <a name='BCHDgRPCSupport'></a>BCHD & gRPC Support
+###  4.3. <a name='MongoDBConfig'></a>MongoDB Configuration Settings
+
+MongoDB will take up a large amount of memory and completely fill up a system with 16GB ram.  To prevent this from happening you should set a limit on the WiredTiger maximum cache limit.  Refer to MongoDB documentation for information on how to configure your specific version of MongoDB.  On a linux based system add `wiredTigerCacheSizeGB=2` to `/etc/mongodb.conf`.
+
+###  4.4. <a name='BCHDgRPCSupport'></a>BCHD & gRPC Support
 
 High speed gRPC is supported with BCHD 0.15.2+ full nodes in place of JSON RPC and incoming ZMQ notifications.  To enable, add the environment variables `grpc_url` and `grpc_certPath`.  See the `example.env` file in this project and the [BCHD documentation](https://github.com/gcash/bchd/tree/master/docs) for more details.  For instructions on installing a self-signed certificate see guidance [here](https://github.com/simpleledgerinc/grpc-bchrpc-node#connecting-to-local-bchd).
 
-###  4.4. <a name='TestnetSupport'></a>Testnet Support
+###  4.5. <a name='TestnetSupport'></a>Testnet Support
 
 To use SLPDB with Testnet simply set your full node to the testnet network (e.g., set `testnet=1` within `bitcoin.conf`) and SLPDB will automatically instantiate using proper databases names according to the network.  For informational purposes the database names are as follows:
 * **Mainnet**
@@ -120,7 +125,7 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
   * Mongo db name = `slpdb_testnet`
   * Testnet diectory = `./_leveldb_testnet`
 
-###  4.5. <a name='RunningSLPDB'></a>Running SLPDB
+###  4.6. <a name='RunningSLPDB'></a>Running SLPDB
 
 **1)** Run MongoDB (`config.ts` default port is 27017)
 
@@ -139,7 +144,7 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 
 **5)** Install and run [slpserve](https://github.com/fountainhead-cash/slpserve) and/or [slpsocket](https://github.com/simpleledger/sockserve) to access SLP token data and statistics
 
-###  4.6. <a name='UpdatingSLPDB'></a>Updating SLPDB
+###  4.7. <a name='UpdatingSLPDB'></a>Updating SLPDB
 
 **1)** Execute `git pull origin master` to update to latest version.
 
@@ -149,11 +154,11 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 
 **4)** Restart SLPDB.
 
-### 4.7. <a name='Filtering'></a>Filtering SLPDB to specific Token IDs
+### 4.8. <a name='Filtering'></a>Filtering SLPDB to specific Token IDs
 
 Modify the `example-filters.yml` file to suit your needs and then rename it as `filters.yml` to activate the filtering.  Currently, `include-single` is the only filter type available, reference the example file for useage requirements.
 
-### 4.8. <a name='Pruning'></a>Pruning
+### 4.9. <a name='Pruning'></a>Pruning
 
 Pruning removes totally spent and aged transactions from the global transaction cache, the token graph, and the validator cache.  Pruning occurs after a transaction has been totally spent and is aged more than 10 blocks.  At this time there is no custom configuration available for pruning.
 
