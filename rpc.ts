@@ -129,7 +129,7 @@ export class RpcClient {
     static async getRawMemPool(): Promise<string[]> {
         if(RpcClient.useGrpc) {
             console.log("[INFO] gRPC: getRawMemPool");
-            return (await grpc.getRawMempool()).getTransactionDataList().map(t => Buffer.from(t.getTransactionHash_asU8().reverse()).toString('hex'))
+            return (await grpc.getRawMempool({ fullTransactions: false })).getTransactionDataList().map(t => Buffer.from(t.getTransactionHash_asU8().reverse()).toString('hex'))
         }
         console.log("[INFO] JSON RPC: getRawMemPool")
         return await rpc_retry.getRawMemPool();

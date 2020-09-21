@@ -44,8 +44,8 @@ class _TokenFilter {
 
     constructor() {
         try {
-            let o = yaml.safeLoad(fs.readFileSync('filters.yml', 'utf-8'));
-            o.tokens.forEach((f: _TokenFilterRule) => {
+            let o = yaml.safeLoad(fs.readFileSync('filters.yml', 'utf-8')) as { tokens: _TokenFilterRule[] };
+            o!.tokens.forEach((f: _TokenFilterRule) => {
                 this.addRule(new _TokenFilterRule({ info: f.info, name: f.name, type: f.type }));
                 console.log("[INFO] Loaded token filter:", f.name);
             });
