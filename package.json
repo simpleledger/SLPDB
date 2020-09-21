@@ -39,7 +39,7 @@
     "bufio": "^1.0.7",
     "cashaddrjs-slp": "^0.2.12",
     "dotenv": "^6.0.0",
-    "fountainhead-core": "0.0.4",
+    "fountainhead-core": "^0.0.12",
     "grpc-bchrpc-node": "^0.10.2",
     "iconv-lite": "^0.4.24",
     "ip": "^1.1.5",
