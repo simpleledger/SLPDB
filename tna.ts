@@ -41,8 +41,11 @@ export class TNA {
                         i: input.outputIndex,
                         s: input._scriptBuffer,
                     }
-
-                    sender.a = Utils.toSlpAddress(input.script.toAddress(net).toString(bitcore.Address.CashAddrFormat));
+                    try {
+                        sender.a = Utils.toSlpAddress(input.script.toAddress(net).toString(bitcore.Address.CashAddrFormat));
+                    } catch(err) {
+                        throw Error(`txid: ${gene.hash},  input: ${input.prevTxId.toString('hex')}:${input.outputIndex}, script: ${input._scriptBuffer.toString("hex")}, asm: ${input.script.toASM()}, cashAddr: ${input.script.toAddress(net).toString(bitcore.Address.CashAddrFormat)}, err: ${err}`)
+                    }
                     xput.e = sender;
                     inputs.push(xput)
                 }
