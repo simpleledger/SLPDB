@@ -41,11 +41,22 @@ export class TNA {
                         i: input.outputIndex,
                         s: input._scriptBuffer,
                     }
+
                     try {
-                        sender.a = Utils.toSlpAddress(input.script.toAddress(net).toString(bitcore.Address.CashAddrFormat));
-                    } catch(err) {
-                        throw Error(`txid: ${gene.hash},  input: ${input.prevTxId.toString('hex')}:${input.outputIndex}, script: ${input._scriptBuffer.toString("hex")}, asm: ${input.script.toASM()}, cashAddr: ${input.script.toAddress(net).toString(bitcore.Address.CashAddrFormat)}, err: ${err}`)
+                        if (input.script.toAddress(net).toString(bitcore.Address.CashAddrFormat) !== "false") {
+                            // let bitcore-lib-cash encode the address type
+                            sender.a = Utils.toSlpAddress(input.script.toAddress(net).toString(bitcore.Address.CashAddrFormat));
+                        } else {
+                            // encode as p2sh address type	
+                            const scriptSigHexArray = input.script.toASM().split(' ')		
+                            const redeemScriptHex = scriptSigHexArray[scriptSigHexArray.length-1]		
+                            const redeemScriptHash160 = bitbox.Crypto.hash160(Buffer.from(redeemScriptHex, 'hex'))		
+                            sender.a = Utils.slpAddressFromHash160(redeemScriptHash160, options.network, "p2sh")
+                        }
+                    } catch (err) {
+                        throw Error(`txid: ${gene.hash}, input: ${input.prevTxId.toString('hex')}:${input.outputIndex}, address: ${input.script.toAddress(net).toString(bitcore.Address.CashAddrFormat)}, script ${input._scriptBuffer.toString("hex")}, err: ${err}`)
                     }
+
                     xput.e = sender;
                     inputs.push(xput)
                 }
