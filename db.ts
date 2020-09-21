@@ -15,8 +15,18 @@ export class Db {
         this.dbUrl = dbUrl;
         this.dbName = dbName;
         this.config = config;
-        this.mongo = new MongoClient(this.dbUrl, { useNewUrlParser: true, useUnifiedTopology: true });
-        this.db = this.mongo.db(this.dbName);
+    }
+
+    private async checkClientStatus(): Promise<boolean> {
+        if (!this.mongo) {
+            //let network = await Info.getNetwork();
+            //console.log("[INFO] Initializing MongoDB...")
+            this.mongo = await MongoClient.connect(this.dbUrl, { useNewUrlParser: true, useUnifiedTopology: true });
+            //let dbname = network === 'mainnet' ? this.config.name : this.config.name_testnet;
+            this.db = this.mongo.db(this.dbName);
+            return true;
+        }
+        return false;
     }
 
     async drop() {
@@ -28,31 +38,38 @@ export class Db {
     }
 
     async statusUpdate(status: any) {
+        await this.checkClientStatus();
         await this.db.collection('statuses').deleteMany({ "context": status.context });
         return await this.db.collection('statuses').insertOne(status);
     }
 
     async statusFetch(context: string) {
+        await this.checkClientStatus();
         return await this.db.collection('statuses').findOne({ "context": context });
     }
 
     private async tokenInsertReplace(token: any) {
+        await this.checkClientStatus();
         await this.db.collection('tokens').replaceOne({ "tokenDetails.tokenIdHex": token.tokenDetails.tokenIdHex }, token, { upsert: true });
     }
 
     async tokenDelete(tokenIdHex: string) {
+        await this.checkClientStatus();
         return await this.db.collection('tokens').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex });
     }
 
     async tokenFetch(tokenIdHex: string): Promise<TokenDBObject|null> {
+        await this.checkClientStatus();
         return await this.db.collection('tokens').findOne({ "tokenDetails.tokenIdHex": tokenIdHex });
     }
 
     async tokenFetchAll(): Promise<TokenDBObject[]|null> {
+        await this.checkClientStatus();
         return await this.db.collection('tokens').find({}).toArray();
     }
 
     async tokenReset() {
+        await this.checkClientStatus();
         await this.db.collection('tokens').deleteMany({})
         .catch(function(err) {
             console.log('[ERROR] token collection reset ERR ', err);
@@ -61,6 +78,7 @@ export class Db {
     }
 
     async graphItemsUpsert(graph: GraphMap) {
+        await this.checkClientStatus();        
         console.time("ToDBO");
         let { itemsToUpdate, tokenDbo, txidsToDelete } = GraphMap.toDbos(graph);
         console.timeEnd("ToDBO");
@@ -87,14 +105,17 @@ export class Db {
     }
 
     async graphDelete(tokenIdHex: string) {
+        await this.checkClientStatus();
         return await this.db.collection('graphs').deleteMany({ "tokenDetails.tokenIdHex": tokenIdHex })
     }
 
     async graphItemDelete(txid: string) {
+        await this.checkClientStatus();
         return await this.db.collection('graphs').deleteMany({ "graphTxn.txid": txid });
     }
 
     async graphFetch(tokenIdHex: string, lastPrunedHeight?: number): Promise<GraphTxnDbo[]> {
+        await this.checkClientStatus();
         if (lastPrunedHeight) {
             return await this.db.collection('graphs').find({
                 "tokenDetails.tokenIdHex": tokenIdHex,
@@ -108,10 +129,12 @@ export class Db {
     }
 
     async graphTxnFetch(txid: string): Promise<GraphTxnDbo|null> {
+        await this.checkClientStatus();
         return await this.db.collection('graphs').findOne({ "graphTxn.txid": txid });
     }
 
     async graphReset() {
+        await this.checkClientStatus();
         await this.db.collection('graphs').deleteMany({})
         .catch(function(err) {
             console.log('[ERROR] graphs collection reset ERR ', err)
@@ -120,11 +143,13 @@ export class Db {
     }
 
     async unconfirmedInsert(item: TNATxn) {
+        await this.checkClientStatus();
         console.log(`Added unconfirmed: ${item.tx.h}`);
         return await this.db.collection('unconfirmed').insertMany([item]);
     }
 
     async unconfirmedReset() {
+        await this.checkClientStatus();
         await this.db.collection('unconfirmed').deleteMany({})
         .catch(function(err) {
             console.log('[ERROR] mempoolreset ERR ', err);
@@ -133,16 +158,19 @@ export class Db {
     }
 
     async unconfirmedTxids(): Promise<string[]> {
+        await this.checkClientStatus();
         let res: TNATxn[] = await this.db.collection('unconfirmed').find({}).toArray();
         return res.map(u => u.tx.h);
     }
 
     async unconfirmedFetch(txid: string): Promise<TNATxn|null> {
+        await this.checkClientStatus();
         let res = await this.db.collection('unconfirmed').findOne({ "tx.h": txid }) as TNATxn;
         return res;
     }
 
     async unconfirmedDelete(txids: string[]): Promise<number|undefined> {
+        await this.checkClientStatus();
         if (txids.length === 0) {
             return 0;
         }
@@ -151,27 +179,33 @@ export class Db {
     }
 
     async unconfirmedProcessedSlp(): Promise<string[]> {
+        await this.checkClientStatus();
         return (await this.db.collection('unconfirmed').find().toArray()).filter((i:TNATxn) => i.slp);
     }
 
     async confirmedFetch(txid: string): Promise<TNATxn|null> {
+        await this.checkClientStatus();
         return await this.db.collection('confirmed').findOne({ "tx.h": txid }) as TNATxn;
     }
 
     async confirmedDelete(txid: string): Promise<any> {
+        await this.checkClientStatus();
         return await this.db.collection('confirmed').deleteMany({ "tx.h": txid });
     }
 
     async confirmedFetchForReorg(blockIndex: number): Promise<any> {
+        await this.checkClientStatus();
         return await this.db.collection('confirmed').find({ "blk.i": { "$gte": blockIndex }}).toArray();
     }
 
     async confirmedDeleteForReorg(blockIndex: number): Promise<any> {
+        await this.checkClientStatus();
         console.log(`[WARN] Deleting all transactions with block greater than or equal to ${blockIndex}.`)
         return await this.db.collection('confirmed').deleteMany({ "blk.i": { "$gte": blockIndex }});
     }
 
     async confirmedReset() {
+        await this.checkClientStatus();
         await this.db.collection('confirmed').deleteMany({}).catch(function(err) {
             console.log('[ERROR] confirmedReset ERR ', err)
             throw err;
@@ -179,6 +213,7 @@ export class Db {
     }
 
     async confirmedReplace(items: TNATxn[], blockIndex: number) {
+        await this.checkClientStatus();
 
         if (items.filter(i => !i.blk).length > 0) {
             throw Error("Attempted to add items without BLK property.");
@@ -194,6 +229,7 @@ export class Db {
     }
 
     async confirmedIndex() {        
+        await this.checkClientStatus();
 
         console.log('[INFO] * Indexing MongoDB...')
         console.time('TotalIndex')
