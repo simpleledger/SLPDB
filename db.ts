@@ -19,10 +19,7 @@ export class Db {
 
     private async checkClientStatus(): Promise<boolean> {
         if (!this.mongo) {
-            //let network = await Info.getNetwork();
-            //console.log("[INFO] Initializing MongoDB...")
             this.mongo = await MongoClient.connect(this.dbUrl, { useNewUrlParser: true, useUnifiedTopology: true });
-            //let dbname = network === 'mainnet' ? this.config.name : this.config.name_testnet;
             this.db = this.mongo.db(this.dbName);
             return true;
         }
