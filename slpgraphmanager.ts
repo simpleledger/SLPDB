@@ -249,7 +249,8 @@ export class SlpGraphManager {
                     lastPrunedHeight = checkpoint.height;
                 }
                 await this.loadTokenFromDb(token, lastPrunedHeight);
-                console.log(`[INFO] ${++count} tokens loaded from db.`)
+                console.log(`[INFO] ${++count} tokens loaded from db`);
+                console.log(`[INFO] ${this._cacheGraphTxnCount} graph dbos loaded`);
             }
         }
     }
