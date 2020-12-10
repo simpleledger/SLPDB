@@ -116,7 +116,7 @@ export class Db {
         if (lastPrunedHeight) {
             return await this.db.collection('graphs').find({
                 "tokenDetails.tokenIdHex": tokenIdHex,
-                "$or": [ { "graphTxn.pruneHeight": { "$gt": lastPrunedHeight } }, { "graphTxn.pruneHeight": null }, { "graphTxn.txid": tokenIdHex }]
+                "$or": [ { "graphTxn._pruneHeight": { "$gt": lastPrunedHeight } }, { "graphTxn._pruneHeight": null }, { "graphTxn.txid": tokenIdHex }]
             }).toArray();
         } else {
             return await this.db.collection('graphs').find({
