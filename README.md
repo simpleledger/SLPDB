@@ -1,9 +1,9 @@
 ![SLPDB](assets/slpdb_logo.png)
 
 # SLPDB Readme
-**Last Updated:** 2020-07-29
+**Last Updated:** 2021-01-03
 
-**Current SLPDB Version:** 1.0.0-beta-rc12
+**Current SLPDB Version:** 1.0.0
 
 * 1. [What is SLPDB?](#WhatisSLPDB)
 * 2. [Do you need to <u>install</u> SLPDB?](#DoyouneedtouinstalluSLPDB)
@@ -28,7 +28,6 @@
     * 7.1 [Parser Tests](#ParserTests)
     * 7.2 [Input Tests](#InputTests)
     * 7.3 [Regtest Network Tests](#E2ETests)
-* 8. [Change Log](#ChangeLog)
 
 
 
@@ -86,7 +85,7 @@ The services `SlpServe` and `SlpSockServer` return query results as a JSON objec
 
 ###  4.1. <a name='Prerequisites'></a>Prerequisites
 * Node.js 12
-* MongoDB 4.0+
+* MongoDB 4.4+
 * BitcoinABC, Bitcoin Cash Node, BitcoinUnlimited, BCHD, or other Bitcoin Cash full node with:
   * RPC-JSON (or gRPC) and 
   * ZeroMQ event notifications
@@ -348,75 +347,3 @@ The SLPJS npm library also passes all unit tests which test for the specified in
 ###  7.3. <a name='E2ETests'></a>End-to-End Tests
 
 A set of end-to-end tests have been created in order to ensure the expected behavior of SLPDB utilizing the bitcoin regtest network.  These tests simulate actual transaction activity using the bitcoin regtest test network and check for proper state in mongoDB and also check that zmq notifications are emitted.  The `tests` directory contains the end-to-end tests which can be run by following the instructions provided in the `regtest` directory.
-
-
-
-## 8. <a name='ChangeLog'></a>Change Log
-
-* 1.0.0
-    * Removed `utxos` and `addresses` collections, as this information can be queried from the `graphs` collection.  Updated README examples for queries which relied on now defunct `utxos` and `addresses` collections
-    * Added Topological sorting in block crawl to allow for token validation during block crawl
-    * Fixed issue where unconfirmed/confirmed transactions where initially writen to db without SLP property and then updated later after a subsequent validation step.
-    * Fixed issue where MINT baton address is wrong if not the same as token receiver address.
-    * Added graph pruning to actively reduce memory footprint
-    * Move mint baton status (mintBatonStatus) and txo out of statistics (mintBatonUtxo), these are now main property of the token document
-    * Update notification format for consistent value type, always returning string based numbers, no more Decimal128 in block notification
-    * Removed token stats properties: `block_last_active_send`, `block_last_active_mint`, `qty_valid_token_utxos`, `qty_valid_token_addresses`
-    * Removed token stats properties: `qty_token_minted`, `qty_token_burned`, `qty_token_circulating_supply`
-    * Removed UTXO status enums: `SPENT_INVALID_SLP`, `BATON_SPENT_INVALID_SLP`
-    * Renamed `qty_valid_txns_since_genesis` to `approx_txns_since_genesis`, since this can be corrupted if the block checkpoint is reset.
-    * Removed network dependency to rest.bitcoin.com
-    * Add env var to skip the initial full node sync check that happens only on startup
-
-* 0.15.6
-    * Bug fixes and improvements in slpjs
-
-* 0.15.5
-    * Various bug fixes and improvements
-    * NOTE: this version was not published
-
-* 0.15.4
-    * Added statuses collection
-    * Added env variables for disabling graph search and zmq publishing
-    * Caching improvements to speed up token processing
-    * Various fixes and improvements
-
-* 0.15.3
-    * Additional db cleanup needed in graphs collection from the issue fixed in 0.15.2
-    * Removed unneeded object initializers in FromDbObjects, moved to TokenGraph constructor
-
-* 0.15.2
-	* Fixed issue with address format occurring when restarting SLPDB
-	* Cleaned up readme file formatting (Jt)
-
-* 0.15.1
-	* Fix issue with minting baton status update on initiating token from scratch
-
-* 0.15.0
-	* Add Graph Search metadata (see example queries above for search examples)
-	* Start listening to blockchain updates before the startup process for improved data integrity during long startup periods
-	* Fixed bug where not all inputs were showing up in graph transactions
-	* Replaced getinfo RPC in favor of getBlockchainInfo
-	* Fixed issue with tokens collection items missing "block_created" data
-
-* 0.14.1
-	* Improved token burn detection after a new blocks is broadcast
-	* Updated to slpjs version 0.21.1 with caching bug fix.
-	* Updated updateTxnCollections() so that any valid transactions erroneously marked as "invalid" get updated.
-	* Refactored several methods to use destructured method parameters
-	* Other minor refactors and improvements
-
-* 0.14.0
-	* Added NFT1 support
-	* Improved token burn detection on new block event
-	* Prevent duplicate zmq transaction publish notifications
-	* Various bug fixes and improvements
-
-* 0.13.0
-	* Breaking Change: This change may impact any application using `TokenUtxoStatus` or the Graph collection's `graphTxn.outputs.status` property. A new enum type was added to `TokenUtxoStatus` called "EXCESS_INPUT_BURNED".  This status is applied to any transaction that has an input SLP quantity that is greater than output SLP quantity.  This enum label is used within the Graphs collection's `graphTxn.outputs.status` property.
-	* A new startup script called "reprocess" was added for the purpose of debugging.  Usage is `node index.js reprocess <tokenId>`.
-	* Fixed issue with block and mempool item cache used to ignore duplicate zmq notifications
-	* Fixed testnet config starting block (off by one)
-	* P2MS and P2PK output addresses are stored as `scriptPubKey:<hex>`
-	* Reduced number of RPC calls by subscribing to zmq 'rawtx' instead of 'hashtx'
-	* Other minor improvements

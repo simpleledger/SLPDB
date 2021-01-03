@@ -10,8 +10,8 @@ import * as pQueue from 'p-queue';
 import { DefaultAddOptions } from 'p-queue';
 import { SlpGraphManager } from './slpgraphmanager';
 import { CacheMap } from './cache';
-import { TokenDBObject, GraphTxnDbo, SlpTransactionDetailsDbo, TokenUtxoStatus,
-         BatonUtxoStatus, TokenBatonStatus, GraphTxn } from './interfaces';
+import { SlpTransactionDetailsDbo, TokenUtxoStatus,
+         BatonUtxoStatus, TokenBatonStatus, GraphTxn, TokenDBObject } from './interfaces';
 import { GraphMap } from './graphmap';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -34,7 +34,7 @@ export class SlpTokenGraph {
     _mintBatonUtxo = "";
     _mintBatonStatus = TokenBatonStatus.UNKNOWN;
     _nftParentId?: string;
-    private _graphTxns: GraphMap;
+    _graphTxns: GraphMap;
     _slpValidator = new LocalValidator(bitbox, async (txids) => {
         // if (this._manager._bit.doubleSpendCache.has(txids[0])) {
         //     return [ Buffer.alloc(60).toString('hex') ];
@@ -56,18 +56,21 @@ export class SlpTokenGraph {
     _manager: SlpGraphManager;
     _startupTxoSendCache?: CacheMap<string, SpentTxos>;
     _loadInitiated = false;
+    _lazilyLoaded = false;
     _updateComplete = true;
     _isValid?: boolean;
+    _tokenDbo: TokenDBObject|null;
 
-    constructor(tokenDetails: SlpTransactionDetails, db: Db, manager: SlpGraphManager, network: string, blockCreated: number|null) {
+    constructor(tokenDetails: SlpTransactionDetails, manager: SlpGraphManager, blockCreated: number|null, tokenDbo: TokenDBObject|null) {
         this._tokenDetails = tokenDetails;
         this._tokenIdHex = tokenDetails.tokenIdHex;
         this._tokenIdBuf = Buffer.from(this._tokenIdHex, "hex");
         this._graphTxns = new GraphMap(this);
-        this._db = db;
+        this._db = manager.db;
         this._manager = manager;
-        this._network = network;
+        this._network = manager._network;
         this._blockCreated =  blockCreated;
+        this._tokenDbo = tokenDbo;
     }
 
     get graphSize() {
@@ -144,7 +147,7 @@ export class SlpTokenGraph {
     public async validateTxid(txid: string) {
         await this._slpValidator.isValidSlpTxid(txid, this._tokenIdHex);
         const validation = this._slpValidator.cachedValidations[txid];
-        if (!validation.validity) {
+        if (! validation.validity) {
             delete this._slpValidator.cachedValidations[txid];
             delete this._slpValidator.cachedRawTransactions[txid];
         }
@@ -183,10 +186,10 @@ export class SlpTokenGraph {
             let nftBurnTxnHex = await RpcClient.getRawTransaction(tx.inputs[0].previousTxHash);
             let nftBurnTxn = Primatives.Transaction.parseFromBuffer(Buffer.from(nftBurnTxnHex, 'hex'));
             let nftBurnSlp = slp.parseSlpOutputScript(Buffer.from(nftBurnTxn.outputs[0].scriptPubKey));
+
             if (nftBurnSlp.transactionType === SlpTransactionType.GENESIS) {
                 this._nftParentId = tx.inputs[0].previousTxHash;
-            }
-            else {
+            } else {
                 this._nftParentId = nftBurnSlp.tokenIdHex;
             }
         }
@@ -331,7 +334,7 @@ export class SlpTokenGraph {
     public async queueAddGraphTransaction({ txid }: { txid: string }): Promise<void> {
         let self = this;
 
-        while (this._loadInitiated && !this.IsLoaded) {
+        while (this._loadInitiated && !this.IsLoaded && this._tokenIdHex !== txid) {
             console.log(`Waiting for token ${this._tokenIdHex} to finish loading...`);
             await sleep(250);
         }
@@ -645,59 +648,6 @@ export class SlpTokenGraph {
         }
 
         return res;
-    }
-
-    static async initFromDbos(token: TokenDBObject, dag: GraphTxnDbo[], manager: SlpGraphManager, network: string): Promise<SlpTokenGraph> {
-        let tokenDetails = this.MapDbTokenDetailsFromDbo(token.tokenDetails, token.tokenDetails.decimals);
-        // if (!token.tokenStats.block_created && token.tokenStats.block_created !== 0) {
-        //     throw Error("Must have a block created for token");
-        // }
-        let tg = await manager.getTokenGraph({
-            txid: token.tokenDetails.tokenIdHex,
-            tokenIdHex: token.tokenDetails.tokenIdHex, 
-            slpMsgDetailsGenesis: tokenDetails, 
-            forceValid: true, 
-            blockCreated: token.tokenStats.block_created!,
-            nft1ChildParentIdHex: token.nftParentId
-        });
-        if (!tg) {
-            throw Error("This should never happen");
-        }
-        tg._loadInitiated = true;
-        
-        // add minting baton
-        tg._mintBatonUtxo = token.mintBatonUtxo;
-        tg._mintBatonStatus = token.mintBatonStatus;
-
-        // add nft parent id
-        if (token.nftParentId) {
-            tg._nftParentId = token.nftParentId;
-        }
-
-        tg._network = network;
-
-        // Map _txnGraph
-        tg!._graphTxns.fromDbos(
-            dag,
-            token._pruningState
-        );
-
-        // Preload SlpValidator with cachedValidations
-        tg._graphTxns.forEach((_, txid) => {
-            let validation: any = { validity: null, details: null, invalidReason: null, parents: [], waiting: false }
-            validation.validity = tg!._graphTxns.get(txid) ? true : false;
-            validation.details = tg!._graphTxns.get(txid)!.details;
-            if(!validation.details)
-                throw Error("No saved details about transaction" + txid);
-            tg!._slpValidator.cachedValidations[txid] = validation;
-        });
-
-        console.log(`[INFO] Loaded ${tg._graphTxns.size} validation cache results`);
-
-        // Map _lastUpdatedBlock
-        tg._lastUpdatedBlock = token.lastUpdatedBlock;
-
-        return tg;
     }
 }
 

@@ -94,3 +94,5 @@ class _TokenFilter {
 
 // accessor to a singleton stack for filters
 export const TokenFilters = _TokenFilter.Instance;
+
+TokenFilters();

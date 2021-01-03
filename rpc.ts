@@ -14,12 +14,11 @@ export class RpcClient {
     static transactionCache = new CacheMap<string, Buffer>(500000);
     static useGrpc: boolean | undefined;
     constructor({ useGrpc }: { useGrpc?: boolean }) {
-        if(useGrpc) {
+        if (useGrpc) {
             RpcClient.useGrpc = useGrpc;
-            if(Boolean(Config.grpc.url) && Config.grpc.certPath) {
+            if (Boolean(Config.grpc.url) && Config.grpc.certPath) {
                 grpc = new GrpcClient({ url: Config.grpc.url, rootCertPath: Config.grpc.certPath });
-            }
-            else {
+            } else {
                 grpc = new GrpcClient({ url: Config.grpc.url });
             }
         } else {
@@ -33,7 +32,7 @@ export class RpcClient {
     }
 
     static async getBlockCount(): Promise<number> {
-        if(this.useGrpc) {
+        if (this.useGrpc) {
             console.log("[INFO] gRPC: getBlockchainInfo");
             return (await grpc.getBlockchainInfo()).getBestHeight();
         }
@@ -42,7 +41,7 @@ export class RpcClient {
     }
 
     static async getBlockchainInfo(): Promise<BlockchainInfoResult> {
-        if(RpcClient.useGrpc) {
+        if (RpcClient.useGrpc) {
             console.log("[INFO] gRPC: getBlockchainInfo");
             let info = await grpc.getBlockchainInfo();
             return {
@@ -64,7 +63,7 @@ export class RpcClient {
     }
 
     static async getBlockHash(block_index: number, asBuffer=false): Promise<string|Buffer> {
-        if(RpcClient.useGrpc) {
+        if (RpcClient.useGrpc) {
             console.log("[INFO] gRPC: getBlockInfo (for getBlockHash)");
             let hash = Buffer.from((await grpc.getBlockInfo({ index: block_index })).getInfo()!.getHash_asU8().reverse());
             if(asBuffer) {
@@ -81,7 +80,7 @@ export class RpcClient {
     }
 
     static async getRawBlock(hash: string): Promise<string> {
-        if(RpcClient.useGrpc) {
+        if (RpcClient.useGrpc) {
             console.log("[INFO] gRPC: getRawBlock");
             return Buffer.from((await grpc.getRawBlock({ hash: hash, reversedHashOrder: true })).getBlock_asU8()).toString('hex')
         }
@@ -89,13 +88,15 @@ export class RpcClient {
     }
 
     static async getBlockInfo({ hash, index }: { hash?: string, index?: number}): Promise<BlockHeaderResult> {
-        if(RpcClient.useGrpc) {
+        if (RpcClient.useGrpc) {
             console.log("[INFO] gRPC: getBlockInfo");
             let blockinfo: BlockInfo;
-            if(index)
+            if (index) {
                 blockinfo = (await grpc.getBlockInfo({ index: index })).getInfo()!;
-            else
+            } else {
                 blockinfo = (await grpc.getBlockInfo({ hash: hash, reversedHashOrder: true })).getInfo()!;
+            }
+
             return {
                 hash: Buffer.from(blockinfo.getHash_asU8().reverse()).toString('hex'),
                 confirmations: blockinfo.getConfirmations(),
@@ -117,8 +118,7 @@ export class RpcClient {
         if (index) {
             console.log("[INFO] JSON RPC: getBlockInfo/getBlockHash", index);
             hash = await rpc.getBlockHash(index);
-        }
-        else if (!hash) {
+        } else if (!hash) {
             throw Error("No index or hash provided for block")
         }
 
@@ -127,7 +127,7 @@ export class RpcClient {
     }
 
     static async getRawMemPool(): Promise<string[]> {
-        if(RpcClient.useGrpc) {
+        if (RpcClient.useGrpc) {
             console.log("[INFO] gRPC: getRawMemPool");
             return (await grpc.getRawMempool({ fullTransactions: false })).getTransactionDataList().map(t => Buffer.from(t.getTransactionHash_asU8().reverse()).toString('hex'))
         }
@@ -136,16 +136,18 @@ export class RpcClient {
     }
 
     static async getRawTransaction(hash: string, retryRpc=true): Promise<string> { 
-        if(RpcClient.transactionCache.has(hash)) {
+        if (RpcClient.transactionCache.has(hash)) {
             console.log("[INFO] cache: getRawTransaction");
             return RpcClient.transactionCache.get(hash)!.toString('hex');
         }
-        if(RpcClient.useGrpc) {
+
+        if (RpcClient.useGrpc) {
             console.log("[INFO] gRPC: getRawTransaction", hash);
             return Buffer.from((await grpc.getRawTransaction({ hash: hash, reversedHashOrder: true })).getTransaction_asU8()).toString('hex');
-        } 
+        }
+
         console.log("[INFO] JSON RPC: getRawTransaction", hash);
-        if(retryRpc) {
+        if (retryRpc) {
             return await rpc_retry.getRawTransaction(hash);
         } else {
             return await rpc.getRawTransaction(hash);
@@ -153,7 +155,7 @@ export class RpcClient {
     }
 
     static async getTransactionBlockHash(hash: string): Promise<string> {
-        if(RpcClient.useGrpc) {
+        if (RpcClient.useGrpc) {
             console.log("[INFO] gRPC: getTransaction", hash);
             let txn = await grpc.getTransaction({ hash: hash, reversedHashOrder: true });
             return Buffer.from(txn.getTransaction()!.getBlockHash_asU8().reverse()).toString('hex');
@@ -163,7 +165,7 @@ export class RpcClient {
     }
 
     static async getTxOut(hash: string, vout: number): Promise<TxOutResult|GetUnspentOutputResponse|null> {
-        if(RpcClient.useGrpc){
+        if (RpcClient.useGrpc){
             console.log("[INFO] gRPC: getTxOut", hash, vout);
             try {
                 let utxo = (await grpc.getUnspentOutput({ hash: hash, vout: vout, reversedHashOrder: true, includeMempool: true }));
@@ -177,7 +179,7 @@ export class RpcClient {
     }
 
     static async getMempoolInfo(): Promise<MempoolInfoResult|{}> {
-        if(RpcClient.useGrpc) {
+        if (RpcClient.useGrpc) {
             return {};
         }
         console.log("[INFO] JSON RPC: getMempoolInfo");

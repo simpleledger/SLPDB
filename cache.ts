@@ -111,8 +111,9 @@ export class CacheMap<T, M> {
     }
 
     delete(key: T) {
-        if(this.map.delete(key))
+        if (this.map.delete(key)) {
             this.list = this.list.filter(k => k !== key);
+        }
     }
 
     toMap() {
@@ -121,8 +122,9 @@ export class CacheMap<T, M> {
 
     private shift(): T | undefined {
         let key = this.list.shift();
-        if(key)
+        if(key) {
             this.map.delete(key);
+        }
         return key;
     }
 

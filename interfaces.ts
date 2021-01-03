@@ -17,7 +17,6 @@ export interface GraphTxnOutput {
     vout: number;
     bchSatoshis: number|null;
     slpAmount: BigNumber;
-    isBurnCounted?: boolean;
     spendTxid: string | null;
     status: TokenUtxoStatus|BatonUtxoStatus;
     invalidReason: string | null;
@@ -26,7 +25,7 @@ export interface GraphTxnOutput {
 export interface GraphTxnInput {
     txid: string;
     vout: number;
-    slpAmount: BigNumber; 
+    slpAmount: BigNumber;
     address: string;
     bchSatoshis: number;
 }

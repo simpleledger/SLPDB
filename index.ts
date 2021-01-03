@@ -30,7 +30,6 @@ let db = new Db({
     dbUrl: Config.db.url, 
     config: Config.db 
 });
-let filter = TokenFilters();
 let bit = new Bit(db);
 new SlpdbStatus(db, process.argv);
 
@@ -82,7 +81,7 @@ const daemon = {
         let currentHeight = await RpcClient.getBlockCount();
         tokenManager = new SlpGraphManager(db, currentHeight, network, bit);
         bit._slpGraphManager = tokenManager;
-        let pruningStack = PruneStack(tokenManager._tokens);
+        PruneStack(tokenManager._tokens);  // call instantiates singleton
 
         console.log('[INFO] Synchronizing SLPDB with BCH blockchain data...', new Date());
         console.time('[PERF] Initial Block Sync');

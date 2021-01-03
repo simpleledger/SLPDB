@@ -48,31 +48,104 @@ export class SlpGraphManager {
         } 
     }
 
-    async getTokenGraph({ tokenIdHex, slpMsgDetailsGenesis, forceValid, blockCreated, nft1ChildParentIdHex, txid }: { tokenIdHex: string, slpMsgDetailsGenesis?: SlpTransactionDetails, forceValid?: boolean, blockCreated?: number, nft1ChildParentIdHex?: string, txid: string }): Promise<SlpTokenGraph|null> {
+    async getTokenGraph({ tokenIdHex, slpMsgDetailsGenesis, forceValid, blockCreated, nft1ChildParentIdHex, txid }: { tokenIdHex: string, slpMsgDetailsGenesis?: SlpTransactionDetails, forceValid?: boolean, blockCreated?: number, nft1ChildParentIdHex?: string, txid?: string }): Promise<SlpTokenGraph|null> {
+
         let filter = TokenFilters();
         if (!filter.passesAllFilterRules(tokenIdHex)) {
             throw Error("Token is filtered and will not be processed, even though it's graph may be loaded.")
         }
-        if (!this._tokens.has(tokenIdHex)) {
+
+        if (! this._tokens.has(tokenIdHex)) {
+
             if (!slpMsgDetailsGenesis) {
                 throw Error(`Token details for a new token GENESIS must be provided (Id: ${tokenIdHex}, txid: ${txid}).`);
             }
+
             if (slpMsgDetailsGenesis.transactionType !== SlpTransactionType.GENESIS) {
                 throw Error(`Missing token details for a non-GENESIS transaction (Id: ${tokenIdHex}, txid: ${txid}).`);
             }
-            let graph = new SlpTokenGraph(slpMsgDetailsGenesis, this.db, this, this._network, blockCreated!);
+
+            let tg = new SlpTokenGraph(slpMsgDetailsGenesis, this, blockCreated!, null);
+            tg._loadInitiated = true;
+
+            if (nft1ChildParentIdHex) {
+                tg._nftParentId = nft1ChildParentIdHex;
+            }
+
+            if (!tg._nftParentId && slpMsgDetailsGenesis.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
+                await tg.setNftParentId();
+            }
+
+            // If NFT child, then we need make sure the child's validation cache object is from the parent graph
+            if (tg._nftParentId) {
+                let ptg = await this.getTokenGraph({ tokenIdHex: tg._nftParentId });
+                if (! ptg) {
+                    throw Error("this should never happen");
+                }
+                tg._slpValidator.cachedValidations = ptg._slpValidator.cachedValidations;
+            }
+
             if (forceValid) {
-                graph._isValid = true;
-            } else if (!(await graph.IsValid())) {
+                tg._isValid = true;
+            } else if (!(await tg.IsValid())) {
                 return null;
             }
-            if (nft1ChildParentIdHex) {
-                graph._nftParentId;
+            this._tokens.set(tokenIdHex, tg);
+
+        } else if (! this._tokens.get(tokenIdHex)!._lazilyLoaded && ! this._tokens.get(tokenIdHex)!._loadInitiated) {
+
+            let tg = this._tokens.get(tokenIdHex!);
+
+            let lastPrunedHeight = tg!._tokenDbo!._pruningState.pruneHeight;
+            let checkpoint = await Info.getBlockCheckpoint();
+            if (lastPrunedHeight > checkpoint.height) {
+                lastPrunedHeight = checkpoint.height;
             }
-            if (!graph._nftParentId && slpMsgDetailsGenesis.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
-                await graph.setNftParentId();
+
+            console.log(`[INFO] Lazily loading token ${tokenIdHex}`);
+            let unspentDag: GraphTxnDbo[] = await this.db.graphFetch(tokenIdHex, lastPrunedHeight);
+            if (! tg) {
+                throw Error("This should never happen");
             }
-            this._tokens.set(tokenIdHex, graph);
+
+            // set loading state
+            tg._loadInitiated = true;
+            tg._lazilyLoaded = true;
+
+            // add minting baton
+            tg._mintBatonUtxo = tg._tokenDbo!.mintBatonUtxo;
+            tg._mintBatonStatus = tg._tokenDbo!.mintBatonStatus;
+
+            // Map _txnGraph
+            tg._graphTxns.fromDbos(
+                unspentDag,
+                tg._tokenDbo!._pruningState
+            );
+
+            // If NFT child, then we need make sure the child's validation cache object is from the parent graph
+            if (tg._nftParentId) {
+                let ptg = await this.getTokenGraph({ tokenIdHex: tg._nftParentId });
+                if (! ptg) {
+                    throw Error("this should never happen");
+                }
+                tg._slpValidator.cachedValidations = ptg._slpValidator.cachedValidations;
+            }
+
+            // preload  with cachedValidations for this tokenID
+            for (let [txid, _] of tg._graphTxns) {
+                let validation: any = { validity: null, details: null, invalidReason: null, parents: [], waiting: false }
+                validation.validity = tg._graphTxns.get(txid) ? true : false;
+                validation.details = tg._graphTxns.get(txid)!.details;
+                if (!validation.details) {
+                    throw Error("No saved details about transaction" + txid);
+                }
+                tg._slpValidator.cachedValidations[txid] = validation;
+            }
+    
+            console.log(`[INFO] Loaded ${tg._graphTxns.size} validation cache results`);
+    
+            // Map _lastUpdatedBlock
+            tg._lastUpdatedBlock = tg._tokenDbo!.lastUpdatedBlock;
         } else if (slpMsgDetailsGenesis && blockCreated && !this._tokens.get(tokenIdHex)!._blockCreated) {
             this._tokens.get(tokenIdHex)!._blockCreated = blockCreated;
         }
@@ -201,13 +274,12 @@ export class SlpGraphManager {
         this._network = network;
         this._tokens = new Map<string, SlpTokenGraph>();
         this._bit = bit;
-        let self = this;
         this._startupTokenCount = 0
     }
 
     static MapTokenDetailsToTnaDbo(details: SlpTransactionDetails, genesisDetails: SlpTransactionDetails, addresses: (string|null)[]): SlpTransactionDetailsTnaDbo {
         var outputs: any|null = null;
-        if(details.sendOutputs) {
+        if (details.sendOutputs) {
             outputs = [];
             details.sendOutputs.forEach((o,i) => {
                 if (i > 0) {
@@ -215,7 +287,7 @@ export class SlpGraphManager {
                 }
             })
         }
-        if(details.genesisOrMintQuantity) {
+        if (details.genesisOrMintQuantity) {
             outputs = [];
             outputs.push({ address: addresses[0], amount: Decimal128.fromString(details.genesisOrMintQuantity!.dividedBy(10**genesisDetails.decimals).toFixed()) })
         }
@@ -236,33 +308,43 @@ export class SlpGraphManager {
     }
 
     async initAllTokenGraphs() {
-        let tokens = await this.db.tokenFetchAll();
-        let checkpoint = await Info.getBlockCheckpoint();
-        if (tokens) {
+        let tokenDbos = await this.db.tokenFetchAll();
+        if (tokenDbos) {
             let count = 0;
-            for (let token of tokens) {
-                if (token.schema_version !== Config.db.token_schema_version) {
+            for (let tokenDbo of tokenDbos) {
+
+                if (tokenDbo.schema_version !== Config.db.token_schema_version) {
                     throw Error("DB schema does not match the current version.");
                 }
-                let lastPrunedHeight = token._pruningState.pruneHeight;
-                if (lastPrunedHeight > checkpoint.height) {
-                    lastPrunedHeight = checkpoint.height;
-                }
-                await this.loadTokenFromDb(token, lastPrunedHeight);
-                console.log(`[INFO] ${++count} tokens loaded from db.`)
-            }
-        }
-    }
 
-    async loadTokenFromDb(tokenDbo: TokenDBObject, lastPrunedHeight?: number) {
-        let tokenId = tokenDbo.tokenDetails.tokenIdHex;
-        console.log("########################################################################################################");
-        console.log(`LOAD FROM DB: ${tokenId}`);
-        console.log("########################################################################################################");
-        let unspentDag: GraphTxnDbo[] = await this.db.graphFetch(tokenId, lastPrunedHeight);
-        this._cacheGraphTxnCount += unspentDag.length;
-        console.log(`Total loaded: ${this._cacheGraphTxnCount}, using a pruning cutoff height of: ${lastPrunedHeight} `);
-        return await SlpTokenGraph.initFromDbos(tokenDbo, unspentDag, this, this._network);
+                let tokenIdHex = tokenDbo.tokenDetails.tokenIdHex;
+
+                let filter = TokenFilters();
+                if (!filter.passesAllFilterRules(tokenIdHex)) {
+                    throw Error("Token is filtered and will not be processed, even though it's graph may be loaded.")
+                }
+
+                let tokenDetails = SlpTokenGraph.MapDbTokenDetailsFromDbo(tokenDbo.tokenDetails, tokenDbo.tokenDetails.decimals);
+                if (! tokenDetails) {
+                    throw Error(`Token details for a new token GENESIS must be provided (Id: ${tokenIdHex}).`);
+                }
+
+                if (tokenDetails.transactionType !== SlpTransactionType.GENESIS) {
+                    throw Error(`Missing token details for a non-GENESIS transaction (Id: ${tokenIdHex}).`);
+                }
+
+                let graph = new SlpTokenGraph(tokenDetails, this, tokenDbo.tokenStats.block_created!, tokenDbo);
+                if (tokenDetails.versionType === SlpVersionType.TokenVersionType1_NFT_Child) {
+                    graph._nftParentId = tokenDbo.nftParentId;
+                }
+                this._tokens.set(tokenDbo.tokenDetails.tokenIdHex, graph);
+
+                console.log(`[INFO] Loaded ${tokenIdHex}.`);
+                count++;
+            }
+
+            console.log(`[INFO] ${count} tokens loaded from db.`);
+        }
     }
 
     async stop() {
@@ -274,7 +356,7 @@ export class SlpGraphManager {
         }
 
         let unspentCount = 0;
-        for (let [tokenId, token] of this._tokens) {
+        for (let [_, token] of this._tokens) {
             await token.stop();
             unspentCount += token.graphSize;
         }

@@ -13,7 +13,7 @@
             "sourceMaps": true,
             "cwd": "${workspaceRoot}",
             "protocol": "inspector",
-            "console": "externalTerminal"
+            "console": "integratedTerminal"
         },
         {
             "type": "node",

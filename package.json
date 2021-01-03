@@ -1,6 +1,6 @@
 {
   "name": "slpdb",
-  "version": "1.0.0-beta-rc13",
+  "version": "1.0.0",
   "description": "Indexer for the Simple Ledger Protocol with real-time validation notifications.",
   "main": "index.js",
   "scripts": {
@@ -16,7 +16,6 @@
   "keywords": [
     "SLP"
   ],
-  "author": "James Cramer",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/simpleledger/SLPDB/issues"
@@ -47,7 +46,7 @@
     "level": "^5.0.1",
     "migrate-mongo": "^5.0.1",
     "mingo": "^2.5.3",
-    "mongodb": "^3.5.11",
+    "mongodb": "^3.5.6",
     "node-jq": "1.6.0",
     "os-utils": "0.0.14",
     "p-limit": "2.0.0",

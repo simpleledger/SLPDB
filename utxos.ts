@@ -6,6 +6,13 @@ class GlobalUtxoSet extends Map<Txo, TokenId> {
         return this._instance || (this._instance = new GlobalUtxoSet());
     }
     private static _instance: GlobalUtxoSet;
+
+    public set(key: string, value: Buffer): this {
+        if (this.size % 100000 === 0) {
+            console.log(`UTXO size: ${this.size}`);
+        }
+        return super.set(key, value);
+    }
     private constructor() { super(); }
 }
 
