@@ -86,7 +86,7 @@ The services `SlpServe` and `SlpSockServer` return query results as a JSON objec
 ###  4.1. <a name='Prerequisites'></a>Prerequisites
 * Node.js 12
 * MongoDB 4.4+
-* BitcoinABC, Bitcoin Cash Node, BitcoinUnlimited, BCHD, or other Bitcoin Cash full node with:
+* Bitcoin Cash Node, BitcoinUnlimited, BCHD, or other Bitcoin Cash full node with:
   * RPC-JSON (or gRPC) and 
   * ZeroMQ event notifications
 
@@ -130,7 +130,6 @@ To use SLPDB with Testnet simply set your full node to the testnet network (e.g.
 
 **2)** Run Bitcoin Cash full node using `bitcoin.conf` settings from above.
 * [Bitcoin Cash Node](https://bitcoincashnode.org)
-* [BitcoinABC](https://www.bitcoinabc.org)
 * [BitcoinBU](https://www.bitcoinunlimited.info)
 
 **3)** Install SLPDB dependencies using `npm install` at the command-line
