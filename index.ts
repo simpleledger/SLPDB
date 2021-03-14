@@ -17,7 +17,7 @@ new RpcClient({ useGrpc: Boolean(Config.grpc.url) });
 
 // init promise based resources
 const sp = require("synchronized-promise");
-let getBlockchainInfoSync: () => BlockchainInfoResult = sp(RpcClient.getBlockchainInfo);
+let getBlockchainInfoSync: () => BlockchainInfoResult = sp(RpcClient.getBlockchainInfo,{timeouts:Config.rpc.rpcTimeoutMs});
 let setNetworkSync: (network: string) => void = sp(Info.setNetwork);
 let queryInitSync: () => void = sp(Query.init);
 let chain = getBlockchainInfoSync().chain;
