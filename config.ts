@@ -22,6 +22,7 @@ export class Config {
 		host: process.env.rpc_host ? process.env.rpc_host : '0.0.0.0',
 		port: process.env.rpc_port ? process.env.rpc_port : '8332',
 		limit: Number.parseInt(process.env.rpc_limit ? process.env.rpc_limit : "150"),
+		rpcMaxRetries: Number.parseInt(process.env.rpc_max_retries ? process.env.rpc_max_retries : "2"),
 		rpcRetryDelayMs: Number.parseInt(process.env.rpc_retry_delay ? process.env.rpc_retry_delay : "1000"),
 		rpcTimeoutMs: Number.parseInt(process.env.rpc_timeout ? process.env.rpc_timeout : "30000"),
 		skipInitialSyncCheck: process.env.skip_intial_sync_check ? ['1', 'true'].includes(process.env.skip_intial_sync_check) : false,

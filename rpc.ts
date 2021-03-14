@@ -23,7 +23,7 @@ export class RpcClient {
             }
         } else {
             rpc = new _rpcClient(connectionString, { maxRetries: 0 });
-            rpc_retry = new _rpcClient(connectionString, { maxRetries: 2, timeoutMs: Config.rpc.rpcTimeoutMs, retryDelayMs: Config.rpc.rpcRetryDelayMs });
+            rpc_retry = new _rpcClient(connectionString, { maxRetries: Config.rpc.rpcMaxRetries, timeoutMs: Config.rpc.rpcTimeoutMs, retryDelayMs: Config.rpc.rpcRetryDelayMs });
         }
     }
 
