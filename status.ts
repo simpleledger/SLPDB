@@ -191,7 +191,7 @@ export class SlpdbStatus {
                     console.log(`[INFO] Telementry response code: ${res.statusCode}`);
                     res.on('data', d => {
                         console.log(`[INFO] Telemetry response from ${Config.telemetry.host}: ${d.toString('utf8')}`);
-                        JSON.parse(d).secretKey ? Info.setTelemetrySecret(JSON.parse(d).secretKey) : null;
+                        try { JSON.parse(d).secretKey ? Info.setTelemetrySecret(JSON.parse(d).secretKey) : null; } catch (_) {}
                     });
                 });
                 req.on('error', error => {
