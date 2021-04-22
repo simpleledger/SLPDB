@@ -23,9 +23,9 @@ const rawTxnCache = new CacheMap<string, string>(10000);
 
 // connect to bitcoin regtest network JSON-RPC
 const rpcClient = require('bitcoin-rpc-promise-retry');
-const connectionStringNode1_miner = 'http://bitcoin:password@0.0.0.0:18443';  // node IS connected to SLPDB
+const connectionStringNode1_miner = `http://bitcoin:password@${process.env.RPC1_HOST}:${process.env.RPC1_PORT}`;  // node IS connected to SLPDB
 const rpcNode1_miner = new rpcClient(connectionStringNode1_miner, { maxRetries: 0 });
-const connectionStringNode2_miner = 'http://bitcoin:password@0.0.0.0:18444';  // node IS NOT connected to SLPDB
+const connectionStringNode2_miner = `http://bitcoin:password@${process.env.RPC2_HOST}:${process.env.RPC2_PORT}`;  // node IS NOT connected to SLPDB
 const rpcNode2_miner = new rpcClient(connectionStringNode2_miner, { maxRetries: 0 });
 
 // setup a new local SLP validator instance
@@ -60,7 +60,7 @@ sock.on('message', async function(topic: string, message: Buffer) {
 });
 
 // connect to the regtest mongoDB
-let db = new Db({ dbUrl: "mongodb://0.0.0.0:26017", dbName: "slpdb_test", config: Config.db });
+let db = new Db({ dbUrl: `mongodb://${process.env.MONGO_HOST}:${process.env.MONGO_PORT}`, dbName: "slpdb_test", config: Config.db });
 
 // produced and shared between tests.
 let receiverRegtest: string;
@@ -99,14 +99,14 @@ describe("5-Reorg-Removes-Data", () => {
 
         // connect miner node to a full node that is not connected to slpdb
         try {
-            await rpcNode1_miner.addNode("bitcoin1", "onetry");
+            await rpcNode1_miner.addNode("bitcoin2", "onetry");
         } catch(err) { }
         let peerInfo: any[] = await rpcNode1_miner.getPeerInfo();
         while (peerInfo.length < 1) {
             await sleep(100);
             peerInfo = await rpcNode1_miner.getPeerInfo();
         }
-        assert.equal(peerInfo.length, 1);
+        assert.strictEqual(peerInfo.length, 1);
 
         // make sure we have coins to use in tests
         let balance = await rpcNode1_miner.getBalance();
@@ -163,12 +163,12 @@ describe("5-Reorg-Removes-Data", () => {
 
         // disconnect nodes
         peerInfo = await rpcNode1_miner.getPeerInfo();
-        await rpcNode1_miner.disconnectNode("bitcoin1");
+        await rpcNode1_miner.disconnectNode("bitcoin2");
         while(peerInfo.length > 0) {
             await sleep(100);
             peerInfo = await rpcNode1_miner.getPeerInfo();
         }
-        assert.equal(peerInfo.length === 0, true);
+        assert.strictEqual(peerInfo.length === 0, true);
     });
 
     step("BR-1: produces ZMQ output at block", async () => {
@@ -185,19 +185,19 @@ describe("5-Reorg-Removes-Data", () => {
             await sleep(50);
         }
         let notification = slpdbBlockNotifications.filter(b => b.hash === lastBlockHash)[0];
-        assert.equal(notification.txns.length, 1);
-        assert.equal(notification.txns[0]!.txid, tokenId);
-        assert.equal(notification.txns[0]!.slp.detail!.tokenIdHex, tokenId);
-        assert.equal(notification.txns[0]!.slp.detail!.name, "unit-test-5");
-        assert.equal(notification.txns[0]!.slp.detail!.symbol, "ut5");
+        assert.strictEqual(notification.txns.length, 1);
+        assert.strictEqual(notification.txns[0]!.txid, tokenId);
+        assert.strictEqual(notification.txns[0]!.slp.detail!.tokenIdHex, tokenId);
+        assert.strictEqual(notification.txns[0]!.slp.detail!.name, "unit-test-5");
+        assert.strictEqual(notification.txns[0]!.slp.detail!.symbol, "ut5");
         // @ts-ignore
-        assert.equal(notification.txns[0]!.slp!.detail!.outputs![0].amount!, TOKEN_GENESIS_QTY.toFixed());
+        assert.strictEqual(notification.txns[0]!.slp!.detail!.outputs![0].amount!, TOKEN_GENESIS_QTY.toFixed());
         
         // Check block hash with block zmq notification
-        assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
-        assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
+        assert.strictEqual(typeof slpdbBlockNotifications[0]!.hash, "string");
+        assert.strictEqual(slpdbBlockNotifications[0]!.hash.length, 64);
         originalBlockHashHex = slpdbBlockNotifications[0]!.hash;
-        assert.equal(lastBlockHash, originalBlockHashHex);
+        assert.strictEqual(lastBlockHash, originalBlockHashHex);
     });
 
     step("BR-1: Make sure the token exists in the tokens collection (after block)", async () => {
@@ -207,12 +207,12 @@ describe("5-Reorg-Removes-Data", () => {
             await sleep(50);
             t = await db.tokenFetch(tokenId);
         }
-        assert.equal(typeof t!.tokenDetails.timestamp, "string");
-        assert.equal(t!.tokenDetails.timestamp_unix! > 0, true);
-        assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(t!.mintBatonUtxo, tokenId + ":2");
-        assert.equal(t!.tokenStats!.block_created!, lastBlockIndex);
-        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
+        assert.strictEqual(typeof t!.tokenDetails.timestamp, "string");
+        assert.strictEqual(t!.tokenDetails.timestamp_unix! > 0, true);
+        assert.strictEqual(t!.tokenDetails.tokenIdHex, tokenId);
+        assert.strictEqual(t!.mintBatonUtxo, tokenId + ":2");
+        assert.strictEqual(t!.tokenStats!.block_created!, lastBlockIndex);
+        assert.strictEqual(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("BR-1: Invalidate initial block and generate block to cause SLPDB reorg detection", async () => {
@@ -224,21 +224,21 @@ describe("5-Reorg-Removes-Data", () => {
 
         // reconnect nodes
         try {
-            await rpcNode1_miner.addNode("bitcoin1", "onetry");
+            await rpcNode1_miner.addNode("bitcoin2", "onetry");
         } catch(err) { }
         let peerInfo: any[] = await rpcNode1_miner.getPeerInfo();
         while (peerInfo.length < 1) {
             await sleep(100);
             peerInfo = await rpcNode1_miner.getPeerInfo();
         }
-        assert.equal(peerInfo.length, 1);
+        assert.strictEqual(peerInfo.length, 1);
 
         let blockCount = await rpcNode1_miner.getBlockCount();
         while (blockCount !== intendedBlockCount) {
             await sleep(50);
             blockCount = await rpcNode1_miner.getBlockCount();
         }
-        assert.equal(blockCount, intendedBlockCount);
+        assert.strictEqual(blockCount, intendedBlockCount);
     });
 
     step("BR-1: Check updated graph txn block hash", async () => {

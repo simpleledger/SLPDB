@@ -23,7 +23,7 @@
 
 // // connect to bitcoin regtest network JSON-RPC
 // const rpcClient = require('bitcoin-rpc-promise-retry');
-// const connectionStringNode1_miner = 'http://bitcoin:password@0.0.0.0:18443';  // (optional) connect to a miner's rpc on 18444 that is not connected to SLPDB
+// const connectionStringNode1_miner = `http://bitcoin:password@${process.env.RPC1_HOST}:${process.env.RPC1_PORT}`;  // (optional) connect to a miner's rpc on 18444 that is not connected to SLPDB
 // const rpcNode1_miner = new rpcClient(connectionStringNode1_miner, { maxRetries: 0 });
 
 // // setup a new local SLP validator instance
@@ -59,7 +59,7 @@
 
 
 // // connect to the regtest mongoDB
-// let db = new Db({ dbUrl: "mongodb://0.0.0.0:26017", dbName: "slpdb_test", config: Config.db });
+// let db = new Db({ dbUrl: `mongodb://${process.env.MONGO_HOST}:${process.env.MONGO_PORT}`, dbName: "slpdb_test", config: Config.db });
 
 // // produced and shared between tests.
 // let receiverRegtest: string;
@@ -86,7 +86,7 @@
 
 //         // connect miner node to a full node that is connected to slpdb
 //         try {
-//             await rpcNode1_miner.addNode("bitcoin1", "onetry");
+//             await rpcNode1_miner.addNode("bitcoin2", "onetry");
 //         } catch(err) { }
 
 //         // make sure we have coins to use in tests

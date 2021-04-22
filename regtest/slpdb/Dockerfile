@@ -5,22 +5,19 @@ RUN apk update && apk upgrade && \
 
 RUN apk add --no-cache --virtual build-dependencies python --update py-pip \
     build-base python-dev make automake autoconf libtool \
-    && pip install --upgrade pip \
-    && rm -rf /var/cache/apk/*
+    && pip install --upgrade pip
 
 RUN mkdir -p /usr/src/SLPDB
 
 WORKDIR /usr/src
 
-RUN git clone https://github.com/simpleledger/SLPDB.git && cd SLPDB
+ADD . /usr/src/SLPDB
 WORKDIR /usr/src/SLPDB
-RUN npm install
-RUN git fetch --all && git checkout c2f6763ab9c1a80d68b1c8bd37fee0180e143758
-RUN npm install
+RUN npm i
 
-COPY regtest.env .env
-COPY filters.regtest.yml filters.yml
-COPY ./docker-entrypoint.sh ./entrypoint.sh
+COPY ./regtest/slpdb/.env.regtest .env
+COPY ./regtest/slpdb/filters.regtest.yml filters.yml
+COPY ./regtest/slpdb/docker-entrypoint.sh ./entrypoint.sh
 
 ENTRYPOINT [ "./entrypoint.sh" ]
 CMD [ "run" ]

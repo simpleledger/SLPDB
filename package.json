@@ -1,5 +1,6 @@
 {
   "name": "slpdb",
+  "private": true,
   "version": "1.0.0",
   "description": "Indexer for the Simple Ledger Protocol with real-time validation notifications.",
   "main": "index.js",

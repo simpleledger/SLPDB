@@ -1,10 +1,25 @@
 version: "3.5"
 services:
-  bitcoin1: # the node not connected to SLPDB
-    image: "bitcoin-abc"
+  bitcoin1: # the node connected to SLPDB via RPC and zmq
+    image: "bchn"
     restart: always
     build:
-      context: "./bitcoin-abc"
+      context: "./bitcoind"
+    command: "bitcoind"
+    healthcheck:
+      test: ["CMD", "/entrypoint.sh", "bitcoin-cli", "getblockchaininfo"]
+    expose:
+      - "18333"
+    ports:
+      - "18443:18443"
+      - "28332:28332"
+    volumes:
+      - ./bitcoind/bitcoin.conf:/data/bitcoin.conf
+  bitcoin2: # the node not connected to SLPDB
+    image: "bchn"
+    restart: always
+    build:
+      context: "./bitcoind"
     command: "bitcoind"
     healthcheck:
       test: ["CMD", "/entrypoint.sh", "bitcoin-cli", "getblockchaininfo"]
@@ -13,32 +28,12 @@ services:
     ports:
       - "18444:18443"
     volumes:
-      - ./bitcoin-abc/bitcoin.conf:/data/bitcoin.conf
-    networks:
-      - regnet
-  bitcoin2: # the node connected to SLPDB via RPC and zmq
-    image: "bitcoin-abc"
-    restart: always
-    build:
-      context: "./bitcoin-abc"
-    command: "bitcoind"
-    healthcheck:
-      test: ["CMD", "/entrypoint.sh", "bitcoin-cli", "getblockchaininfo"]
-    expose:
-      - "18333"
-      - "28332"
-    ports:
-      - "18443:18443"
-      - "29332:28332"
-    volumes:
-      - ./bitcoin-abc/bitcoin.conf:/data/bitcoin.conf
-    networks:
-      - regnet
+      - ./bitcoind/bitcoin.conf:/data/bitcoin.conf
+    depends_on: 
+      - bitcoin1
   mongo:
-    image: mongo:4.2
+    image: mongo:4.4
     restart: always
-    networks:
-      - regnet
     # entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "devrs" ]
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongo --quiet 1
@@ -48,21 +43,19 @@ services:
       start_period: 40s
     ports:
       - "26017:27017"
-    # volumes:
-    #    - ./mongo/db:/data/db
-    #    - ./mongo/configdb:/data/configdb
-  # slpdb:
-  #   build:
-  #     context: "./slpdb"
-  #   image: slpdb
-  #   restart: always
-  #   networks:
-  #     - regnet
-  #   depends_on:
-  #     - mongo
-  #     - bitcoin2
-  #   ports:
-  #     - "27339:28339"
-
-networks:
-  regnet:
+    depends_on: 
+      - bitcoin1
+      - bitcoin2
+  slpdb:
+    build:
+      context: ".."
+      dockerfile: "./regtest/slpdb/Dockerfile"
+    image: slpdb
+    restart: always
+    depends_on:
+      - mongo
+    ports:
+      - "27339:27339"
+    volumes:
+      - .:/usr/src/SLPDB/regtest
+      - ..:/usr/src/SLPDB/test

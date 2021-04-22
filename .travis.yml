@@ -1,0 +1,5 @@
+services:
+  - docker
+sudo: false
+script:
+  - sh -c 'cd ./regtest && ./test.sh'

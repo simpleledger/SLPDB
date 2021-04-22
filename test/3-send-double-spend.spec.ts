@@ -21,9 +21,9 @@ const TOKEN_GENESIS_QTY = 100;
 
 // connect to bitcoin regtest network JSON-RPC
 const rpcClient = require('bitcoin-rpc-promise-retry');
-const connectionStringNode1_miner = 'http://bitcoin:password@0.0.0.0:18443';  // (optional) connect to a miner's rpc on 18444 that is not connected to SLPDB
+const connectionStringNode1_miner = `http://bitcoin:password@${process.env.RPC1_HOST}:${process.env.RPC1_PORT}`;  // (optional) connect to a miner's rpc on 18444 that is not connected to SLPDB
 const rpcNode1_miner = new rpcClient(connectionStringNode1_miner, { maxRetries: 0 });
-const connectionStringNode2_miner = 'http://bitcoin:password@0.0.0.0:18444';  // (optional) connect to a miner's rpc on 18444 that is not connected to SLPDB
+const connectionStringNode2_miner = `http://bitcoin:password@${process.env.RPC2_HOST}:${process.env.RPC2_PORT}`;  // (optional) connect to a miner's rpc on 18444 that is not connected to SLPDB
 const rpcNode2_miner = new rpcClient(connectionStringNode2_miner, { maxRetries: 0 });
 
 // setup a new local SLP validator instance
@@ -56,7 +56,7 @@ sock.on('message', async function(topic: string, message: Buffer) {
 });
 
 // connect to the regtest mongoDB
-let db = new Db({ dbUrl: "mongodb://0.0.0.0:26017", dbName: "slpdb_test", config: Config.db });
+let db = new Db({ dbUrl: `mongodb://${process.env.MONGO_HOST}:${process.env.MONGO_PORT}`, dbName: "slpdb_test", config: Config.db });
 
 // produced and shared between tests.
 let receiverRegtest: string;
@@ -78,8 +78,14 @@ describe("3-Double-Spend-Send", () => {
 
         // connect miner node to a full node that is connected to slpdb
         try {
-            await rpcNode1_miner.addNode("bitcoin1", "onetry");
+            await rpcNode1_miner.addNode("bitcoin2", "onetry");
         } catch(err) { }
+        let peerInfo: any[] = await rpcNode1_miner.getPeerInfo();
+        while (peerInfo.length < 1) {
+            await sleep(100);
+            peerInfo = await rpcNode1_miner.getPeerInfo();
+        }
+        assert.strictEqual(peerInfo.length, 1);
 
         // make sure we have coins to use in tests
         let balance = await rpcNode1_miner.getBalance();
@@ -102,7 +108,7 @@ describe("3-Double-Spend-Send", () => {
             node1Hash = await rpcNode1_miner.getbestblockhash();
             node2Hash = await rpcNode2_miner.getbestblockhash();
         }
-        assert.equal(node1Hash, node2Hash);
+        assert.strictEqual(node1Hash, node2Hash);
 
         let unspent = await rpcNode1_miner.listUnspent(0);
         unspent = unspent.filter((txo: any) => txo.address === receiverRegtest);
@@ -129,21 +135,21 @@ describe("3-Double-Spend-Send", () => {
             bchChangeReceiverAddress: receiverSlptest, 
             inputUtxos: txnInputs
         });
-            
+
         tokenId = await rpcNode1_miner.sendRawTransaction(genesisTxnHex, true);
         lastBlockHash = (await rpcNode1_miner.generate(1))[0];
         lastBlockIndex = (await rpcNode1_miner.getBlock(lastBlockHash, true)).height;
         let lastBlockHash2 = await rpcNode2_miner.getbestblockhash();
-        assert.equal(lastBlockHash, lastBlockHash2);
+        assert.strictEqual(lastBlockHash, lastBlockHash2);
 
         // disconnect nodes now
-        let peerInfo: any[] = await rpcNode1_miner.getPeerInfo();
-        await rpcNode1_miner.disconnectNode("bitcoin1");
+        peerInfo = await rpcNode1_miner.getPeerInfo();
+        await rpcNode1_miner.disconnectNode("bitcoin2");
         while(peerInfo.length > 0) {
             await sleep(100);
             peerInfo = await rpcNode1_miner.getPeerInfo();
         }
-        assert.equal(peerInfo.length === 0, true);
+        assert.strictEqual(peerInfo.length === 0, true);
     });
 
     step("DS-S: Check the new token has been added", async () => {  // NOTE: This takes longer than normal since we're not waiting for ZMQ msg
@@ -155,12 +161,12 @@ describe("3-Double-Spend-Send", () => {
             txn_u = await db.unconfirmedFetch(tokenId);
         }
         let confirmed = await db.db.collection("confirmed").find({ "tx.h": tokenId }).toArray();
-        assert.equal(txn!.slp!.valid, true);
-        assert.equal(txn!.slp!.detail!.name, "unit-test-3");
-        assert.equal(txn!.slp!.detail!.symbol, "ut3");     
-        assert.equal(txn!.slp!.detail!.tokenIdHex, txn!.tx.h);
-        assert.equal(confirmed.length, 1);
-        assert.equal(txn_u, null);
+        assert.strictEqual(txn!.slp!.valid, true);
+        assert.strictEqual(txn!.slp!.detail!.name, "unit-test-3");
+        assert.strictEqual(txn!.slp!.detail!.symbol, "ut3");     
+        assert.strictEqual(txn!.slp!.detail!.tokenIdHex, txn!.tx.h);
+        assert.strictEqual(confirmed.length, 1);
+        assert.strictEqual(txn_u, null);
     });
 
     step("DS-S: Process transaction inputs", async () => {
@@ -178,7 +184,7 @@ describe("3-Double-Spend-Send", () => {
         // select the inputs for transaction
         txnInputs = [ ...utxos.nonSlpUtxos, ...utxos.slpTokenUtxos[tokenId] ];
 
-        assert.equal(txnInputs.length > 1, true);
+        assert.strictEqual(txnInputs.length > 1, true);
     });
 
     step("DS-S: Create two different send transactions", async () => {
@@ -206,9 +212,9 @@ describe("3-Double-Spend-Send", () => {
         txid2 = await rpcNode2_miner.sendRawTransaction(sendTxnHex2, true);
         console.log(`txid2: ${txid2}`);
 
-        assert.equal(txid1.length === 64, true);
-        assert.equal(txid2.length === 64, true);
-        assert.equal(txid1 !== txid2, true);
+        assert.strictEqual(txid1.length === 64, true);
+        assert.strictEqual(txid2.length === 64, true);
+        assert.strictEqual(txid1 !== txid2, true);
     });
 
     step("DS-S: Check SLPDB has pre-double spent transaction as unconfirmed", async () => {
@@ -221,10 +227,10 @@ describe("3-Double-Spend-Send", () => {
             unconfirmed = await db.db.collection("unconfirmed").find({}).toArray();
             txn = unconfirmed.find(i => i.tx.h === txid1);
         }
-        assert.equal(txn!.slp!.valid, true);
-        assert.equal(txn!.slp!.detail!.name, "unit-test-3");
-        assert.equal(txn!.slp!.detail!.symbol, "ut3");     
-        assert.equal(txn!.slp!.detail!.tokenIdHex, tokenId);
+        assert.strictEqual(txn!.slp!.valid, true);
+        assert.strictEqual(txn!.slp!.detail!.name, "unit-test-3");
+        assert.strictEqual(txn!.slp!.detail!.symbol, "ut3");     
+        assert.strictEqual(txn!.slp!.detail!.tokenIdHex, tokenId);
     });
 
     step("DS-S: Check SLPDB has pre-double spent transaction in graphs", async () => {
@@ -233,27 +239,27 @@ describe("3-Double-Spend-Send", () => {
             await sleep(50);
             g = await db.db.collection("graphs").findOne({ "graphTxn.txid": txid1 });
         }
-        assert.equal(g!.graphTxn.txid, txid1);
-        assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(g!.graphTxn._blockHash, null);
+        assert.strictEqual(g!.graphTxn.txid, txid1);
+        assert.strictEqual(g!.tokenDetails.tokenIdHex, tokenId);
+        assert.strictEqual(g!.graphTxn._blockHash, null);
 
         // Check unspent outputs.
-        assert.equal(g!.graphTxn.outputs[0].status, TokenUtxoStatus.UNSPENT);
+        assert.strictEqual(g!.graphTxn.outputs[0].status, TokenUtxoStatus.UNSPENT);
 
         // Check genesis outputs updated
         let genesis: GraphTxnDbo | null = await db.db.collection("graphs").findOne({"graphTxn.txid": tokenId});
-        assert.equal(genesis!.graphTxn.outputs[0].status, TokenUtxoStatus.SPENT_SAME_TOKEN);
-        assert.equal(genesis!.graphTxn.outputs[0].spendTxid, txid1);
-        assert.equal(genesis!.graphTxn.outputs[0].invalidReason, null);
-        assert.equal(genesis!.graphTxn.outputs[1].status, BatonUtxoStatus.BATON_UNSPENT);
+        assert.strictEqual(genesis!.graphTxn.outputs[0].status, TokenUtxoStatus.SPENT_SAME_TOKEN);
+        assert.strictEqual(genesis!.graphTxn.outputs[0].spendTxid, txid1);
+        assert.strictEqual(genesis!.graphTxn.outputs[0].invalidReason, null);
+        assert.strictEqual(genesis!.graphTxn.outputs[1].status, BatonUtxoStatus.BATON_UNSPENT);
     });
 
     step("DS-S: Check SLPDB has pre-double spent transaction in tokens", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-        assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(t!.mintBatonUtxo, tokenId + ":2");
-        assert.equal(t!.tokenStats!.block_created, lastBlockIndex);
-        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
+        assert.strictEqual(t!.tokenDetails.tokenIdHex, tokenId);
+        assert.strictEqual(t!.mintBatonUtxo, tokenId + ":2");
+        assert.strictEqual(t!.tokenStats!.block_created, lastBlockIndex);
+        assert.strictEqual(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("DS-S: Generate block on node 2 and reconnect the two nodes", async () => {
@@ -266,7 +272,7 @@ describe("3-Double-Spend-Send", () => {
             await sleep(100);
             peerInfo = await rpcNode1_miner.getPeerInfo();
         }
-        assert.equal(peerInfo.length === 0, true);
+        assert.strictEqual(peerInfo.length === 0, true);
 
         // use 2nd (non-SLPDB connected node) to generate a block, reconnect to cause double spend
         lastBlockHash = (await rpcNode2_miner.generate(1))[0];
@@ -274,7 +280,7 @@ describe("3-Double-Spend-Send", () => {
 
         // connect miner node to a full node that is connected to slpdb
         try {
-            await rpcNode1_miner.addNode("bitcoin1", "onetry");
+            await rpcNode1_miner.addNode("bitcoin2", "onetry");
         } catch(err) { }
 
         // reconnect nodes
@@ -283,7 +289,7 @@ describe("3-Double-Spend-Send", () => {
             await sleep(100);
             peerInfo = await rpcNode1_miner.getPeerInfo();
         }
-        assert.equal(peerInfo.length, 1);
+        assert.strictEqual(peerInfo.length, 1);
     });
 
     step("DS-S: produces ZMQ output for the double-spend transaction", async () => {
@@ -294,23 +300,23 @@ describe("3-Double-Spend-Send", () => {
             txn = slpdbTxnNotifications.find(t => t.tx.h === txid2);
         }
         // check that SLPDB made proper outgoing ZMQ messages for 
-        //assert.equal(slpdbTxnNotifications.length, 1);
-        assert.equal(txn!.slp!.valid, true);
-        assert.equal(txn!.slp!.detail!.name, "unit-test-3");
-        assert.equal(txn!.slp!.detail!.symbol, "ut3");
-        assert.equal(txn!.slp!.detail!.tokenIdHex, tokenId);
-        assert.equal(txn!.slp!.detail!.outputs![0].address, receiverSlptest);
-        assert.equal(txn!.slp!.detail!.transactionType, SlpTransactionType.SEND);
+        //assert.strictEqual(slpdbTxnNotifications.length, 1);
+        assert.strictEqual(txn!.slp!.valid, true);
+        assert.strictEqual(txn!.slp!.detail!.name, "unit-test-3");
+        assert.strictEqual(txn!.slp!.detail!.symbol, "ut3");
+        assert.strictEqual(txn!.slp!.detail!.tokenIdHex, tokenId);
+        assert.strictEqual(txn!.slp!.detail!.outputs![0].address, receiverSlptest);
+        assert.strictEqual(txn!.slp!.detail!.transactionType, SlpTransactionType.SEND);
         // @ts-ignore
-        assert.equal(txn!.slp!.detail!.outputs![0].amount!, (TOKEN_GENESIS_QTY-1).toFixed());
+        assert.strictEqual(txn!.slp!.detail!.outputs![0].amount!, (TOKEN_GENESIS_QTY-1).toFixed());
         // @ts-ignore
-        assert.equal(txn!.slp!.detail!.outputs![1].amount!, (1).toFixed());
-        //assert.equal(slpdbTxnNotifications[0]!.blk!.h, lastBlockHash);
-        //assert.equal(slpdbTxnNotifications[0]!.blk!.i, lastBlockIndex);
-        assert.equal(typeof txn!.in, "object");
-        assert.equal(typeof txn!.out, "object");
-        assert.equal(typeof txn!.tx, "object");
-        assert.equal(txn!.tx!.h, txid2);
+        assert.strictEqual(txn!.slp!.detail!.outputs![1].amount!, (1).toFixed());
+        //assert.strictEqual(slpdbTxnNotifications[0]!.blk!.h, lastBlockHash);
+        //assert.strictEqual(slpdbTxnNotifications[0]!.blk!.i, lastBlockIndex);
+        assert.strictEqual(typeof txn!.in, "object");
+        assert.strictEqual(typeof txn!.out, "object");
+        assert.strictEqual(typeof txn!.tx, "object");
+        assert.strictEqual(txn!.tx!.h, txid2);
     });
 
     step("DS-S: stores double spend txid2 in tokens (immediately after txn ZMQ)", async () => {
@@ -319,29 +325,29 @@ describe("3-Double-Spend-Send", () => {
             t = await db.tokenFetch(tokenId);
             await sleep(50);
         }
-        assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(t!.mintBatonUtxo, tokenId + ":2");
-        assert.equal(t!.tokenStats!.block_created, lastBlockIndex-1);
-        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
+        assert.strictEqual(t!.tokenDetails.tokenIdHex, tokenId);
+        assert.strictEqual(t!.mintBatonUtxo, tokenId + ":2");
+        assert.strictEqual(t!.tokenStats!.block_created, lastBlockIndex-1);
+        assert.strictEqual(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("DS-S: produces ZMQ output for the block", async () => {
         while(slpdbBlockNotifications.length === 0) {
             await sleep(50);
         }
-        assert.equal(slpdbBlockNotifications.length, 1);
-        assert.equal(slpdbBlockNotifications[0].txns.length, 1);
-        assert.equal(slpdbBlockNotifications[0].txns[0]!.txid, txid2);
-        assert.equal(slpdbBlockNotifications[0].txns[0]!.slp.detail!.tokenIdHex, tokenId);
-        assert.equal(slpdbBlockNotifications[0].txns[0]!.slp.detail!.name, "unit-test-3");
-        assert.equal(slpdbBlockNotifications[0].txns[0]!.slp.detail!.symbol, "ut3");
+        assert.strictEqual(slpdbBlockNotifications.length, 1);
+        assert.strictEqual(slpdbBlockNotifications[0].txns.length, 1);
+        assert.strictEqual(slpdbBlockNotifications[0].txns[0]!.txid, txid2);
+        assert.strictEqual(slpdbBlockNotifications[0].txns[0]!.slp.detail!.tokenIdHex, tokenId);
+        assert.strictEqual(slpdbBlockNotifications[0].txns[0]!.slp.detail!.name, "unit-test-3");
+        assert.strictEqual(slpdbBlockNotifications[0].txns[0]!.slp.detail!.symbol, "ut3");
         // @ts-ignore
-        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![0].amount!, (TOKEN_GENESIS_QTY-1).toFixed());
+        assert.strictEqual(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![0].amount!, (TOKEN_GENESIS_QTY-1).toFixed());
         // @ts-ignore
-        assert.equal(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![1].amount!, (1).toFixed());
+        assert.strictEqual(slpdbBlockNotifications[0]!.txns[0]!.slp!.detail!.outputs![1].amount!, (1).toFixed());
         // Check block hash with block zmq notification
-        assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
-        assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
+        assert.strictEqual(typeof slpdbBlockNotifications[0]!.hash, "string");
+        assert.strictEqual(slpdbBlockNotifications[0]!.hash.length, 64);
     });
 
     step("DS-S: store double spend txid2 in confirmed", async () => {
@@ -351,24 +357,24 @@ describe("3-Double-Spend-Send", () => {
             txn = await db.confirmedFetch(txid2);
         }
         let confirmed = await db.db.collection("confirmed").find({ "tx.h": txid2 }).toArray();
-        assert.equal(txn!.slp!.valid, true);
-        assert.equal(txn!.slp!.detail!.name, "unit-test-3");
-        assert.equal(txn!.slp!.detail!.symbol, "ut3");    
-        assert.equal(txn!.tx.h, txid2); 
-        assert.equal(txn!.slp!.detail!.tokenIdHex, tokenId);
-        assert.equal(confirmed.length, 1);
+        assert.strictEqual(txn!.slp!.valid, true);
+        assert.strictEqual(txn!.slp!.detail!.name, "unit-test-3");
+        assert.strictEqual(txn!.slp!.detail!.symbol, "ut3");    
+        assert.strictEqual(txn!.tx.h, txid2); 
+        assert.strictEqual(txn!.slp!.detail!.tokenIdHex, tokenId);
+        assert.strictEqual(confirmed.length, 1);
 
         // make sure it is not in unconfirmed
         let txn_u = await db.unconfirmedFetch(txid2);
-        assert.equal(txn_u, null);
+        assert.strictEqual(txn_u, null);
     });
 
     step("DS-S: stores double spend txid2 in tokens", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-        assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(t!.mintBatonUtxo, tokenId + ":2");
-        assert.equal(t!.tokenStats!.block_created, lastBlockIndex-1);
-        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
+        assert.strictEqual(t!.tokenDetails.tokenIdHex, tokenId);
+        assert.strictEqual(t!.mintBatonUtxo, tokenId + ":2");
+        assert.strictEqual(t!.tokenStats!.block_created, lastBlockIndex-1);
+        assert.strictEqual(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("DS-S: stores double spend token2 in graphs", async () => {
@@ -377,34 +383,34 @@ describe("3-Double-Spend-Send", () => {
             await sleep(50);
             g = await db.db.collection("graphs").findOne({ "graphTxn.txid": txid2 });
         }
-        assert.equal(g!.graphTxn.txid, txid2);
-        assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(g!.graphTxn._blockHash!.toString("hex"), lastBlockHash);
+        assert.strictEqual(g!.graphTxn.txid, txid2);
+        assert.strictEqual(g!.tokenDetails.tokenIdHex, tokenId);
+        assert.strictEqual(g!.graphTxn._blockHash!.toString("hex"), lastBlockHash);
 
         // Check unspent outputs.
-        assert.equal(g!.graphTxn.outputs[0].status, TokenUtxoStatus.UNSPENT);
+        assert.strictEqual(g!.graphTxn.outputs[0].status, TokenUtxoStatus.UNSPENT);
 
         // Check genesis outputs updated
         let genesis: GraphTxnDbo | null = await db.db.collection("graphs").findOne({"graphTxn.txid": tokenId});
-        assert.equal(genesis!.graphTxn.outputs[0].status, TokenUtxoStatus.SPENT_SAME_TOKEN);
-        assert.equal(genesis!.graphTxn.outputs[0].spendTxid, txid2);
-        assert.equal(genesis!.graphTxn.outputs[0].invalidReason, null);
-        assert.equal(genesis!.graphTxn.outputs[1].status, BatonUtxoStatus.BATON_UNSPENT);
+        assert.strictEqual(genesis!.graphTxn.outputs[0].status, TokenUtxoStatus.SPENT_SAME_TOKEN);
+        assert.strictEqual(genesis!.graphTxn.outputs[0].spendTxid, txid2);
+        assert.strictEqual(genesis!.graphTxn.outputs[0].invalidReason, null);
+        assert.strictEqual(genesis!.graphTxn.outputs[1].status, BatonUtxoStatus.BATON_UNSPENT);
     });
 
     step("DS-S: Verify txid1 is deleted from confirmed/unconfirmed/graphs", async () => {
         let unconf = await db.unconfirmedFetch(txid1);
-        assert.equal(unconf, null);
+        assert.strictEqual(unconf, null);
         let conf = await db.confirmedFetch(txid1);
-        assert.equal(conf, null);
+        assert.strictEqual(conf, null);
         let graphTxn = await db.graphTxnFetch(txid1);
-        assert.equal(graphTxn, null);
+        assert.strictEqual(graphTxn, null);
     });
 
     step("DS-S: Verify txid2 input txn have outputs pointing to txid2, not txid1", async () => {
         let g = await db.graphTxnFetch(txid2);
-        let g0 = await db.graphTxnFetch(g?.graphTxn.inputs[0]!.txid);
-        assert.equal(g0?.graphTxn.outputs[0].spendTxid, txid2);
+        let g0 = await db.graphTxnFetch(g!.graphTxn.inputs[0]!.txid);
+        assert.strictEqual(g0!.graphTxn.outputs[0].spendTxid, txid2);
     });
 
     step("Cleanup after tests", async () => {

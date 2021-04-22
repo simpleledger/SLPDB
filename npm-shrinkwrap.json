@@ -1,6 +1,6 @@
 {
   "name": "slpdb",
-  "version": "1.0.0-beta-rc13",
+  "version": "1.0.0",
   "lockfileVersion": 1,
   "requires": true,
   "dependencies": {

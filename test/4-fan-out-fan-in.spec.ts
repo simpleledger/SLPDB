@@ -24,9 +24,9 @@ const rawTxnCache = new CacheMap<string, string>(10000);
 
 // connect to bitcoin regtest network JSON-RPC
 const rpcClient = require('bitcoin-rpc-promise-retry');
-const connectionStringNode1_miner = 'http://bitcoin:password@0.0.0.0:18443';  // (optional) connect to a miner's rpc on 18444 that is not connected to SLPDB
+const connectionStringNode1_miner = `http://bitcoin:password@${process.env.RPC1_HOST}:${process.env.RPC1_PORT}`;  // (optional) connect to a miner's rpc on 18444 that is not connected to SLPDB
 const rpcNode1_miner = new rpcClient(connectionStringNode1_miner, { maxRetries: 0 });
-const connectionStringNode2_miner = 'http://bitcoin:password@0.0.0.0:18444';  // (optional) connect to a miner's rpc on 18444 that is not connected to SLPDB
+const connectionStringNode2_miner = `http://bitcoin:password@${process.env.RPC2_HOST}:${process.env.RPC2_PORT}`;  // (optional) connect to a miner's rpc on 18444 that is not connected to SLPDB
 const rpcNode2_miner = new rpcClient(connectionStringNode2_miner, { maxRetries: 0 });
 
 // setup a new local SLP validator instance
@@ -62,7 +62,7 @@ sock.on('message', async function(topic: string, message: Buffer) {
 
 
 // connect to the regtest mongoDB
-let db = new Db({ dbUrl: "mongodb://0.0.0.0:26017", dbName: "slpdb_test", config: Config.db });
+let db = new Db({ dbUrl: `mongodb://${process.env.MONGO_HOST}:${process.env.MONGO_PORT}`, dbName: "slpdb_test", config: Config.db });
 
 // produced and shared between tests.
 let receiverRegtest: string;
@@ -89,7 +89,7 @@ describe("4-Fan-out-Fan-in", () => {
 
         // connect miner node to a full node that is connected to slpdb
         try {
-            await rpcNode1_miner.addNode("bitcoin1", "onetry");
+            await rpcNode1_miner.addNode("bitcoin2", "onetry");
         } catch(err) { }
 
         // make sure we have coins to use in tests
@@ -112,7 +112,7 @@ describe("4-Fan-out-Fan-in", () => {
             await sleep(50);
             node2Hash = await rpcNode2_miner.getbestblockhash();
         }
-        assert.equal(node1Hash, node2Hash);
+        assert.strictEqual(node1Hash, node2Hash);
 
         let unspent = await rpcNode1_miner.listUnspent(0);
         unspent = unspent.filter((txo: any) => txo.address === receiverRegtest);
@@ -144,12 +144,12 @@ describe("4-Fan-out-Fan-in", () => {
         lastBlockHash = (await rpcNode1_miner.generate(1))[0];
         lastBlockIndex = (await rpcNode1_miner.getBlock(lastBlockHash, true)).height;
         let lastBlockHash2 = await rpcNode2_miner.getbestblockhash();
-        assert.equal(lastBlockHash, lastBlockHash2);
+        assert.strictEqual(lastBlockHash, lastBlockHash2);
 
         // disconnect nodes now
         let peerInfo: any[] = await rpcNode1_miner.getPeerInfo();
         try {
-            await rpcNode1_miner.disconnectNode("bitcoin1");
+            await rpcNode1_miner.disconnectNode("bitcoin2");
         } catch (err) {
             console.log(err);
             throw Error("Running SLPDB e2e tests requires first running 'git apply ./patches/*'");
@@ -158,7 +158,7 @@ describe("4-Fan-out-Fan-in", () => {
             await sleep(100);
             peerInfo = await rpcNode1_miner.getPeerInfo();
         }
-        assert.equal(peerInfo.length === 0, true);
+        assert.strictEqual(peerInfo.length === 0, true);
     });
 
     step("FOFI-1: Check the new token has been added", async () => {  // NOTE: This takes longer than normal since we're not waiting for ZMQ msg
@@ -171,14 +171,14 @@ describe("4-Fan-out-Fan-in", () => {
             txn = confirmed.find(i => i.tx.h === tokenId);
             txn_u = await db.unconfirmedFetch(tokenId);
         }
-        assert.equal(txn!.slp!.valid, true);
-        assert.equal(txn!.slp!.detail!.name, "unit-test-4");
-        assert.equal(txn!.slp!.detail!.symbol, "ut4");     
-        assert.equal(txn!.slp!.detail!.tokenIdHex, txn!.tx.h);
-        assert.equal(confirmed.length, 1);
+        assert.strictEqual(txn!.slp!.valid, true);
+        assert.strictEqual(txn!.slp!.detail!.name, "unit-test-4");
+        assert.strictEqual(txn!.slp!.detail!.symbol, "ut4");     
+        assert.strictEqual(txn!.slp!.detail!.tokenIdHex, txn!.tx.h);
+        assert.strictEqual(confirmed.length, 1);
 
         // make sure it is not in unconfirmed
-        assert.equal(txn_u, null);
+        assert.strictEqual(txn_u, null);
     });
 
     step("FOFI-1: Process transaction inputs", async () => {
@@ -232,7 +232,7 @@ describe("4-Fan-out-Fan-in", () => {
             //     console.log(tokenUtxos[tokenUtxos.length-1].slpUtxoJudgementAmount.toFixed());
             // }
 
-            assert.equal(txnInputs.length > 1, true);
+            assert.strictEqual(txnInputs.length > 1, true);
 
             let txnHex = txnHelpers.simpleTokenSend({
                 tokenId,
@@ -275,7 +275,7 @@ describe("4-Fan-out-Fan-in", () => {
         // select the largest available token input as the input to the transaction
         txnInputs = [ ...tokenUtxos.slice(0, actualInputsCreated+1), ...utxos.nonSlpUtxos, ]; // +1 handles the SLP change
 
-        assert.equal(txnInputs.length, actualInputsCreated+2);  // +1 for SLP change, +1 for nonSlpUtxo
+        assert.strictEqual(txnInputs.length, actualInputsCreated+2);  // +1 for SLP change, +1 for nonSlpUtxo
         console.log(`Please wait, signing ${txnInputs.length} inputs in fan-in transaction.`);
 
         let txnHex = txnHelpers.simpleTokenSend({
@@ -297,51 +297,51 @@ describe("4-Fan-out-Fan-in", () => {
         let txnNotification = slpdbTxnNotifications.filter(t => t!.tx.h === fiTxid)[0];
 
         // check that SLPDB made proper outgoing ZMQ messages for 
-        assert.equal(txnNotification.slp!.valid, true);
-        assert.equal(txnNotification.slp!.detail!.name, "unit-test-4");
-        assert.equal(txnNotification.slp!.detail!.symbol, "ut4");
-        assert.equal(txnNotification.slp!.detail!.tokenIdHex, tokenId);
-        assert.equal(txnNotification.slp!.detail!.outputs![0].address, receiverSlptest);
-        assert.equal(txnNotification.slp!.detail!.transactionType, SlpTransactionType.SEND);
+        assert.strictEqual(txnNotification.slp!.valid, true);
+        assert.strictEqual(txnNotification.slp!.detail!.name, "unit-test-4");
+        assert.strictEqual(txnNotification.slp!.detail!.symbol, "ut4");
+        assert.strictEqual(txnNotification.slp!.detail!.tokenIdHex, tokenId);
+        assert.strictEqual(txnNotification.slp!.detail!.outputs![0].address, receiverSlptest);
+        assert.strictEqual(txnNotification.slp!.detail!.transactionType, SlpTransactionType.SEND);
         for(let i = 0; i < 18; i++) {
             // @ts-ignore
-            assert.equal(txnNotification.slp!.detail!.outputs![i].amount!, new BigNumber(perInputAmount.times(actualInputsCreated)).dividedBy(10**TOKEN_DECIMALS).toFixed());
+            assert.strictEqual(txnNotification.slp!.detail!.outputs![i].amount!, new BigNumber(perInputAmount.times(actualInputsCreated)).dividedBy(10**TOKEN_DECIMALS).toFixed());
         }
-        assert.equal(txnNotification.blk, null);
-        assert.equal(typeof txnNotification.in, "object");
-        assert.equal(typeof txnNotification.out, "object");
-        assert.equal(typeof txnNotification.tx, "object");
-        assert.equal(txnNotification.tx!.h, fiTxid);
+        assert.strictEqual(txnNotification.blk, undefined);
+        assert.strictEqual(typeof txnNotification.in, "object");
+        assert.strictEqual(typeof txnNotification.out, "object");
+        assert.strictEqual(typeof txnNotification.tx, "object");
+        assert.strictEqual(txnNotification.tx!.h, fiTxid);
     });
 
     step("FOFI-1: Check that fan-in transaction is in unconfirmed (before block)", async () => {
         let txn = await db.unconfirmedFetch(fiTxid);
         let unconfirmed = await db.db.collection("unconfirmed").find({}).toArray();
-        assert.equal(txn!.slp!.valid, true);
-        assert.equal(txn!.slp!.detail!.name, "unit-test-4");
-        assert.equal(txn!.slp!.detail!.symbol, "ut4");
+        assert.strictEqual(txn!.slp!.valid, true);
+        assert.strictEqual(txn!.slp!.detail!.name, "unit-test-4");
+        assert.strictEqual(txn!.slp!.detail!.symbol, "ut4");
         for(let i = 0; i < 18; i++) {
             // @ts-ignore
-            assert.equal(txn!.slp!.detail!.outputs![i].amount!.toString(), new BigNumber(perInputAmount.times(actualInputsCreated)).dividedBy(10**TOKEN_DECIMALS).toFixed());
+            assert.strictEqual(txn!.slp!.detail!.outputs![i].amount!.toString(), new BigNumber(perInputAmount.times(actualInputsCreated)).dividedBy(10**TOKEN_DECIMALS).toFixed());
         }
-        assert.equal(txn!.slp!.detail!.tokenIdHex, tokenId);
-        assert.equal(unconfirmed.length>0, true);
+        assert.strictEqual(txn!.slp!.detail!.tokenIdHex, tokenId);
+        assert.strictEqual(unconfirmed.length>0, true);
     });
 
     step("FOFI-1: Check that tokens collection is accurate (before block)", async () => {
         let t: TokenDBObject | null = await db.tokenFetch(tokenId);
-        assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(t!.mintBatonUtxo, tokenId + ":2");
-        assert.equal(t!.tokenStats !== null, true);
+        assert.strictEqual(t!.tokenDetails.tokenIdHex, tokenId);
+        assert.strictEqual(t!.mintBatonUtxo, tokenId + ":2");
+        assert.strictEqual(t!.tokenStats !== null, true);
         if(t!.tokenStats) {
-            assert.equal(t!.tokenStats!.block_created! > 0, true);
-            // assert.equal(t!.tokenStats!.block_last_active_mint, null);
-            // assert.equal(t!.tokenStats!.block_last_active_send, lastBlockIndex);
-            // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
-            // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
-            // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
-            assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
-            assert.equal(t!.tokenStats.approx_txns_since_genesis, inputTxnCount+1);
+            assert.strictEqual(t!.tokenStats!.block_created! > 0, true);
+            // assert.strictEqual(t!.tokenStats!.block_last_active_mint, null);
+            // assert.strictEqual(t!.tokenStats!.block_last_active_send, lastBlockIndex);
+            // assert.strictEqual(t!.tokenStats!.qty_token_burned.toString(), "0");
+            // assert.strictEqual(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
+            // assert.strictEqual(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
+            assert.strictEqual(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
+            assert.strictEqual(t!.tokenStats.approx_txns_since_genesis, inputTxnCount+1);
         }
     });
 
@@ -351,9 +351,9 @@ describe("4-Fan-out-Fan-in", () => {
             await sleep(50);
             g = await db.db.collection("graphs").findOne({ "graphTxn.txid": fiTxid });
         }
-        assert.equal(g!.graphTxn.txid, fiTxid);
-        assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(g!.graphTxn._blockHash, null);
+        assert.strictEqual(g!.graphTxn.txid, fiTxid);
+        assert.strictEqual(g!.tokenDetails.tokenIdHex, tokenId);
+        assert.strictEqual(g!.graphTxn._blockHash, null);
 
         // TODO: Check unspent outputs.
 
@@ -372,19 +372,19 @@ describe("4-Fan-out-Fan-in", () => {
         let fiTxn = slpdbBlockNotifications[0].txns.filter(t => t!.txid === fiTxid)[0];
 
         lastBlockIndex = (await rpcNode1_miner.getBlock(lastBlockHash, true)).height;
-        assert.equal(slpdbBlockNotifications.length, 1);
-        assert.equal(slpdbBlockNotifications[0].txns.length > 0, true);
-        assert.equal(fiTxn.txid, fiTxid);
-        assert.equal(fiTxn.slp.detail!.tokenIdHex, tokenId);
-        assert.equal(fiTxn.slp.detail!.name, "unit-test-4");
-        assert.equal(fiTxn.slp.detail!.symbol, "ut4");
+        assert.strictEqual(slpdbBlockNotifications.length, 1);
+        assert.strictEqual(slpdbBlockNotifications[0].txns.length > 0, true);
+        assert.strictEqual(fiTxn.txid, fiTxid);
+        assert.strictEqual(fiTxn.slp.detail!.tokenIdHex, tokenId);
+        assert.strictEqual(fiTxn.slp.detail!.name, "unit-test-4");
+        assert.strictEqual(fiTxn.slp.detail!.symbol, "ut4");
         for(let i = 0; i < 18; i++) {
             // @ts-ignore
-            assert.equal(fiTxn!.slp!.detail!.outputs![i].amount!.toString(), new BigNumber(perInputAmount.times(actualInputsCreated)).dividedBy(10**TOKEN_DECIMALS).toFixed());
+            assert.strictEqual(fiTxn!.slp!.detail!.outputs![i].amount!.toString(), new BigNumber(perInputAmount.times(actualInputsCreated)).dividedBy(10**TOKEN_DECIMALS).toFixed());
         }
         // TODO: There is not block hash with block zmq notification!
-        // assert.equal(typeof slpdbBlockNotifications[0]!.hash, "string");
-        // assert.equal(slpdbBlockNotifications[0]!.hash.length, 64);
+        // assert.strictEqual(typeof slpdbBlockNotifications[0]!.hash, "string");
+        // assert.strictEqual(slpdbBlockNotifications[0]!.hash.length, 64);
     });
 
     step("FOFI-1: Check that fan-in transaction is in confirmed (after block)", async () => {
@@ -395,22 +395,22 @@ describe("4-Fan-out-Fan-in", () => {
             txn = await db.confirmedFetch(fiTxid);
             confirmed = await db.db.collection("confirmed").find({}).toArray();
         }
-        assert.equal(txn!.slp!.valid, true);
-        assert.equal(txn!.slp!.detail!.name, "unit-test-4");
-        assert.equal(txn!.slp!.detail!.symbol, "ut4");
+        assert.strictEqual(txn!.slp!.valid, true);
+        assert.strictEqual(txn!.slp!.detail!.name, "unit-test-4");
+        assert.strictEqual(txn!.slp!.detail!.symbol, "ut4");
         for(let i = 0; i < 18; i++) {
             // @ts-ignore
-            assert.equal(txn!.slp!.detail!.outputs![i].amount!.toString(), new BigNumber(perInputAmount.times(actualInputsCreated)).dividedBy(10**TOKEN_DECIMALS).toFixed());
+            assert.strictEqual(txn!.slp!.detail!.outputs![i].amount!.toString(), new BigNumber(perInputAmount.times(actualInputsCreated)).dividedBy(10**TOKEN_DECIMALS).toFixed());
         }
-        assert.equal(txn!.slp!.detail!.tokenIdHex, tokenId);
-        assert.equal(confirmed.length>0, true);
+        assert.strictEqual(txn!.slp!.detail!.tokenIdHex, tokenId);
+        assert.strictEqual(confirmed.length>0, true);
     });
 
     step("FOFI-1: Check that fan-in transaction is NOT in unconfirmed (after block)", async () => {
         let txn = await db.unconfirmedFetch(fiTxid);
         let unconfirmed = await db.db.collection("unconfirmed").find({}).toArray();
-        assert.equal(txn, null);
-        assert.equal(unconfirmed.length===0, true);
+        assert.strictEqual(txn, null);
+        assert.strictEqual(unconfirmed.length===0, true);
     });
 
     step("FOFI-1: Check that tokens collection is accurate (after block)", async () => {
@@ -419,15 +419,15 @@ describe("4-Fan-out-Fan-in", () => {
             await sleep(50);
             t = await db.tokenFetch(tokenId);
         }
-        assert.equal(t!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(t!.mintBatonUtxo, tokenId + ":2");
-        assert.equal(t!.tokenStats!.block_created! > 0, true);
-        // assert.equal(t!.tokenStats!.block_last_active_mint, null);
-        // assert.equal(t!.tokenStats!.block_last_active_send, lastBlockIndex);
-        // assert.equal(t!.tokenStats!.qty_token_burned.toString(), "0");
-        // assert.equal(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
-        // assert.equal(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
-        assert.equal(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
+        assert.strictEqual(t!.tokenDetails.tokenIdHex, tokenId);
+        assert.strictEqual(t!.mintBatonUtxo, tokenId + ":2");
+        assert.strictEqual(t!.tokenStats!.block_created! > 0, true);
+        // assert.strictEqual(t!.tokenStats!.block_last_active_mint, null);
+        // assert.strictEqual(t!.tokenStats!.block_last_active_send, lastBlockIndex);
+        // assert.strictEqual(t!.tokenStats!.qty_token_burned.toString(), "0");
+        // assert.strictEqual(t!.tokenStats!.qty_token_circulating_supply.toString(), TOKEN_GENESIS_QTY.toFixed());
+        // assert.strictEqual(t!.tokenStats!.qty_token_minted.toString(), TOKEN_GENESIS_QTY.toFixed());
+        assert.strictEqual(t!.mintBatonStatus, TokenBatonStatus.ALIVE);
     });
 
     step("FOFI-1: Check that fan-in transaction is in graphs (after block)", async () => {
@@ -436,9 +436,9 @@ describe("4-Fan-out-Fan-in", () => {
             await sleep(50);
             g = await db.db.collection("graphs").findOne({ "graphTxn.txid": fiTxid });
         }
-        assert.equal(g!.graphTxn.txid, fiTxid);
-        assert.equal(g!.tokenDetails.tokenIdHex, tokenId);
-        assert.equal(g!.graphTxn._blockHash.toString('hex'), lastBlockHash);
+        assert.strictEqual(g!.graphTxn.txid, fiTxid);
+        assert.strictEqual(g!.tokenDetails.tokenIdHex, tokenId);
+        assert.strictEqual(g!.graphTxn._blockHash.toString('hex'), lastBlockHash);
 
         // TODO: Check unspent outputs.
 
