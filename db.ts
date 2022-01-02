@@ -19,7 +19,7 @@ export class Db {
 
     private async checkClientStatus(): Promise<boolean> {
         if (!this.mongo) {
-            this.mongo = await MongoClient.connect(this.dbUrl, { useNewUrlParser: true, useUnifiedTopology: true });
+            this.mongo = await MongoClient.connect(this.dbUrl, { useNewUrlParser: true, useUnifiedTopology: true, connectTimeoutMS: 120000 });
             this.db = this.mongo.db(this.dbName);
             return true;
         }
